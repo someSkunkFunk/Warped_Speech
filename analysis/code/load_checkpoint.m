@@ -4,7 +4,7 @@ function checkpoint_data=checkpoint_load(load_path,expected_config)
 disp('this does nothing special yet.')
 checkpoint_data=load(load_path);
 config_fieldname=get_config_fieldname(checkpoint_data);
-load_config=checkpoint_data.config_fieldname;
+load_config=checkpoint_data.(config_fieldname{:});
 [validated,fields_diff]=validate_configs(expected_config,load_config);
 % if validated&&all_diffs_paths(fields_diff)
 % if validated&&all()
@@ -16,12 +16,13 @@ load_config=checkpoint_data.config_fieldname;
         %TODO: need to update such that it also finds configs contained as
         %subfields of outer-config
         checkpoint_fieldnames=fieldnames(checkpoint_data);
-        for fldnm=checkpoint_fieldnames
-            if contains(fldnm,'config')
-                config_fieldname=fldnm;
-            end
-        end
-        % config_fieldname=nan; % placeholder
+        config_fieldmask=cellfun(@(x) contains(x,'config'),checkpoint_fieldnames);
+        config_fieldname=checkpoint_fieldnames(config_fieldmask);
+        if numel(config_fieldname)~=1
+            fprintf('number of config-matched vars in checkpoint file:%d\n', ...
+                numel(config_fieldname))
+            error('either there is no config struct in checkpoint mat file or there are too many')
+        end   
     end
     function [validated,fields_diff]=validate_configs(expected_config, ...
             load_config)
@@ -52,7 +53,8 @@ load_config=checkpoint_data.config_fieldname;
                 fprintf(['since not checking fields that are uncommon ' ...
                     'to both expected and loaded config, this will ' ...
                     'likely erroneously return validated=true when ' ...
-                    'fieldnames are updated....']);
+                    'fieldnames are updated in case where expected config ' ...
+                    'has changed fields compared to previous version....']);
                 validated=true;
             end
         end
