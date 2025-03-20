@@ -26,7 +26,7 @@ do_nulltest=true;
 if exist(trf_config.nulldistribution_file,'file')&&load_old_fmt
     % load old-format
     disp('existing old-fmt trf mat file found, loading from mat.')
-    checkpoint_load(trf_config.nulldistribution_file)
+    load(trf_config.nulldistribution_file)
 else
 % do preprocessing...
     if exist(preprocess_config.matfile,'file')&&load_old_fmt
@@ -39,8 +39,9 @@ else
         %desired config options before loading
         disp(['not checking if configs match... ' ...
             'this will overwrite current configs'])
-        load(preprocess_config.preprocessed_eeg_path)
-        stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+        preprocess_checkpoint=...
+            load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
+        stim=load_stim_cell(preprocess_config.preprocessed_eeg);
     else
         %% preprocess from raw (bdf)
         fprintf('processing from bdf...\n')
@@ -86,7 +87,7 @@ if exist(trf_config.model_metric_path,'file')
         'set before loading\n'])
     % will load both stats_obs and stats_null (if they exist... at least
     % obs should if file does)
-    metric_checkpoint=checkpoint_load(trf_config.model_metric_path,trf_config);
+    metric_checkpoint=load_checkpoint(trf_config.model_metric_path,trf_config);
     if ismember('stats_obs',who('-file',trf_config.model_metric_path))
         stats_obs=metric_checkpoint.stats_obs;
         preload_stats_obs=true;
@@ -105,7 +106,7 @@ if exist(trf_config.model_metric_path,'file')
 end
 
 if exist(trf_config.trf_model_path,'file')
-    model_checkpoint=checkpoint_load(trf_config.trf_model_path,trf_config);
+    model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
     model=model_checkpoint;
     clear model_checkpoint
     preload_model=true;
