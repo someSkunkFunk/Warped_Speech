@@ -1,9 +1,8 @@
 function preprocess_config=config_preprocess(subj)
-
+global user_profile
+global boxdir_lab
+global boxdir_mine
 %preprocess params config file
-%TODO: after consolidating preprocessing params and related directories/
-% paths on this file, take all preprocessing params references out of 
-% other scripts have them call this script instead
 
 %TODO: allow function to take variable arguments to seletively change
 %specific params if necessary when function is called and not have to edit
@@ -27,7 +26,8 @@ bad_chans=[]; %TODO: verify findBadChans returns empty by default if none (seems
 
 %% stuff that doesn't generally need to change
 %TODO: use relative paths so this is no longer necessary
-user_profile=getenv('USERPROFILE');
+% NOTE: we ended up needing it because we want to track large files on box
+% user_profile=getenv('USERPROFILE');
 
 
 nchan = 128;
@@ -57,7 +57,7 @@ delay_time=1; %in seconds
 
 
 
-datafolder = sprintf('%s/Box/my box/LALOR LAB/oscillations project/MATLAB/Warped Speech/data/',user_profile);
+datafolder = sprintf('%s/data/',boxdir_mine);
 matfolder = sprintf('%smat/%g-%g_%s-ref_%dHz/%s',datafolder,bpfilter(1),bpfilter(2),ref,fs,speech_delay_corr_dir);
 matfile = sprintf('%swarpedSpeech_s%0.2d.mat',matfolder,subj);
 %above 2 replaced by  2 below
@@ -72,8 +72,9 @@ end
 %file containing all of them and then 
 behfile = sprintf('%ss%0.2d_WarpedSpeech.mat',datafolder,subj);
 bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf',datafolder,subj);
-envelopesFile=sprintf('../stimuli/WrinkleEnvelopes%dhz.mat',fs);
+envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat',boxdir_mine,fs);
 % for finding chanlocs file:
+% (note - probably should copy this into project for reliability)
 chanlocs_dir=sprintf('%s/Box/Lalor Lab Box/Code library/EEGpreprocessing/',user_profile);
 chanlocs_path=sprintf('%schanlocs.xyz',chanlocs_dir);
         

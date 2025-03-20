@@ -1,8 +1,8 @@
 function trf_config=config_trf(subj,do_lambda_optimization,preprocess_config)
 %% %trf params config file
-%TODO: after consolidating preprocessing params and related directories/
-% paths on this file, take all preprocessing params references out of 
-% other scripts have them call this script instead
+global user_profile
+global boxdir_lab
+global boxdir_mine
 fprintf(['note that variable called separate_conditions has been ' ...
     'replaced with do_lambda_optimization and downstream code will' ...
     'might need to be updated to reflect proper functionality if it uses' ...
@@ -47,17 +47,19 @@ end
 zscore_envs=false;
 norm_envs=true;
 zscore_eeg=true;
-
-user_profile=getenv('USERPROFILE');
+% 
+% user_profile=getenv('USERPROFILE');
 nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat', ...
     preprocess_config.matfolder,conditions_dir,cvdir,subj);
-envelopesFile=sprintf('../stimuli/WrinkleEnvelopes%dhz.mat', ...
+envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat', boxdir_mine, ...
     preprocess_config.fs);
 
 
 %% new format vars to replace single nuldistribution file output
-model_metric_path=sprintf('./metrics/warped_speech_s%0.2d.mat',subj);
-trf_model_path=sprintf('./models/warped_speech_s%0.2d.mat',subj);
+model_metric_path=sprintf('%s/analysis/metrics/warped_speech_s%0.2d.mat', ...
+    boxdir_mine,subj);
+trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
+    boxdir_mine,subj);
 
 model_metric_dir=fileparts(model_metric_path);
 if ~exist(model_metric_dir,'dir')

@@ -1,9 +1,14 @@
 
 %% config analysis
-clear
+clearvars -except user_profile boxdir_mine boxdir_lab
 clc
-dependencies_path=('../../dependencies/');
-addpath(genpath(dependencies_path));
+
+%TODO: remember which dependencies these were and if actually needed...
+% AND IF NEEDED FIX PATHS SPECIFIED... POSSIBLY BY RUNNING IN
+% BOXDIRS_STARTUP
+
+% dependencies_path=('../../dependencies/');
+% addpath(genpath(dependencies_path));
 %TODO: check if lambda optimization 'nulldistribution file exists already
 %before rerunning lambda_optimization
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
@@ -21,7 +26,7 @@ do_nulltest=true;
 if exist(trf_config.nulldistribution_file,'file')&&load_old_fmt
     % load old-format
     disp('existing old-fmt trf mat file found, loading from mat.')
-    load(trf_config.nulldistribution_file)
+    checkpoint_load(trf_config.nulldistribution_file)
 else
 % do preprocessing...
     if exist(preprocess_config.matfile,'file')&&load_old_fmt
@@ -57,7 +62,7 @@ else
         %     mkdir(preprocess_config.preprocessed_eeg_path)
         % end
         fprintf('saving to %s\n',preprocess_config.preprocessed_eeg_path)
-        save(preprocess_config.preprocessed_eeg_path,'preprocessed_eeg');
+        save(preprocess_config.preprocessed_eeg_path,'preprocessed_eeg','preprocess_config');
     end
 end
 %% TRF ANALYSIS
@@ -79,9 +84,14 @@ if exist(trf_config.model_metric_path,'file')
         'TODO: update script so that it checks if file contains a \n' ...
         'might overwrite specified config structs config structure \n' ...
         'set before loading\n'])
+    % will load both stats_obs and stats_null (if they exist... at least
+    % obs should if file does)
+    metric_checkpoint=checkpoint_load(trf_config.model_metric_path,trf_config);
     if ismember('stats_obs',who('-file',trf_config.model_metric_path))
+        stats_obs=metric_checkpoint.stats_obs;
         preload_stats_obs=true;
         if ismember('stats_null',who('-file',trf_config.model_metric_path))
+            stats_null=metric_checkpoint.stats_null;
             preload_stats_null=true;
         % else
         %     preload_stats_null=false;
@@ -89,14 +99,15 @@ if exist(trf_config.model_metric_path,'file')
     % else
     %     preload_stats_obs=false;
     end
-    % will load both stats_obs and stats_null (if they exist... at least
-    % obs should if file does)
-    load(trf_config.model_metric_path);
-
+    clear metric_checkpoint
+    
+    
 end
 
 if exist(trf_config.trf_model_path,'file')
-    load(trf_config.trf_model_path);
+    model_checkpoint=checkpoint_load(trf_config.trf_model_path,trf_config);
+    model=model_checkpoint;
+    clear model_checkpoint
     preload_model=true;
 % else
 %     preload_model=false;    
@@ -140,8 +151,6 @@ else
 end
 %% CONTINUE HERE
 if ~preload_model
-    fprintf('training model with lambda value= %0.2g\n',best_lam)
-    % disp('training model...')
     %%
     model=train_model(stim,preprocessed_eeg,best_lam,trf_config);
     %%
@@ -387,9 +396,8 @@ function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
             error('dont do both normalization and z-scoring on envelopes')
         end
         disp('z-scoring envelopes')
-        load(preprocess_config.envelopesFile,'mu','sigma');
-        % NOTE: i wonder if stim not ebeing returned still updates stim in
-        % outside-function workspace??
+        oad(preprocess_config.envelopesFile,'mu','sigma');
+
         stim=cellfun(@(x) (x-mu)/sigma, stim,'UniformOutput',false);
     end
     if trf_config.norm_envs

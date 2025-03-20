@@ -1,11 +1,11 @@
 % Helper script to manage input data access and output storage on box drive
 global user_profile
-global input_boxdir
-global output_boxdir
+global boxdir_mine
+global boxdir_lab
 user_profile=getenv('USERPROFILE');
 %TODO move stuff around so this is easier to access/shorter path
-output_boxdir=sprintf(['%s/Box/my box/LALOR LAB/oscillations project/' ...
+boxdir_mine=sprintf(['%s/Box/my box/LALOR LAB/oscillations project/' ...
     'MATLAB/Warped Speech'],user_profile);
 
-input_boxdir=sprintf(['%s/Box/Lalor Lab Box/Research Projects/' ...
+boxdir_lab=sprintf(['%s/Box/Lalor Lab Box/Research Projects/' ...
     'Aaron - Warped Speech'],user_profile);
