@@ -6,7 +6,7 @@ checkpoint_data=load(load_path);
 config_fieldname=get_config_fieldname(checkpoint_data);
 load_config=checkpoint_data.config_fieldname;
 [validated,fields_diff]=validate_configs(expected_config,load_config);
-if validated&&all_diffs_paths(fields_diff)
+% if validated&&all_diffs_paths(fields_diff)
 % if validated&&all()
 
 
@@ -17,7 +17,7 @@ if validated&&all_diffs_paths(fields_diff)
         %subfields of outer-config
         checkpoint_fieldnames=fieldnames(checkpoint_data);
         for fldnm=checkpoint_fieldnames
-            if contains(flnm,'config')
+            if contains(fldnm,'config')
                 config_fieldname=fldnm;
             end
         end
