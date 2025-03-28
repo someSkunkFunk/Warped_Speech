@@ -41,7 +41,11 @@ else
             'this will overwrite current configs'])
         preprocess_checkpoint=...
             load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
-        stim=load_stim_cell(preprocess_config.preprocessed_eeg);
+        preprocess_config=preprocess_checkpoint.preprocess_config;
+        % NOTE: was preprocessed_eeg supposed to be contained in config???
+        % i think not...
+        preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
+        stim=load_stim_cell(preprocess_config,preprocessed_eeg);
     else
         %% preprocess from raw (bdf)
         fprintf('processing from bdf...\n')
