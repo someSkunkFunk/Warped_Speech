@@ -15,7 +15,7 @@ clc
 %that differentiates them from condition-specific TRFs
 load_old_fmt=false;
 subj = 15;
-do_lambda_optimization=true;
+do_lambda_optimization=false;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 do_nulltest=true;
@@ -128,7 +128,13 @@ if ~preload_stats_obs
     % crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
-    save(trf_config.model_metric_path,'stats_obs','trf_config');
+    if exists(trf_config.model_metric_path,'file')&&trf_config.separate_conditions
+        temp_combined_conditions_data=load(trf_config.model_metric_path,'stats_obs');
+        stats_obs=[temp_combined_conditions_data.stats_obs, stats_obs];
+        save(trf_config.model_metric_path,'stats_obs','trf_config');
+    else
+        save(trf_config.model_metric_path,'stats_obs','trf_config');
+    end
 end
 
 % NOTE: best-lambda stuff below might be pre-loadable?
@@ -354,8 +360,8 @@ end
 end
 
 function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
-error(['need to change structure indexing here, ' ...
-    'reserve first dimension for distinct parameter configurations'])
+fprintf(['need to change structure indexing here, ' ...
+    'distinct parameter configurations organization system is lacking\n'])
 % stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
 resp=preprocessed_eeg.resp;
 if trf_config.do_lambda_optimization
@@ -380,11 +386,11 @@ if trf_config.separate_conditions
         % stats_obs=cell(numel(conditions),1);
         for cc=conditions
             cc_mask=cond==cc;
-            stats_obs(cc,2)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
+            stats_obs(cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
                 cv_tmin_ms,cv_tmax_ms,cv_lam,'Verbose',0);
         end
     else
-        stats_obs(1,1) = mTRFcrossval(stim,resp,fs,1,cv_tmin_ms,cv_tmax_ms,cv_lam, ...
+        stats_obs(1) = mTRFcrossval(stim,resp,fs,1,cv_tmin_ms,cv_tmax_ms,cv_lam, ...
             'Verbose',0);
 end
 end
