@@ -1,26 +1,29 @@
 function checkpoint_data=load_checkpoint(load_path,expected_config)
+try
 % my custom loading function for loading saved checkpoint vars while
 % validating configs
-disp('this does nothing special yet.')
-checkpoint_data=load(load_path);
-config_fieldname=get_config_fieldname(checkpoint_data);
-load_config=checkpoint_data.(config_fieldname{:});
-mismatched_fields=validate_configs(expected_config,load_config);
-if all_are_paths(mismatched_fields)
-    fprintf(['since not checking fields that are uncommon ' ...
-        'to both expected and loaded config, this will ' ...
-        'likely erroneously return validated=true when ' ...
-        'fieldnames are updated in case where expected config ' ...
-        'has changed fields compared to previous version....\n']);
-    % replace checkpoint data config and save it to file also
-    checkpoint_data.(config_fieldname{:})=expected_config;    
-    % create temporary struct to save updated config to file without
-    % overwriting other variables in the file
-    temp_data.(config_fieldname{:})=expected_config;
-    % update_saved_config_paths(load_path,expected_config);
-    save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
+    checkpoint_data=load(load_path);
+    config_fieldname=get_config_fieldname(checkpoint_data);
+    load_config=checkpoint_data.(config_fieldname{:});
+    mismatched_fields=validate_configs(expected_config,load_config);
+    if all_are_paths(mismatched_fields)
+        fprintf(['since not checking fields that are uncommon ' ...
+            'to both expected and loaded config, this will ' ...
+            'likely erroneously return validated=true when ' ...
+            'fieldnames are updated in case where expected config ' ...
+            'has changed fields compared to previous version....\n']);
+        % replace checkpoint data config and save it to file also
+        checkpoint_data.(config_fieldname{:})=expected_config;    
+        % create temporary struct to save updated config to file without
+        % overwriting other variables in the file
+        temp_data.(config_fieldname{:})=expected_config;
+        % update_saved_config_paths(load_path,expected_config);
+        save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
+    end
+catch ME
+    fprintf('wtf...')
+    rethrow(ME)
 end
-
 
     function config_fieldname=get_config_fieldname(checkpoint_data)
         %NOTE function assumes (for simplicity) that only ony config file
@@ -71,22 +74,24 @@ end
     function paths_only=all_are_paths(mismatched_fields)
         %TODO: smarter way of doing this??? only needs to run once probably
         %though..
-        paths_only=true;
-        for ii_field=1:length(mismatched_fields)
-            % skip empty ones... first nonpath returns false
-            if ~isempty(mismatched_fields{ii_field})
-                expected_val=mismatched_fields{ii_field,1};
-                field_name=mismatched_fields{ii_field,3};
-                if contains(field_name,'config')
-                    fprintf('%s config field not replaced but also not registering as erroneous.\n')
-                elseif ~(isfolder(expected_val)||isfile(expected_val))
-                        paths_only=false;
+        try
+            paths_only=true;
+            for ii_field=1:length(mismatched_fields)
+                % skip empty ones... first nonpath returns false
+                if ~isempty(mismatched_fields{ii_field})
+                    expected_val=mismatched_fields{ii_field,1};
+                    field_name=mismatched_fields{ii_field,3};
+                    if contains(field_name,'config')
+                        fprintf('%s config field not replaced but also not registering as erroneous.\n')
+                    elseif ~(isfolder(expected_val)||isfile(expected_val))
+                            paths_only=false;
+                    end
                 end
             end
+        catch ME
+            fprintf('something is not a string here...?\n%s\n',expected_val)
+            rethrow(ME)
         end
     end
-    function update_saved_config_paths(load_path,expected_config)
-        %overwrite existing config if only difference is paths
-        ;
-    end
+
 end
