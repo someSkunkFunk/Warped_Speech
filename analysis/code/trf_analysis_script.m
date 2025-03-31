@@ -13,7 +13,6 @@ clc
 %before rerunning lambda_optimization
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
 %that differentiates them from condition-specific TRFs
-load_old_fmt=false;
 subj = 15;
 do_lambda_optimization=false;
 preprocess_config=config_preprocess(subj);
@@ -22,54 +21,37 @@ do_nulltest=true;
 
 
 
-% skip preprocessing... 
-if exist(trf_config.nulldistribution_file,'file')&&load_old_fmt
-    % load old-format
-    disp('existing old-fmt trf mat file found, loading from mat.')
-    load(trf_config.nulldistribution_file)
-else
-% do preprocessing...
-    if exist(preprocess_config.matfile,'file')&&load_old_fmt
-        %load old format
-        disp('existing old-fmt preprocessed mat file found, loading from mat.')
-        load(preprocess_config.matfile,'stim','resp','events','cond','fs')
-    elseif exist(preprocess_config.preprocessed_eeg_path,'file')
-        disp('existing new-fmt preprocessed mat file found, loading from it.')
-        %TODO: add config-checking function here to ensure that it matches
-        %desired config options before loading
-        disp(['not checking if configs match... ' ...
-            'this will overwrite current configs'])
-        preprocess_checkpoint=...
-            load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
+%% check if preprocessed data exists...
+preload_preprocessed=false;
+if exist(preprocess_config.preprocessed_eeg_path,'file')
+    fprintf(['existing new-fmt preprocessed mat file found, loading ' ...
+        'from %s.\n'],preprocess_config.preprocessed_eeg_path)
+    preprocess_checkpoint=...
+        load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
+    if preprocess_checkpoint.desired_config_found
+        preload_preprocessed=true;
         preprocess_config=preprocess_checkpoint.preprocess_config;
-        % NOTE: was preprocessed_eeg supposed to be contained in config???
-        % i think not...
         preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
         stim=load_stim_cell(preprocess_config,preprocessed_eeg);
     else
-        %% preprocess from raw (bdf)
-        fprintf('processing from bdf...\n')
-        
-        preprocessed_eeg=preprocess_eeg(preprocess_config);
-        
-        stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-        % get stim and resp to have same durations
-        preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
-
-        % OLD FORMAT SAVE:
-        % if ~exist(preprocess_config.matfolder,'dir')
-        %     mkdir(preprocess_config.matfolder)
-        % end
-        % save(matfile,'stim','resp','events','cond','fs','interpBadChans')
-        %NEW FORMAT PREPROCESSED EEG SAVE:
-        % if ~exist(preprocess_config.preprocessed_eeg_dir,'dir')
-        %     fprintf('%s DNE - making path ...\n',preprocess_config.preprocessed_eeg_path)
-        %     mkdir(preprocess_config.preprocessed_eeg_path)
-        % end
-        fprintf('saving to %s\n',preprocess_config.preprocessed_eeg_path)
-        save(preprocess_config.preprocessed_eeg_path,'preprocessed_eeg','preprocess_config');
+        fprintf(['%s did not contain results with specified config, ' ...
+            'assuming new data needs to be saved to it....\n'], ...
+            preprocess_config.preprocessed_eeg_path)
     end
 end
+%% preprocess from raw (bdf)
+if ~preload_preprocessed
+    fprintf('processing from bdf...\n')
+    preprocessed_eeg=preprocess_eeg(preprocess_config);
+    stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+    % trim resp to have same durations as stim (only need to do during
+    % preprocessing)
+    preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
+    fprintf('saving to %s\n',preprocess_config.preprocessed_eeg_path)
+    % save(preprocess_config.preprocessed_eeg_path,'preprocessed_eeg','preprocess_config');
+    save_checkpoint(preprocess_config,preprocessed_eeg);
+end
+
 %% TRF ANALYSIS
 %TODO: handle cases where only a subset of {model, stats_obs,
     %stats_null} exist in file and start evaluation from appropriate start
@@ -129,11 +111,14 @@ if ~preload_stats_obs
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
     if exists(trf_config.model_metric_path,'file')&&trf_config.separate_conditions
+        error('this step now should happen in save_checkpoint');
         temp_combined_conditions_data=load(trf_config.model_metric_path,'stats_obs');
         stats_obs=[temp_combined_conditions_data.stats_obs, stats_obs];
-        save(trf_config.model_metric_path,'stats_obs','trf_config');
+        % save(trf_config.model_metric_path,'stats_obs','trf_config');
+        save_checkpoint(trf_config,stats_obs);
     else
-        save(trf_config.model_metric_path,'stats_obs','trf_config');
+        save_checkpoint(trf_config,stats_obs);
+        % save(trf_config.model_metric_path,'stats_obs','trf_config');
     end
 end
 
@@ -153,10 +138,12 @@ else
     best_lam=trf_config.best_lam;
 end
 if do_nulltest && ~preload_stats_null
-    % CONTINUE HERE
+    
     stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
+    error('stuff below should take place in save_checkpoint...')
     fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
-    save(trf_config.model_metric_path,'stats_null','-append')
+    % save(trf_config.model_metric_path,'stats_null','-append')
+    save_checkpoint(trf_config,stats_null);
 else
     disp('not doing null test (or preloaded previous results)')
 end
@@ -166,7 +153,8 @@ if ~preload_model
     model=train_model(stim,preprocessed_eeg,best_lam,trf_config);
     %%
     fprintf('saving model to %s\n...',trf_config.trf_model_path)
-    save(trf_config.trf_model_path,'model','trf_config');
+    % save(trf_config.trf_model_path,'model','trf_config');
+    save_checkpoint(trf_config,model);
 end
 %% UNFINISHED
     % OLD FORMAT SAVE
