@@ -31,16 +31,17 @@ if exist(preprocess_config.preprocessed_eeg_path,'file')
         'from %s.\n'],preprocess_config.preprocessed_eeg_path)
     preprocess_checkpoint=...
         load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
-    if preprocess_checkpoint.desired_config_found
-        preload_preprocessed=true;
-        preprocess_config=preprocess_checkpoint.preprocess_config;
-        preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
-        stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-    else
-        fprintf(['%s did not contain results with specified config, ' ...
-            'assuming new data needs to be saved to it....\n'], ...
-            preprocess_config.preprocessed_eeg_path)
-    end
+    % if preprocess_checkpoint.desired_config_found
+    preload_preprocessed=true;
+    preprocess_config=preprocess_checkpoint.preprocess_config;
+    preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
+    clear preprocess_checkpoint
+    stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+    % else
+    %     fprintf(['%s did not contain results with specified config, ' ...
+    %         'assuming new data needs to be saved to it....\n'], ...
+    %         preprocess_config.preprocessed_eeg_path)
+    % end
 end
 %% preprocess from raw (bdf)
 if ~preload_preprocessed
@@ -56,11 +57,8 @@ if ~preload_preprocessed
 end
 
 %% TRF ANALYSIS
-%TODO: handle cases where only a subset of {model, stats_obs,
-    %stats_null} exist in file and start evaluation from appropriate start
-    %point in each case
 
-%% TODO: replace native existance check with custom wrapper that not only
+% TODO: replace native existance check with custom wrapper that not only
 %checks existance but also for matching specified configurations - same
 %with load
 
@@ -83,11 +81,7 @@ if exist(trf_config.model_metric_path,'file')
         if ismember('stats_null',who('-file',trf_config.model_metric_path))
             stats_null=metric_checkpoint.stats_null;
             preload_stats_null=true;
-        % else
-        %     preload_stats_null=false;
         end
-    % else
-    %     preload_stats_obs=false;
     end
     clear metric_checkpoint
     
@@ -99,8 +93,7 @@ if exist(trf_config.trf_model_path,'file')
     model=model_checkpoint;
     clear model_checkpoint
     preload_model=true;
-% else
-%     preload_model=false;    
+
 end
 % .... function ends here
 %% continue analysis...
@@ -401,7 +394,7 @@ function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
 
     if trf_config.zscore_eeg
         disp('z-scoring eeg')
-        % concatenate all trials
+            % concatenate all trials
         resp_cat=cat(1,preprocessed_eeg.resp{:,:});
         % z-score all the channels together
         eeg_mu=mean(resp_cat,'all');

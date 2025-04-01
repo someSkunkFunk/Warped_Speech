@@ -4,12 +4,13 @@ function checkpoint_data=load_checkpoint(load_path,expected_config)
 %already OR append to existing struct and only check that second struct
 %fields match (except for maybe paths)
 found_desired_config=false;
+overwrite_saved_config=false;
 try
 % my custom loading function for loading saved checkpoint vars while
 % validating configs
     checkpoint_data=load(load_path);
     checkpoint_varnames=fieldnames(checkpoint_data);
-    config_mask=cellfun(@(x) contains(x,'config',checkpoint_varnames));
+    config_mask=cellfun(@(x) contains(x,'config'),checkpoint_varnames);
     config_fieldname=checkpoint_varnames(config_mask);
     data_fieldname=checkpoint_varnames(~config_mask);
     % config_fieldname=get_config_fieldname(checkpoint_data);
@@ -18,7 +19,13 @@ try
     for nc=1:n_configs
     % loop thru different configurations
         mismatched_fields=validate_configs(expected_config,load_config(nc));
-        if all_are_paths(mismatched_fields)
+        if all(cellfun(@isempty,mismatched_fields),'all')
+            found_desired_config=true;
+            break
+        elseif all_are_paths(mismatched_fields)
+            %NOTE: all_are_paths will erroneously try and overwrite
+            %existing config when mismatched_fields is empty
+
             fprintf(['since not checking fields that are uncommon ' ...
                 'to both expected and loaded config, this will ' ...
                 'likely erroneously return validated=true when ' ...
@@ -26,27 +33,29 @@ try
                 'has changed fields compared to previous version....\n']);
             
             found_desired_config=true;
-            % create temporary struct to save updated config to file without
-            % overwriting other variables in the file
-            temp_data.(config_fieldname{:})=expected_config;
-            % update_saved_config_paths(load_path,expected_config);
-            % TODO: LINE BELOW SEEMS INCORRECT...?
-            % its only job is to re-write paths in config file... will need
-            % to test it in debug mode 
-            save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
+            if overwrite_saved_config
+                % create temporary struct to save updated config to file without
+                % overwriting other variables in the file
+                temp_data.(config_fieldname{:})=expected_config;
+                % update_saved_config_paths(load_path,expected_config);
+                % NOTE: muted line below was in case temp_data contained
+                % multiple variables and we wanted to specifically save the one
+                % corresponding to confing_fieldname... but I don't think we'll
+                % end up with multple fields in temp_data so unnecessary...?
+                % save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
+                error('need to update saving strategy so existing config is not erased...')
+                save(load_path,'-struct','temp_data','-append')
+            end
             % exit loop
-            break
-        elseif all(cellfun(@isempty,mismatched_fields),'all')
-            found_desired_config=true;
             break
         end
     end
     if found_desired_config
         % replace checkpoint data config (which may contain multiple) with
         % single desired config
-        checkpoint_data.(config_fieldname)=expected_config;
-        temp_data=checkpoint_data.(data_fieldname);
-        checkpoint_data.(data_fieldname)=temp_data(nc);
+        checkpoint_data.(config_fieldname{:})=expected_config;
+        temp_data=checkpoint_data.(data_fieldname{:});
+        checkpoint_data.(data_fieldname{:})=temp_data(nc);
     else
         error('specified config not found in file: %s',load_path);
     end
@@ -101,9 +110,10 @@ end
     end
     function paths_only=all_are_paths(mismatched_fields)
         %TODO: smarter way of doing this??? only needs to run once probably
-        %though..
-        %TODO: 
+        %though...
         try
+            % NOTE ASSUMING TRUE BECAUSE ONLY FEEDING TO THIS FUNCTION WHEN
+            % MISMATCHED FIELDS ARE NOT ALL EMPTY
             paths_only=true;
             for ii_field=1:length(mismatched_fields)
                 % skip empty ones... first nonpath returns false
