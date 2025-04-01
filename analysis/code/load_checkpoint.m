@@ -3,16 +3,20 @@ function checkpoint_data=load_checkpoint(load_path,expected_config)
 %which case gotta either save configs separately and ignore the one in file
 %already OR append to existing struct and only check that second struct
 %fields match (except for maybe paths)
-desired_config_found=false;
+found_desired_config=false;
 try
 % my custom loading function for loading saved checkpoint vars while
 % validating configs
     checkpoint_data=load(load_path);
-    config_fieldname=get_config_fieldname(checkpoint_data);
+    checkpoint_varnames=fieldnames(checkpoint_data);
+    config_mask=cellfun(@(x) contains(x,'config',checkpoint_varnames));
+    config_fieldname=checkpoint_varnames(config_mask);
+    data_fieldname=checkpoint_varnames(~config_mask);
+    % config_fieldname=get_config_fieldname(checkpoint_data);
     load_config=checkpoint_data.(config_fieldname{:});
     n_configs=numel(load_config);
     for nc=1:n_configs
-    
+    % loop thru different configurations
         mismatched_fields=validate_configs(expected_config,load_config(nc));
         if all_are_paths(mismatched_fields)
             fprintf(['since not checking fields that are uncommon ' ...
@@ -21,21 +25,28 @@ try
                 'fieldnames are updated in case where expected config ' ...
                 'has changed fields compared to previous version....\n']);
             
-            desired_config_found=true;
+            found_desired_config=true;
             % create temporary struct to save updated config to file without
             % overwriting other variables in the file
             temp_data.(config_fieldname{:})=expected_config;
             % update_saved_config_paths(load_path,expected_config);
+            % TODO: LINE BELOW SEEMS INCORRECT...?
+            % its only job is to re-write paths in config file... will need
+            % to test it in debug mode 
             save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
             % exit loop
             break
-        % elseif 
+        elseif all(cellfun(@isempty,mismatched_fields),'all')
+            found_desired_config=true;
+            break
         end
     end
-    if desired_config_found
+    if found_desired_config
         % replace checkpoint data config (which may contain multiple) with
         % single desired config
-            checkpoint_data.(config_fieldname{:})=expected_config;
+        checkpoint_data.(config_fieldname)=expected_config;
+        temp_data=checkpoint_data.(data_fieldname);
+        checkpoint_data.(data_fieldname)=temp_data(nc);
     else
         error('specified config not found in file: %s',load_path);
     end
@@ -65,9 +76,7 @@ end
         % note that preallocating will leave some empty arrays at end...
         mismatched_fields=cell(max(numel(fieldnames(expected_config)), ...
             numel(fieldnames(load_config))),3);
-        if isequal(expected_config,load_config)
-            validated=true;
-        else
+        if ~isequal(expected_config,load_config)
             %get fieldnames and values out, inpsect if only difference is path-based
             %TODO: consider case where field names in expected vs saved
             %config have changed (probably want to use setdiff here)

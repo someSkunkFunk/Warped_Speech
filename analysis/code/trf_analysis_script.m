@@ -17,6 +17,9 @@ subj = 15;
 do_lambda_optimization=false;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+%NOTE: do_nulltest=false case may complicate config validation if we
+%suddenly choose to do a different analysis configuration... but maybe
+%not... should check this
 do_nulltest=true;
 
 
@@ -111,15 +114,16 @@ if ~preload_stats_obs
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
     if exists(trf_config.model_metric_path,'file')&&trf_config.separate_conditions
-        error('this step now should happen in save_checkpoint');
-        temp_combined_conditions_data=load(trf_config.model_metric_path,'stats_obs');
-        stats_obs=[temp_combined_conditions_data.stats_obs, stats_obs];
+        % error('this step now should happen in save_checkpoint');
+        % temp_combined_conditions_data=load(trf_config.model_metric_path,'stats_obs');
+        % stats_obs=[temp_combined_conditions_data.stats_obs, stats_obs];
         % save(trf_config.model_metric_path,'stats_obs','trf_config');
         save_checkpoint(trf_config,stats_obs);
-    else
-        save_checkpoint(trf_config,stats_obs);
-        % save(trf_config.model_metric_path,'stats_obs','trf_config');
     end
+    % else
+    %     save_checkpoint(trf_config,stats_obs);
+    %     % save(trf_config.model_metric_path,'stats_obs','trf_config');
+    % end
 end
 
 % NOTE: best-lambda stuff below might be pre-loadable?
@@ -137,17 +141,7 @@ else
         'optimization result?'])
     best_lam=trf_config.best_lam;
 end
-if do_nulltest && ~preload_stats_null
-    
-    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
-    error('stuff below should take place in save_checkpoint...')
-    fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
-    % save(trf_config.model_metric_path,'stats_null','-append')
-    save_checkpoint(trf_config,stats_null);
-else
-    disp('not doing null test (or preloaded previous results)')
-end
-%% CONTINUE HERE
+
 if ~preload_model
     %%
     model=train_model(stim,preprocessed_eeg,best_lam,trf_config);
@@ -156,13 +150,21 @@ if ~preload_model
     % save(trf_config.trf_model_path,'model','trf_config');
     save_checkpoint(trf_config,model);
 end
-%% UNFINISHED
-    % OLD FORMAT SAVE
-    % nulldir=fileparts(nulldistribution_file);
-    % if ~exist(nulldir,'dir'), mkdir(nulldir);end
-    % save(nulldistribution_file)
-nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 
+if do_nulltest && ~preload_stats_null
+    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
+    % error('stuff below should take place in save_checkpoint...')
+    % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
+    % save(trf_config.model_metric_path,'stats_null','-append')
+    save_checkpoint(trf_config,stats_null);
+else
+    disp('not doing null test (or preloaded previous results)')
+end
+
+
+if do_nulltest
+    nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
+end
 %% Helpers
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 % nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
@@ -182,7 +184,11 @@ end
 
 %TODO: double-check averaging across trials correctly in separate
 %conditions case (especially once it contains multiple versions in last dimension)
-
+disp('cc indexing below might need double checking...')
+%NOTE: although it's possible I'm wrong and will work fine so long as we
+%select correct sub-structures out during load_checkpoint... i think
+%cc_trials_idx below comes from first array dimension referenccing
+%individual trials, not our configs
 if trf_config.separate_conditions
     for cc=conditions
         cc_trials_idx=find(preprocessed_eeg.conditions==cc);
@@ -279,25 +285,13 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
             for cc=conditions
                 % fprintf('null TRF for condition %d...\n',cc)
                 cc_mask=cond==cc;
-                % r_obs(cc,:) = squeeze(mean(stats_obs{cc}.r,1));
-                stats_null(cc,2,n_perm)=mTRFcrossval(stim(cc_mask), ...
+                stats_null(1,cc,n_perm)=mTRFcrossval(stim(cc_mask), ...
                     resp_shuf(cc_mask),fs,1,cv_tmin_ms,cv_tmax_ms, ...
                     model_lam,'Verbose',0);
-                % r_null(cc,ii,:) = squeeze(mean(stats_null(cc,2).r,1));
             end
         else
-            % if isscalar(lam)
-            %     % obs_rvals=stats_obs.r;
-            % else
-            %     %todo:verify this is valid? don't care about actual
-            %     %result anyhow so just leaving as is so that script
-            %     %fucking runs
-            %     obs_rvals=squeeze(stats_obs.r(:,best_lam_idx,:));
-            % end
-            % r_obs(1,:) = squeeze(mean(obs_rvals,1));
             stats_null(1,1,n_perm) = mTRFcrossval(stim,resp_shuf,fs,1,cv_tmin_ms, ...
                 cv_tmax_ms,model_lam,'Verbose',0);
-            % r_null(ii,:) = squeeze(mean(stats_null.r,1));
         end
     end
 end
@@ -316,7 +310,7 @@ if trf_config.separate_conditions
         for cc=conditions
             fprintf('TRF for condition %d...\n',cc)
             cc_mask=cond==cc;
-            model(cc,2)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
+            model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
                 tmin_ms,tmax_ms,model_lam,'Verbose',1);
         end
     else
@@ -374,12 +368,12 @@ if trf_config.separate_conditions
         % stats_obs=cell(numel(conditions),1);
         for cc=conditions
             cc_mask=cond==cc;
-            stats_obs(cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
+            stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
                 cv_tmin_ms,cv_tmax_ms,cv_lam,'Verbose',0);
         end
-    else
-        stats_obs(1) = mTRFcrossval(stim,resp,fs,1,cv_tmin_ms,cv_tmax_ms,cv_lam, ...
-            'Verbose',0);
+else
+    stats_obs = mTRFcrossval(stim,resp,fs,1,cv_tmin_ms,cv_tmax_ms,cv_lam, ...
+        'Verbose',0);
 end
 end
 
