@@ -107,17 +107,9 @@ if ~preload_stats_obs
     % crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
-    if exists(trf_config.model_metric_path,'file')&&trf_config.separate_conditions
-        % error('this step now should happen in save_checkpoint');
-        % temp_combined_conditions_data=load(trf_config.model_metric_path,'stats_obs');
-        % stats_obs=[temp_combined_conditions_data.stats_obs, stats_obs];
-        % save(trf_config.model_metric_path,'stats_obs','trf_config');
+    if exist(trf_config.model_metric_path,'file')&&trf_config.separate_conditions 
         save_checkpoint(trf_config,stats_obs);
     end
-    % else
-    %     save_checkpoint(trf_config,stats_obs);
-    %     % save(trf_config.model_metric_path,'stats_obs','trf_config');
-    % end
 end
 
 % NOTE: best-lambda stuff below might be pre-loadable?
@@ -133,7 +125,7 @@ else
     disp(['need to figure out what to do here ... ' ...
         'if we want a specific value that isnt the same as ' ...
         'optimization result?'])
-    best_lam=trf_config.best_lam;
+    best_lam=fetch_optimized_lam(trf_config);
 end
 
 if ~preload_model
@@ -158,13 +150,17 @@ if do_nulltest
     nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 end
 %% Helpers
-function best_lam=find_optimized_lam(trf_config)
-% best_lam=find_optimized_lam(trf_config)
-    % pull best_lam from trf_config associated with condition-agnostic trf
+function best_lam=fetch_optimized_lam(trf_config)
+% best_lam=fetch_optimized_lam(trf_config)
+% pull best_lam from trf_config associated with condition-agnostic trf
     optim_config=config_trf(trf_config.preprocess_config.subj,true, ...
         trf_config.preprocess_config);
-    optim_checkpoint=load_checkpoint(optim_config.model_metric_path,optim_config);
-    best_lam=optim_checkpoint.trf_config.best_lam;
+    disp(['NOTE: we didnt save optim lambda in trf_config during condition',...
+    'agnostic so will need to re-evaluate.... should just save it for',...
+    'future subjects so we dont have to keep calling this function'])
+    optim_checkpoint=load_checkpoint(optim_config.model_metric_path,optim_config,false);
+    [best_lam,~,~]=get_best_lam(optim_checkpoint.stats_obs,optim_checkpoint.trf_config);
+
 end
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 % nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
@@ -299,10 +295,10 @@ resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
 if trf_config.separate_conditions
         disp('evaluating trf models separately per condition')
-        % model=cell(numel(conditions),1);
+        conditions=unique(preprocessed_eeg.cond)';
         for cc=conditions
+            cc_mask=preprocessed_eeg.cond==cc;
             fprintf('TRF for condition %d...\n',cc)
-            cc_mask=cond==cc;
             model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
                 tmin_ms,tmax_ms,model_lam,'Verbose',1);
         end
@@ -344,7 +340,7 @@ if trf_config.do_lambda_optimization
 else
     %TODO: reference trf_config from condition-agnostic trf to determine
     %best_lam value...
-    trf_config.best_lam=find_optimized_lam(trf_config);
+    trf_config.best_lam=fetch_optimized_lam(trf_config);
     cv_lam=trf_config.best_lam;
 end
 fs=preprocessed_eeg.fs;
@@ -359,11 +355,8 @@ if trf_config.separate_conditions
         % 1.5,1,.67 time compress factor or smallest to largest time
         % compress factor (so fast->slow .67,1,1.5)... can't remember
         conditions=unique(preprocessed_eeg.cond)';
-        %OLD-fmt-do not use anymnore
-        % assuming cells preserve order, can map back to original 
-        % stats_obs=cell(numel(conditions),1);
         for cc=conditions
-            cc_mask=cond==cc;
+            cc_mask=preprocessed_eeg.cond==cc;
             stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
                 cv_tmin_ms,cv_tmax_ms,cv_lam,'Verbose',0);
         end

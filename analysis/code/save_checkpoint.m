@@ -33,20 +33,27 @@ config_output_paths.stats_obs='model_metric_path';
 config_output_paths.stats_null='model_metric_path';
 config_output_paths.preprocessed_eeg='preprocessed_eeg_path';
 config_output_paths.model='trf_model_path';
-
-output_path=config_output_paths.(data_name);
-output_stage=0;
+%NOTE: output path was previously erroneously specified but function did
+%not throw any errors at the subequent logic-control blocks... until
+%reaching the switch block... not sure why that might be but could be
+%useful to know for future reference?
+output_path=output_config.(config_output_paths.(data_name));
+% output_stage=0;
 if exist(output_path,"file")
-    output_stage=output_stage+1;
+    output_stage=1;
+else
+    output_stage=0;
 end
 if output_stage>0&&ismember(data_name,who("-file",output_path))
     % file contains output var, need to append current result to it
-    output_stage=output_stage+2;
-else
-    % file does not contain output var
     output_stage=output_stage+1;
+% else
+%     % file does not contain output var
+%     output_stage=output_stage+1;
 end
 %TODO: verify each save case!!!
+fprintf(['TODO: make this function save a copy of original file ' ...
+    '(in cases 1/2) in case something goes wrong...\n'])
 switch output_stage
     case 0
         %% initialize nonexisting file 
@@ -63,6 +70,8 @@ switch output_stage
 
     case 2
         %% append current data var + config to end of existing data var
+        % NOTE: case 2 nearly verified... just need to check actual file
+        % contents against copy to see that old stuff preserved
         % vars, then re-save file
         % output_struct=struct(config_name,output_config,data_name,output_data);
         existing_file_data=load(output_path);
@@ -96,6 +105,9 @@ switch output_stage
         
         
         save(output_path,"-struct","output_struct","-append")
+    otherwise
+        fprintf('unaccounted checkpoint_save case %d... nothing saved\n', ...
+            output_stage)
 
 end
 end

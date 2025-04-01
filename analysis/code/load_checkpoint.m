@@ -1,12 +1,18 @@
-function checkpoint_data=load_checkpoint(load_path,expected_config)
+function checkpoint_data=load_checkpoint(load_path,expected_config,load_config_only)
 %TODO: if loading TRF_config... check if at separate conditions step, in
 %which case gotta either save configs separately and ignore the one in file
 %already OR append to existing struct and only check that second struct
 %fields match (except for maybe paths)
+arguments
+    load_path
+    expected_config (1,1) struct
+    load_config_only (1,1) logical = false;
+end
 found_desired_config=false;
 overwrite_saved_config=false;
-error(['TODO: need to add option to bypass loading data vars when we just ' ...
-    'need the config for separate conditions case'])
+% load_config_only=false;
+% error(['TODO: need to add option to bypass loading data vars when we just ' ...
+%     'need the config for separate conditions case'])
 % try
 % my custom loading function for loading saved checkpoint vars while
 % validating configs
@@ -14,7 +20,7 @@ checkpoint_data=load(load_path);
 checkpoint_varnames=fieldnames(checkpoint_data);
 config_mask=cellfun(@(x) contains(x,'config'),checkpoint_varnames);
 config_fieldname=checkpoint_varnames(config_mask);
-data_fieldname=checkpoint_varnames(~config_mask);
+data_fieldnames=checkpoint_varnames(~config_mask);
 % config_fieldname=get_config_fieldname(checkpoint_data);
 load_config=checkpoint_data.(config_fieldname{:});
 n_configs=numel(load_config);
@@ -56,10 +62,14 @@ if found_desired_config
     % replace checkpoint data config (which may contain multiple) with
     % single desired config
 
-    error('TODO: account for case where multiple data vars contained in same file- loop thru them')
+    % error('TODO: account for case where multiple data vars contained in same file- loop thru them')
     checkpoint_data.(config_fieldname{:})=expected_config;
-    temp_data=checkpoint_data.(data_fieldname{:});
-    checkpoint_data.(data_fieldname{:})=temp_data(nc);
+    if ~load_config_only
+        for ff=1:numel(data_fieldnames)
+            temp_data=checkpoint_data.(data_fieldnames{ff});
+            checkpoint_data.(data_fieldnames{ff})=temp_data(nc);
+        end
+    end
 else
     %NOTE: best_lam only needs to be copied from condition agnostic
     %trf_config when it is being evaluated for the first time, hence
