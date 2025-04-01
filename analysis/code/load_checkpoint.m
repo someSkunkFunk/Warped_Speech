@@ -5,65 +5,76 @@ function checkpoint_data=load_checkpoint(load_path,expected_config)
 %fields match (except for maybe paths)
 found_desired_config=false;
 overwrite_saved_config=false;
-try
+error(['TODO: need to add option to bypass loading data vars when we just ' ...
+    'need the config for separate conditions case'])
+% try
 % my custom loading function for loading saved checkpoint vars while
 % validating configs
-    checkpoint_data=load(load_path);
-    checkpoint_varnames=fieldnames(checkpoint_data);
-    config_mask=cellfun(@(x) contains(x,'config'),checkpoint_varnames);
-    config_fieldname=checkpoint_varnames(config_mask);
-    data_fieldname=checkpoint_varnames(~config_mask);
-    % config_fieldname=get_config_fieldname(checkpoint_data);
-    load_config=checkpoint_data.(config_fieldname{:});
-    n_configs=numel(load_config);
-    for nc=1:n_configs
-    % loop thru different configurations
-        mismatched_fields=validate_configs(expected_config,load_config(nc));
-        if all(cellfun(@isempty,mismatched_fields),'all')
-            found_desired_config=true;
-            break
-        elseif all_are_paths(mismatched_fields)
-            %NOTE: all_are_paths will erroneously try and overwrite
-            %existing config when mismatched_fields is empty
+checkpoint_data=load(load_path);
+checkpoint_varnames=fieldnames(checkpoint_data);
+config_mask=cellfun(@(x) contains(x,'config'),checkpoint_varnames);
+config_fieldname=checkpoint_varnames(config_mask);
+data_fieldname=checkpoint_varnames(~config_mask);
+% config_fieldname=get_config_fieldname(checkpoint_data);
+load_config=checkpoint_data.(config_fieldname{:});
+n_configs=numel(load_config);
+for nc=1:n_configs
+% loop thru different configurations
+    mismatched_fields=validate_configs(expected_config,load_config(nc));
+    if all(cellfun(@isempty,mismatched_fields),'all')
+        found_desired_config=true;
+        break
+    elseif all_are_paths(mismatched_fields)
+        %NOTE: all_are_paths will erroneously try and overwrite
+        %existing config when mismatched_fields is empty
 
-            fprintf(['since not checking fields that are uncommon ' ...
-                'to both expected and loaded config, this will ' ...
-                'likely erroneously return validated=true when ' ...
-                'fieldnames are updated in case where expected config ' ...
-                'has changed fields compared to previous version....\n']);
-            
-            found_desired_config=true;
-            if overwrite_saved_config
-                % create temporary struct to save updated config to file without
-                % overwriting other variables in the file
-                temp_data.(config_fieldname{:})=expected_config;
-                % update_saved_config_paths(load_path,expected_config);
-                % NOTE: muted line below was in case temp_data contained
-                % multiple variables and we wanted to specifically save the one
-                % corresponding to confing_fieldname... but I don't think we'll
-                % end up with multple fields in temp_data so unnecessary...?
-                % save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
-                error('need to update saving strategy so existing config is not erased...')
-                save(load_path,'-struct','temp_data','-append')
-            end
-            % exit loop
-            break
+        fprintf(['since not checking fields that are uncommon ' ...
+            'to both expected and loaded config, this will ' ...
+            'likely erroneously return validated=true when ' ...
+            'fieldnames are updated in case where expected config ' ...
+            'has changed fields compared to previous version....\n']);
+        
+        found_desired_config=true;
+        if overwrite_saved_config
+            % create temporary struct to save updated config to file without
+            % overwriting other variables in the file
+            temp_data.(config_fieldname{:})=expected_config;
+            % update_saved_config_paths(load_path,expected_config);
+            % NOTE: muted line below was in case temp_data contained
+            % multiple variables and we wanted to specifically save the one
+            % corresponding to confing_fieldname... but I don't think we'll
+            % end up with multple fields in temp_data so unnecessary...?
+            % save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
+            error('need to update saving strategy so existing config is not erased...')
+            save(load_path,'-struct','temp_data','-append')
         end
+        % exit loop
+        break
     end
-    if found_desired_config
-        % replace checkpoint data config (which may contain multiple) with
-        % single desired config
-        checkpoint_data.(config_fieldname{:})=expected_config;
-        temp_data=checkpoint_data.(data_fieldname{:});
-        checkpoint_data.(data_fieldname{:})=temp_data(nc);
-    else
-        error('specified config not found in file: %s',load_path);
-    end
-
-catch ME
-    fprintf('wtf...')
-    rethrow(ME)
 end
+if found_desired_config
+    % replace checkpoint data config (which may contain multiple) with
+    % single desired config
+
+    error('TODO: account for case where multiple data vars contained in same file- loop thru them')
+    checkpoint_data.(config_fieldname{:})=expected_config;
+    temp_data=checkpoint_data.(data_fieldname{:});
+    checkpoint_data.(data_fieldname{:})=temp_data(nc);
+else
+    %NOTE: best_lam only needs to be copied from condition agnostic
+    %trf_config when it is being evaluated for the first time, hence
+    %why we should pull that up here (I think...?)
+    % actually should put in analysis script cuz we'll need
+    % preprocess_config to generate the associated
+    % separate_condition=false config to pull from..
+    fprintf('specified config not found in file: %s\n',load_path);
+    checkpoint_data=struct();
+end
+
+% catch ME
+%     fprintf('wtf...')
+%     rethrow(ME)
+% end
 
     function config_fieldname=get_config_fieldname(checkpoint_data)
         %NOTE function assumes (for simplicity) that only ony config file
@@ -81,7 +92,7 @@ end
     end
     function mismatched_fields=validate_configs(expected_config, ...
             load_config)
-        %% STUFF BELOW ASSUMES SINGLE CONFIG GIVEN
+        % assumes expected and load configs are both (1x1)
         % note that preallocating will leave some empty arrays at end...
         mismatched_fields=cell(max(numel(fieldnames(expected_config)), ...
             numel(fieldnames(load_config))),3);

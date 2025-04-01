@@ -47,8 +47,7 @@ end
 zscore_envs=false;
 norm_envs=true;
 zscore_eeg=true;
-% 
-% user_profile=getenv('USERPROFILE');
+
 nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat', ...
     preprocess_config.matfolder,conditions_dir,cvdir,subj);
 envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat', boxdir_mine, ...

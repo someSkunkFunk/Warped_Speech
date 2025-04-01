@@ -57,7 +57,7 @@ if ~preload_preprocessed
 end
 
 %% TRF ANALYSIS
-
+%% check if variables for current config can be preloaded
 % TODO: replace native existance check with custom wrapper that not only
 %checks existance but also for matching specified configurations - same
 %with load
@@ -68,17 +68,17 @@ preload_stats_obs=false;
 preload_model=false;
 if exist(trf_config.model_metric_path,'file')
     % load new-format
-    fprintf(['lines below might overwrite specified config structs \n' ...
-        'TODO: update script so that it checks if file contains a \n' ...
-        'might overwrite specified config structs config structure \n' ...
-        'set before loading\n'])
+    fprintf('checking %s for checkpoint data.\n',trf_config.model_metric_path)
     % will load both stats_obs and stats_null (if they exist... at least
     % obs should if file does)
     metric_checkpoint=load_checkpoint(trf_config.model_metric_path,trf_config);
-    if ismember('stats_obs',who('-file',trf_config.model_metric_path))
+    % if isempty(metric_checkpoint)
+    % if ismember('stats_obs',who('-file',trf_config.model_metric_path))
+    if ismember('stats_obs',fieldnames(metric_checkpoint))
         stats_obs=metric_checkpoint.stats_obs;
         preload_stats_obs=true;
-        if ismember('stats_null',who('-file',trf_config.model_metric_path))
+        % if ismember('stats_null',who('-file',trf_config.model_metric_path))
+        if ismember('stats_null',fieldnames(metric_checkpoint))
             stats_null=metric_checkpoint.stats_null;
             preload_stats_null=true;
         end
@@ -90,10 +90,11 @@ end
 
 if exist(trf_config.trf_model_path,'file')
     model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
-    model=model_checkpoint;
-    clear model_checkpoint
-    preload_model=true;
-
+    if ismember('model',fieldnames(model_checkpoint))
+        model=model_checkpoint;
+        clear model_checkpoint
+        preload_model=true;
+    end
 end
 % .... function ends here
 %% continue analysis...
@@ -136,9 +137,7 @@ else
 end
 
 if ~preload_model
-    %%
     model=train_model(stim,preprocessed_eeg,best_lam,trf_config);
-    %%
     fprintf('saving model to %s\n...',trf_config.trf_model_path)
     % save(trf_config.trf_model_path,'model','trf_config');
     save_checkpoint(trf_config,model);
@@ -159,6 +158,14 @@ if do_nulltest
     nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 end
 %% Helpers
+function best_lam=find_optimized_lam(trf_config)
+% best_lam=find_optimized_lam(trf_config)
+    % pull best_lam from trf_config associated with condition-agnostic trf
+    optim_config=config_trf(trf_config.preprocess_config.subj,true, ...
+        trf_config.preprocess_config);
+    optim_checkpoint=load_checkpoint(optim_config.model_metric_path,optim_config);
+    best_lam=optim_checkpoint.trf_config.best_lam;
+end
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 % nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 %NOTE: we got rid of r_null/r_obs nuisance vars which should be computed in
@@ -192,14 +199,7 @@ if trf_config.separate_conditions
         fprintf('_rnull size correct?\n')
         disp(size(r_null))
         r_obs=squeeze(mean(stats_obs.r(cc_trials_idx,best_lam_idx,:)));
-        % figure
-        % hist(r_null(fav_ch))
-        % title(sprintf('subj %d, cond %d, chn %d null distribution - \\lambda %.3g',subj,cc,fav_ch,best_lam))
-        % figure
-        % ecdf(r_null(fav_ch))
-        % hold on
-        % plot(repmat(r_obs(cc,fav_ch),1,2),ylim,'r')
-        % title(sprintf('subj %d, cond %d, chn %d permutation test - \\lambda %.3g',subj,cc,fav_ch,best_lam))
+
         tit_str_temp=sprintf(['subj %d, cond %d, fav chn (%d) permutation ' ...
             'test - \\lambda %.3g'],subj,cc,fav_chn_idx,best_lam);
         nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
@@ -335,13 +335,16 @@ end
 end
 
 function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
-fprintf(['need to change structure indexing here, ' ...
-    'distinct parameter configurations organization system is lacking\n'])
+% function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config)
+fprintf('TODO: double-check structure indexing in this function (crossval_wrapper)...\n')
 % stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
 resp=preprocessed_eeg.resp;
 if trf_config.do_lambda_optimization
     cv_lam=trf_config.lam_range;
 else
+    %TODO: reference trf_config from condition-agnostic trf to determine
+    %best_lam value...
+    trf_config.best_lam=find_optimized_lam(trf_config);
     cv_lam=trf_config.best_lam;
 end
 fs=preprocessed_eeg.fs;
