@@ -13,8 +13,15 @@ clc
 %before rerunning lambda_optimization
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
 %that differentiates them from condition-specific TRFs
-subj = 15;
-do_lambda_optimization=false;
+%%
+for subj=2:17
+    clearvars -except user_profile boxdir_mine boxdir_lab subj
+    close all
+    % subj
+
+%%
+% subj = 15;
+do_lambda_optimization=true;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 %NOTE: do_nulltest=false case may complicate config validation if we
@@ -142,7 +149,7 @@ if ~preload_model
     % which does not alter in-file config... which might be ok for now
     save_checkpoint(trf_config,model);
 end
-
+%%
 if do_nulltest && ~preload_stats_null
     stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
     % error('stuff below should take place in save_checkpoint...')
@@ -158,6 +165,10 @@ end
 %%
 if do_nulltest
     nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
+end
+
+
+
 end
 %% Helpers
 function best_lam=fetch_optimized_lam(trf_config)
@@ -325,6 +336,12 @@ end
 
 function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config)
 % [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs)
+% NOTE this function expects stats_obs to have [1,1] size and doesnt work
+% otherwise.. probably should clean this up in load_checkpoint but
+% addressing here for now by assuming non-(1,1) values in stats_obs are empty
+    if ~isequal(size(stats_obs),[1,1])
+        stats_obs=stats_obs(1,1);
+    end
     r_avg_trials=squeeze(mean(stats_obs.r,1));
     % get max across electrodes for each lambda
     r_max_electrodes=squeeze(max(r_avg_trials,[],2));
@@ -491,6 +508,20 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % why did aaron choose 100 in particular rather than preprocess_config.n_trials to
     % begin with?
     preprocessed_eeg.trials(preprocessed_eeg.trials>preprocess_config.n_trials+1) = [];
+    bdf_triggers_missing=any(diff(preprocessed_eeg.trials)>1);
+    % filter out missing trials from cond
+    if bdf_triggers_missing
+        % cond might still have recorded, which will mess indexing
+        % downstream
+        % note that this block ASSUMES cond has the missing trial, which
+        % may not necessarily always be the case...
+        expected_trials=1:preprocess_config.n_trials;
+        % note we probably should save this in preprocess_config... will be
+        % a hassle right now so ignoring that
+        missing_trials=setdiff(preprocessed_eeg.trials,expected_trials);
+        valid_trials=ismember(expected_trials,preprocessed_eeg.trials);
+        cond=cond(valid_trials);
+    end
     % remove repeated trials from EEG structure first, if any
     has_false_start=check_restart(preprocessed_eeg.trials);
     if has_false_start
@@ -504,7 +535,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     if cond(end)~=3
         % slow condition is fine, others need padding
        
-        ns_pad=floor((rec_dur)*EEG.srate);
+        ns_pad=floor((preprocess_config.rec_dur)*EEG.srate);
         EEG.data=[EEG.data, zeros(preprocess_config.nchan,ns_pad)];
     end
 
