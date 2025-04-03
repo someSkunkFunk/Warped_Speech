@@ -79,10 +79,12 @@ switch output_stage
         % concatenate existing data and output struct data accounting for
         % possible differences in number of dimensions encoded in existing
         % data vs output data
-        m_conditions_out=size(output_data,2);
-        m_conditions_file=size(existing_file_data.(data_name),2);
-
-        if m_conditions_out==m_conditions_file
+        % m_conditions_out=size(output_data,2);
+        % m_conditions_file=size(existing_file_data.(data_name),2);
+        dat_size_out=size(output_data);
+        dat_size_file=size(existing_file_data.(data_name),2);
+        % if m_conditions_out==m_conditions_file
+        if isequal(dat_size_out(2:end),dat_size_file(2:end))
             % can just cat
             output_struct=struct(config_name, ...
                 cat(1,existing_file_data.(config_name),output_config), ...
@@ -94,8 +96,27 @@ switch output_stage
             %note that config doesnt need new dims
             expanded_data=existing_file_data.(data_name);
             n_configs_saved=size(expanded_data,1);
+            m_conditions_out=dat_size_out(2);
             for cc=1:m_conditions_out
-                expanded_data(n_configs_saved+1,cc)=output_data(1,cc);
+                if numel(dat_size_out)<3
+                    expanded_data(n_configs_saved+1,cc)=output_data(1,cc);
+                else
+                    disp(['TODO: there must be a more general way to do ' ...
+                        'this using linear indexing...'])
+                    %NOTE: I'm also not even sure stats_null actually has
+                    %dims (1,3,1000) which would make cc indexing
+                    %unnecessary and whole root cause of this convoluted
+                    %workaround
+
+                    expanded_data(n_configs_saved+1,cc,:)=output_data(1,cc);
+                end
+            end
+            if isfield(output_config,'best_lam')
+                disp(['because we neglected to save best_lam in original configs, now we are bypassing ' ...
+                    '\nsave_checkpoint error by removing it from being saved to additional configs ...'])
+                %TODO: retroactively add best_lam to cconfigs and remove
+                %this workaround
+                output_config=rmfield(output_config,'best_lam');
             end
             output_struct=struct(config_name, ...
                 cat(1,existing_file_data.(config_name),output_config), ...

@@ -104,6 +104,8 @@ end
     % do crossvalidation to optimize lambda (TODO: what is point of running
     % in optimized lambda case?)
 if ~preload_stats_obs
+    disp(['TODO: check that running this a second time (in separate ' ...
+        'conditions case) doesnt create a duplicate in file'])
     % crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
@@ -125,13 +127,19 @@ else
     disp(['need to figure out what to do here ... ' ...
         'if we want a specific value that isnt the same as ' ...
         'optimization result?'])
-    best_lam=fetch_optimized_lam(trf_config);
+    trf_config.best_lam=fetch_optimized_lam(trf_config);
 end
-
+%%
 if ~preload_model
-    model=train_model(stim,preprocessed_eeg,best_lam,trf_config);
+    model=train_model(stim,preprocessed_eeg,trf_config);
     fprintf('saving model to %s\n...',trf_config.trf_model_path)
     % save(trf_config.trf_model_path,'model','trf_config');
+    % NOTE: after this save checkpoint, best_lam should be included in
+    % trf_config BUT probably instead what will happen is our checkpoint
+    % validation will identify this as a non-identical config and add a new
+    % checkpoint?
+    % RE: above - seems like it falls under case 1 in save_checkpoint,
+    % which does not alter in-file config... which might be ok for now
     save_checkpoint(trf_config,model);
 end
 
@@ -141,11 +149,13 @@ if do_nulltest && ~preload_stats_null
     % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
     % save(trf_config.model_metric_path,'stats_null','-append')
     save_checkpoint(trf_config,stats_null);
+    % disp(['TODO: not saving stats_null to bypass save_checkpoint error.. ' ...
+    %     'determine if thats a problem'])
 else
     disp('not doing null test (or preloaded previous results)')
 end
 
-
+%%
 if do_nulltest
     nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
 end
@@ -187,14 +197,14 @@ disp('cc indexing below might need double checking...')
 %individual trials, not our configs
 if trf_config.separate_conditions
     for cc=conditions
-        cc_trials_idx=find(preprocessed_eeg.conditions==cc);
+        % cc_trials_idx=find(preprocessed_eeg.cond==cc);
         %TODO: check size resulting from squeeze agrees with plotting
         %commands
-        error('r_null calculation below is wrong and will probably change again so we should put into a function as well...')
-        r_null=squeeze(mean(stats_null.r(cc_trials_idx,:,:,:),1));
+        disp('r_null calculation below might be incorrect...?')
+        r_null=squeeze(mean(stats_null(1,cc,:).r,1));
         fprintf('_rnull size correct?\n')
         disp(size(r_null))
-        r_obs=squeeze(mean(stats_obs.r(cc_trials_idx,best_lam_idx,:)));
+        r_obs=squeeze(mean(stats_obs(1,cc,:).r));
 
         tit_str_temp=sprintf(['subj %d, cond %d, fav chn (%d) permutation ' ...
             'test - \\lambda %.3g'],subj,cc,fav_chn_idx,best_lam);
@@ -285,8 +295,9 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
     end
 end
 
-function model=train_model(stim,preprocessed_eeg,model_lam,trf_config)
+function model=train_model(stim,preprocessed_eeg,trf_config)
 % model=train_model(stim,preprocessed_eeg,model_lam,trf_config)
+model_lam=trf_config.best_lam;
 fprintf('training model using lambda=%0.2g\n',model_lam)
 
 tmin_ms=trf_config.tmin_ms;
@@ -314,10 +325,20 @@ function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config
     r_avg_trials=squeeze(mean(stats_obs.r,1));
     % get max across electrodes for each lambda
     r_max_electrodes=squeeze(max(r_avg_trials,[],2));
-    % get index of max r-value 
-    [~,best_lam_idx]=max(r_max_electrodes);
-    [~,best_chn_idx]=max(r_avg_trials(best_lam_idx,:));
-    model_lam=trf_config.lam_range(best_lam_idx);
+    % get indices of max r-value 
+    if isfield(trf_config,'best_lam')&&size(stats_obs.r,2)==1
+        disp('TODO: fix this workaround...')
+        best_lam_idx=nan;
+        model_lam=trf_config.best_lam;
+        [~,best_chn_idx]=max(r_avg_trials);
+    else
+        [~,best_lam_idx]=max(r_max_electrodes);
+        model_lam=trf_config.lam_range(best_lam_idx);
+        [~,best_chn_idx]=max(r_avg_trials(best_lam_idx,:));
+    end
+    
+    
+    
 end
 
 function restart_bool=check_restart(event_trials)
@@ -378,7 +399,7 @@ function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
             error('dont do both normalization and z-scoring on envelopes')
         end
         disp('z-scoring envelopes')
-        oad(preprocess_config.envelopesFile,'mu','sigma');
+        load(preprocess_config.envelopesFile,'mu','sigma');
 
         stim=cellfun(@(x) (x-mu)/sigma, stim,'UniformOutput',false);
     end

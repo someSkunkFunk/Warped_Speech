@@ -66,8 +66,16 @@ if found_desired_config
     checkpoint_data.(config_fieldname{:})=expected_config;
     if ~load_config_only
         for ff=1:numel(data_fieldnames)
-            temp_data=checkpoint_data.(data_fieldnames{ff});
-            checkpoint_data.(data_fieldnames{ff})=temp_data(nc);
+            if ~strcmp(data_fieldnames{ff},'stats_null');
+                temp_data=checkpoint_data.(data_fieldnames{ff});
+                %TODO: verify that triple dot indexing below works when struct
+                %in data has less than 3 dimensions
+                checkpoint_data.(data_fieldnames{ff})=temp_data(nc,:,:);
+            else
+                checkpoint_data=rmfield(checkpoint_data,'stats_null');
+                %TODO: fix thing below or jusst stop tracking stats_null
+                disp('avoiding preloading stats_null because we saved it wrong initially and cant access via index...')
+            end
         end
     end
 else
@@ -86,20 +94,20 @@ end
 %     rethrow(ME)
 % end
 
-    function config_fieldname=get_config_fieldname(checkpoint_data)
-        %NOTE function assumes (for simplicity) that only ony config file
-        %is contained....
-        %TODO: need to update such that it also finds configs contained as
-        %subfields of outer-config
-        checkpoint_fieldnames=fieldnames(checkpoint_data);
-        config_fieldmask=cellfun(@(x) contains(x,'config'),checkpoint_fieldnames);
-        config_fieldname=checkpoint_fieldnames(config_fieldmask);
-        if numel(config_fieldname)~=1
-            fprintf('number of config-matched vars in checkpoint file:%d\n', ...
-                numel(config_fieldname))
-            error('either there is no config struct in checkpoint mat file or there are too many')
-        end   
-    end
+    % function config_fieldname=get_config_fieldname(checkpoint_data)
+    %     %NOTE function assumes (for simplicity) that only ony config file
+    %     %is contained....
+    %     %TODO: need to update such that it also finds configs contained as
+    %     %subfields of outer-config
+    %     checkpoint_fieldnames=fieldnames(checkpoint_data);
+    %     config_fieldmask=cellfun(@(x) contains(x,'config'),checkpoint_fieldnames);
+    %     config_fieldname=checkpoint_fieldnames(config_fieldmask);
+    %     if numel(config_fieldname)~=1
+    %         fprintf('number of config-matched vars in checkpoint file:%d\n', ...
+    %             numel(config_fieldname))
+    %         error('either there is no config struct in checkpoint mat file or there are too many')
+    %     end   
+    % end
     function mismatched_fields=validate_configs(expected_config, ...
             load_config)
         % assumes expected and load configs are both (1x1)
@@ -154,7 +162,8 @@ end
                             end
                         case 0
                             if contains(field_name,'config')
-                                fprintf('%s config field path values not replaced but also not registering as erroneous.\n')
+                                fprintf(['%s config values not replaced but ' ...
+                                    'also not registering as erroneous.\n'],field_name)
                             else
                                 paths_only=false;
                                 break
