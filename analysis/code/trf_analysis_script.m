@@ -169,7 +169,7 @@ function best_lam=fetch_optimized_lam(trf_config)
     'agnostic so will need to re-evaluate.... should just save it for',...
     'future subjects so we dont have to keep calling this function'])
     optim_checkpoint=load_checkpoint(optim_config.model_metric_path,optim_config,false);
-    [best_lam,~,~]=get_best_lam(optim_checkpoint(1,1).stats_obs,optim_checkpoint.trf_config);
+    [best_lam,~,~]=get_best_lam(optim_checkpoint.stats_obs(1,1),optim_checkpoint.trf_config);
 
 end
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
@@ -183,10 +183,12 @@ conditions=unique(preprocessed_eeg.cond)';
 % bl_indx=find(trf_config.lam_range==best_lam);
 %TODO: add check here to ensure thing computed outside of this function 
 % in "get_best_lam" agrees and we're not plotting some other random shit
-[best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
-if best_lam~=trf_config.best_lam
-    error('best lambda value does not agree with trf_config')
-end
+% running this in separate conditions case is not working out too well...
+% best chn/best lam should 
+% [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
+% if best_lam~=trf_config.best_lam
+%     error('best lambda value does not agree with trf_config')
+% end
 
 %TODO: double-check averaging across trials correctly in separate
 %conditions case (especially once it contains multiple versions in last dimension)
@@ -197,13 +199,14 @@ disp('cc indexing below might need double checking...')
 %individual trials, not our configs
 if trf_config.separate_conditions
     for cc=conditions
+        [best_lam,~,best_chn_idx]=get_best_lam(stats_obs(1,cc),trf_config);
         % cc_trials_idx=find(preprocessed_eeg.cond==cc);
         %TODO: check size resulting from squeeze agrees with plotting
         %commands
         disp('r_null calculation below might be incorrect...?')
-        r_null=squeeze(mean(stats_null(1,cc,:).r,1));
-        fprintf('_rnull size correct?\n')
-        disp(size(r_null))
+        r_null=squeeze(mean([stats_null(1,cc,:).r],1));
+        % fprintf('_rnull size correct?\n')
+        % disp(size(r_null))
         r_obs=squeeze(mean(stats_obs(1,cc,:).r));
 
         tit_str_temp=sprintf(['subj %d, cond %d, fav chn (%d) permutation ' ...
@@ -219,6 +222,7 @@ if trf_config.separate_conditions
     end
 
 else
+    [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
     % NOTE: temporary fix to just convert comma-sep list into array for
     % getting r_null... will need to adapt once we fix this
     r_null=squeeze(mean([stats_null.r],1));
@@ -255,6 +259,7 @@ function nulltest_fig_helper(r_null,r_obs,plot_chn,tit_str)
     plot(repmat(r_obs(plot_chn),1,2),ylim,'r')
     title(tit_str)
 end
+
 function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
     disp('running permutation test...')
     msg = 0;
@@ -283,7 +288,7 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
             % r_null=cell(3,1);
             for cc=conditions
                 % fprintf('null TRF for condition %d...\n',cc)
-                cc_mask=cond==cc;
+                cc_mask=preprocessed_eeg.cond==cc;
                 stats_null(1,cc,n_perm)=mTRFcrossval(stim(cc_mask), ...
                     resp_shuf(cc_mask),fs,1,cv_tmin_ms,cv_tmax_ms, ...
                     model_lam,'Verbose',0);
@@ -320,8 +325,6 @@ end
 
 function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config)
 % [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs)
-    % TODO: maybe we want it to return best electrode index here too
-    % average r across trials
     r_avg_trials=squeeze(mean(stats_obs.r,1));
     % get max across electrodes for each lambda
     r_max_electrodes=squeeze(max(r_avg_trials,[],2));
