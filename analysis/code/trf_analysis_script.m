@@ -169,7 +169,7 @@ function best_lam=fetch_optimized_lam(trf_config)
     'agnostic so will need to re-evaluate.... should just save it for',...
     'future subjects so we dont have to keep calling this function'])
     optim_checkpoint=load_checkpoint(optim_config.model_metric_path,optim_config,false);
-    [best_lam,~,~]=get_best_lam(optim_checkpoint.stats_obs,optim_checkpoint.trf_config);
+    [best_lam,~,~]=get_best_lam(optim_checkpoint(1,1).stats_obs,optim_checkpoint.trf_config);
 
 end
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
