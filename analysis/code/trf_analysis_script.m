@@ -14,7 +14,7 @@ clc
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
 %that differentiates them from condition-specific TRFs
 %%
-for subj=2:17
+for subj=3:17
     clearvars -except user_profile boxdir_mine boxdir_lab subj
     close all
     % subj
@@ -565,7 +565,7 @@ function preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg)
 % remove_rec_dur(stim,resp)
 % trim resp from rec_dur to stim_dur
 fprintf('removing excess samples from pop_epoch\n')
-for tt = 1:size(stim,2)
+for tt = 1:numel(stim)
     preprocessed_eeg.resp{tt} = preprocessed_eeg.resp{tt}(1:size(stim{tt},1),:);
 end
 
@@ -581,12 +581,21 @@ fs_stim=fs_stim.fs;
 if fs_stim ~= preprocess_config.fs
     error('stim has wrong fs.')
 end
-stim = env(preprocessed_eeg.cond,1:preprocess_config.n_trials);
+stim = env(preprocessed_eeg.cond,preprocessed_eeg.trials);
+% stim = env(preprocessed_eeg.cond,1:preprocess_config.n_trials);
 stim = stim(logical(eye(size(stim))));
 % TODO: figure out if this line below was supposed to go in
 % clean_false_starts as we presumed?
+% RE above: not sure if having this code here is a problem when that
+% happens but it's definitely causing problems when there are missing
+% trials and we've since altered the code to address that issue by making
+% sure cond/trials in preprocessed_eeg only included trials that are not
+% missing... theoretically should fix that issue AND false start
+% repetitions (since those get cleaned out in preprocessing step too)
+% ... watch
+% out 
 % cond = cond(preprocessed_eeg.trials,1);
-stim = stim(preprocessed_eeg.trials,1)';
+% stim = stim(preprocessed_eeg.trials,1)';
 end
     
 
