@@ -73,6 +73,7 @@ end
 preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
+%% preload metrics
 if exist(trf_config.model_metric_path,'file')
     % load new-format
     fprintf('checking %s for checkpoint data.\n',trf_config.model_metric_path)
@@ -94,7 +95,7 @@ if exist(trf_config.model_metric_path,'file')
     
     
 end
-
+%% preload model
 if exist(trf_config.trf_model_path,'file')
     model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
     if ismember('model',fieldnames(model_checkpoint))
