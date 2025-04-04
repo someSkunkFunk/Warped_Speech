@@ -51,13 +51,16 @@ for nc=1:n_configs
             % corresponding to confing_fieldname... but I don't think we'll
             % end up with multple fields in temp_data so unnecessary...?
             % save(load_path,'-struct','temp_data',config_fieldname{:},'-append')
-            error('need to update saving strategy so existing config is not erased...')
+            fprintf(['need to update saving strategy so existing ' ...
+                'config is not erased...?\n'])
             save(load_path,'-struct','temp_data','-append')
         end
         % exit loop
         break
     end
 end
+
+
 if found_desired_config
     % replace checkpoint data config (which may contain multiple) with
     % single desired config
