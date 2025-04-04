@@ -111,12 +111,17 @@ switch output_stage
                     expanded_data(n_configs_saved+1,cc,:)=output_data(1,cc);
                 end
             end
-            if isfield(output_config,'best_lam')
-                disp(['because we neglected to save best_lam in original configs, now we are bypassing ' ...
-                    '\nsave_checkpoint error by removing it from being saved to additional configs ...'])
+            if isfield(existing_file_data.(config_name),'best_lam')&&...
+                ~isfield(output_config,'best_lam')
+                % disp(['because we neglected to save best_lam in original configs, now we are bypassing ' ...
+                %     '\nsave_checkpoint error by removing it from being saved to additional configs ...'])
                 %TODO: retroactively add best_lam to cconfigs and remove
                 %this workaround
-                output_config=rmfield(output_config,'best_lam');
+                % output_config=rmfield(output_config,'best_lam');
+
+                %copy best lam form agnostic to separate conditions because
+                %we forgot to inlcude it before
+                output_config.best_lam=existing_file_data.(config_name).best_lam;
             end
             output_struct=struct(config_name, ...
                 cat(1,existing_file_data.(config_name),output_config), ...

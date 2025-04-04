@@ -14,20 +14,20 @@ clc
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
 %that differentiates them from condition-specific TRFs
 %%
-for subj=3:17
+for subj=2:17
     clearvars -except user_profile boxdir_mine boxdir_lab subj
     close all
     % subj
 
 %%
 % subj = 15;
-do_lambda_optimization=true;
+do_lambda_optimization=false;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 %NOTE: do_nulltest=false case may complicate config validation if we
 %suddenly choose to do a different analysis configuration... but maybe
 %not... should check this
-do_nulltest=true;
+do_nulltest=false;
 
 
 
@@ -117,7 +117,9 @@ if ~preload_stats_obs
     % crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
-    if exist(trf_config.model_metric_path,'file')&&trf_config.separate_conditions 
+    % why tf did we do this shit...??
+    % if exist(trf_config.model_metric_path,'file')&&trf_config.separate_conditions 
+    if exist(trf_config.model_metric_path,'file')
         save_checkpoint(trf_config,stats_obs);
     end
 end
