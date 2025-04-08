@@ -1,8 +1,7 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
-%%
-%plotting params
+%% plotting params
+%
 
-%%
 subjs=2:17;
 plot_chns=85;
 separate_conditions=true; %NOTE: not operator required when 
@@ -11,8 +10,9 @@ separate_conditions=true; %NOTE: not operator required when
     % ignoring the false case rn sincee buggy but not a priority but should
     % fix
 n_subjs=numel(subjs);
-plot_individual_weights=true;
+plot_individual_weights=false;
 plot_avg_weights=true;
+%% Main script
 for ss=1:n_subjs
     subj=subjs(ss);
     fprintf('loading subj %d data...\n',subj)
@@ -26,34 +26,50 @@ for ss=1:n_subjs
     if plot_individual_weights
         plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
     end
-        % if trf_config.separate_conditions
-        %     % fprintf('p\n')
-        %     % will just have to index each model struct before feeding into
-        %     % plot_model_weights
-        %     for cc=1:size(ind_models,2)
-        %         plot_model_weights(ind_models(ss,cc),trf_config,plot_chns)
-        %     end
-        % else
-        %     plot_model_weights(ind_models(ss,1),trf_config,plot_chns)
-        % end
-    % end
+
 end
+%% Plot average weights
 if plot_avg_weights
-    plot_model_weights(ind_models,trf_config,plot_chns)
+    avg_models=construct_avg_models(ind_models);
+    plot_model_weights(avg_models,trf_config,plot_chns)
+end
+%% estimate snr
+snr=estimate_snr(avg_models);
+for cc=1:3
+    %TODO: take conditions cell out
+    fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
+end
+%% Helpers
+function snr=estimate_snr(avg_models,noise_window,signal_window)
+% assumes (1,3) avg models given
+arguments
+    avg_models (1,3) struct
+    noise_window (1,2) = [-200, 0]
+    signal_window (1,2) = [100,300]
+end
+snr=nan(1,3);
+n_conditions=size(avg_models,2);
+
+for cc=1:n_conditions
+    noise_mask=avg_models(1,cc).t<max(noise_window)&avg_models(1,cc).t>min(noise_window);
+    signal_mask=avg_models(1,cc).t<max(signal_window)&avg_models(1,cc).t>min(signal_window);
+    snr(cc)=rms(avg_models(1,cc).w(signal_mask))/rms(avg_models(1,cc).w(noise_mask));
 end
 
-function plot_model_weights(ind_models,trf_config,chns)
+end
+
+function plot_model_weights(model,trf_config,chns)
 %TODO: use a switch-case to handle plotting a particular channel, the
         %best channel, or all channels... needs to chance title string
         %format indicator
     arguments
-        ind_models struct
+        model struct
         trf_config (1,1) struct
         chns = 'all'
     end
-    n_subjs=size(ind_models,1);
+    n_subjs=size(model,1);
     if trf_config.separate_conditions
-        n_conditions=size(ind_models,2);
+        n_conditions=size(model,2);
         fprintf('plotting condition-specific TRFs...\n ')
     else
         n_conditions=1;
@@ -63,27 +79,27 @@ function plot_model_weights(ind_models,trf_config,chns)
     end
     conditions={'fast','og','slow'};
     for cc=1:n_conditions
-        if n_subjs==1
+        if ~isfield(model,'avg')
             fprintf('plotting individual model weights...\n')
             %plot individual subject weights            
             title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
                 num2str(chns),conditions{cc});
             figure
-            mTRFplot(ind_models(1,cc),'trf','all',chns);
+            mTRFplot(model(1,cc),'trf','all',chns);
             title(title_str)
         else
             % assume we want to average out the weights and plot them
             % compile weights into single model struct for current
             % condition
             fprintf('plotting subject-averaged model weights...\n')
-            avg_model=construct_avg_model(ind_models);
+            avg_models=construct_avg_models(model);
 
             % NOTE: repetitive code below could be consolidated across
             % single condition vs separate condition trf cases...
-            title_str=sprintf('avg TRF - chns: %s - condition: %s ', ...
-                num2str(chns),conditions{cc});
+            title_str=sprintf('avg TRF - chns: %s - condition: %s - n subjs: %d', ...
+                num2str(chns),conditions{cc},n_subjs);
             figure
-            mTRFplot(avg_model,'trf','all',chns);
+            mTRFplot(avg_models(1,cc),'trf','all',chns);
             title(title_str)
             
         
@@ -91,27 +107,31 @@ function plot_model_weights(ind_models,trf_config,chns)
     end
 end
 
-function avg_models=construct_avg_models(ind_models)
-    [~,n_weights,n_chans]=size(model(1,1).w);
+function avg_model=construct_avg_models(ind_models)
+    [n_subjs,n_weights,n_chans]=size(ind_models(1,1).w);
+    n_conditions=size(ind_models,2);
     W_stack=nan(n_subjs,n_weights,n_chans);
     avg_model=struct();
-    model_fields=fieldnames(model(1,cc));
-    for ss=1:n_subjs
-        W_stack(ss,:,:)=model(ss,cc).w;
-    end
-
+    model_fields=fieldnames(ind_models(1,1));
     fprintf(['NOTE: avg model below will only have correct average weights',...
     'other fields which may vary at individual subject level could',...
     'be incorrect...\n'])
-
-    for ff=1:numel(model_fields)
-        ff_field=model_fields{ff};
-        if strcmp(ff_field,'w')
-            avg_model.(ff_field)=mean(W_stack,1);
-        else
-            avg_model.(ff_field)=model(1,cc).(ff_field);
+    for cc=1:n_conditions
+        for ss=1:n_subjs
+            W_stack(ss,:,:)=ind_models(ss,cc).w;
         end
+        for ff=1:numel(model_fields)
+            ff_field=model_fields{ff};
+            if strcmp(ff_field,'w')
+                avg_model(1,cc).(ff_field)=mean(W_stack,1);
+            else
+                avg_model(1,cc).(ff_field)=ind_models(1,cc).(ff_field);
+            end
+        end
+    %TODO: better way to structure this?
+    avg_model(1,cc).avg=true;
     end
+    
 end
 
 function model=load_individual_model(trf_config)
