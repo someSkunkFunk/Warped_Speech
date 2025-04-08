@@ -5,14 +5,13 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %%
 subjs=2:17;
 plot_chns=85;
-% plot_individual_weights=true;
 separate_conditions=true; %NOTE: not operator required when 
     % initializing config_trf since technically it expects 
     % "do_lambda_optimization" as argument 
     % ignoring the false case rn sincee buggy but not a priority but should
     % fix
 n_subjs=numel(subjs);
-plot_individual_weights=false;
+plot_individual_weights=true;
 plot_avg_weights=true;
 for ss=1:n_subjs
     subj=subjs(ss);
@@ -43,17 +42,18 @@ if plot_avg_weights
     plot_model_weights(ind_models,trf_config,plot_chns)
 end
 
-function plot_model_weights(model,trf_config,chns)
+function plot_model_weights(ind_models,trf_config,chns)
 %TODO: use a switch-case to handle plotting a particular channel, the
-        %best channel, or all channels...
+        %best channel, or all channels... needs to chance title string
+        %format indicator
     arguments
-        model struct
+        ind_models struct
         trf_config (1,1) struct
         chns = 'all'
     end
-    n_subjs=size(model,1);
+    n_subjs=size(ind_models,1);
     if trf_config.separate_conditions
-        n_conditions=size(model,2);
+        n_conditions=size(ind_models,2);
         fprintf('plotting condition-specific TRFs...\n ')
     else
         n_conditions=1;
@@ -66,44 +66,50 @@ function plot_model_weights(model,trf_config,chns)
         if n_subjs==1
             fprintf('plotting individual model weights...\n')
             %plot individual subject weights            
-            title_str=sprintf('subj %d - %s chns',trf_config.subj,chns);
+            title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
+                num2str(chns),conditions{cc});
             figure
-            mTRFplot(model,'trf','all',chns);
+            mTRFplot(ind_models(1,cc),'trf','all',chns);
             title(title_str)
         else
             % assume we want to average out the weights and plot them
             % compile weights into single model struct for current
             % condition
             fprintf('plotting subject-averaged model weights...\n')
-            [~,n_weights,n_chans]=size(model(1,1).w);
-            W_stack=nan(n_subjs,n_weights,n_chans);
-            avg_model=struct();
-            model_fields=fieldnames(model(1,cc));
-            for ss=1:n_subjs
-                W_stack(ss,:,:)=model(ss,cc).w;
-            end
-
-            fprintf(['NOTE: avg model below will only have correct average weights',...
-            'other fields which may vary at individual subject level could',...
-            'be incorrect...\n'])
-
-            for ff=1:numel(model_fields)
-                ff_field=model_fields{ff};
-                if strcmp(ff_field,'w')
-                    avg_model.(ff_field)=mean(W_stack,1);
-                else
-                    avg_model.(ff_field)=model(1,cc).(ff_field);
-                end
-            end
+            avg_model=construct_avg_model(ind_models);
 
             % NOTE: repetitive code below could be consolidated across
             % single condition vs separate condition trf cases...
-            title_str=sprintf('avg TRF - chns: %s - condition: %s ',chns,conditions{cc});
+            title_str=sprintf('avg TRF - chns: %s - condition: %s ', ...
+                num2str(chns),conditions{cc});
             figure
             mTRFplot(avg_model,'trf','all',chns);
             title(title_str)
             
         
+        end
+    end
+end
+
+function avg_models=construct_avg_models(ind_models)
+    [~,n_weights,n_chans]=size(model(1,1).w);
+    W_stack=nan(n_subjs,n_weights,n_chans);
+    avg_model=struct();
+    model_fields=fieldnames(model(1,cc));
+    for ss=1:n_subjs
+        W_stack(ss,:,:)=model(ss,cc).w;
+    end
+
+    fprintf(['NOTE: avg model below will only have correct average weights',...
+    'other fields which may vary at individual subject level could',...
+    'be incorrect...\n'])
+
+    for ff=1:numel(model_fields)
+        ff_field=model_fields{ff};
+        if strcmp(ff_field,'w')
+            avg_model.(ff_field)=mean(W_stack,1);
+        else
+            avg_model.(ff_field)=model(1,cc).(ff_field);
         end
     end
 end
