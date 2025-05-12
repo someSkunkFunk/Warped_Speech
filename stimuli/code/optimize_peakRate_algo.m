@@ -10,20 +10,21 @@
 % edge cases to consider here 
 
 clear,clc,close all
-og_stimuli_dir='./wrinkle_wClicks/og/';
+global boxdir_mine
+og_stimuli_dir=sprintf('%s/stimuli/wrinkle_wClicks/og/',boxdir_mine);
 stimuli_has_clicks=true;
 click_chn=2; %TODO: verify...? from file somehow perhaps....?
 stimuli_dir_contents=dir([og_stimuli_dir '*.wav']);
 % NOTE: assuming this peakRate file has bark_envelope derived events with
 % peak_tol = 10% and no other different parameters from current
 % stretchyWrinkle/warp_stimuli_stretchy scripts
-peakRate_dir='./peakRate/';
+peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 baseline_peakRate_file=[peakRate_dir 'og.mat'];
 
 stim_info.clip_duration=64; % in seconds
 
 if exist(baseline_peakRate_file,'file')
-    fprintf('loading data from pre-existing %s file',baseline_peakRate_file)
+    fprintf('loading data from pre-existing %s file\n',baseline_peakRate_file)
     
     temp=load(baseline_peakRate_file,'peakRate');
     peakRate_from_file=true;
@@ -35,6 +36,7 @@ if exist(baseline_peakRate_file,'file')
     has_w2vals=isfield(peakRate,'peakwidth2');
     clear temp
 else
+    fprintf('could not find peakrate data in %s\n',baseline_peakRate_file)
     peakRate_from_file=false;
     has_pvals=false;
     has_wvals=false;
@@ -94,7 +96,7 @@ else
     disp(size(peakRate(nn).prominence))
 end
 end
-fprintf('saving new vals to %s...\n',baseline_peakRate_file)
+fprintf('saving new p/w vals to %s...\n',baseline_peakRate_file)
 if peakRate_from_file
     save(baseline_peakRate_file,"peakRate","-append")
 else
@@ -123,7 +125,7 @@ else
     fprintf('new file saved.\n')
 end
 else
-    fprintf('%s has all baseline vals, skipping computation.\n',baseline_peakRate_file)
+    fprintf('%s \nhas all baseline vals, skipping computation.\n',baseline_peakRate_file)
 end
 %% what is the range of prominence/width vals?
 all_pvals=vertcat(peakRate(:).prominence);
@@ -134,7 +136,7 @@ fprintf('range of width vals: [%.02f, %.02f]\n',min(all_wvals),max(all_wvals))
 fprintf('range of width2 vals: [%.02f, %.02f]\n',min(all_w2vals),max(all_w2vals))
 % don't really need to plot, just need to see behavior of peaks that get
 % eliminated as we raise the threshold
-%% Plot peakRate dist before/after
+%% Set histogram params
 %TODO: use plot_config struct to accomplish goal stated below - use
 %visSylrateWarpingNew values
 % use same scale and bins for direct comparison - be sure to look at low
@@ -146,7 +148,7 @@ hist_param.xticks=2.^(-1:16); %log-spaced
 hist_param.bin_scale='lin';
 hist_param.bin_lims=[.5, 36];
 hist_param.n_bins=100;
-
+fprintf('histogram params set.\n')
 %% get baseline distribution
 n_thresholds=4;
 median_rates=nan(n_thresholds+1,1);
@@ -156,7 +158,7 @@ qtls=[.45 .55];
 [all_times,clip_constants]=get_peak_times(peakRate,stim_info);
 all_rates=calculate_rates(all_times);
 % [all_intervals,all_rates,all_times]=get_distributions(peakRate);
-
+fprintf('baseline dist loaded.\n')
 %% plot baseline distribution
 
 median_rates(1)=median(all_rates);
@@ -168,7 +170,7 @@ hist_wrapper(all_rates,'baseline',hist_param)
 all_peak_amps=vertcat(peakRate(:).amplitudes);
 skip_time_domain_plot=false;
 
-thresh_info.which_threshold='w2';
+thresh_info.which_threshold='p';
 switch thresh_info.which_threshold
     case 'w'
         thresh_var=all_wvals;
@@ -191,7 +193,9 @@ end
 thresh_info.thresh_vals=linspace(min(thresh_var),max(thresh_var)/2,n_thresholds);
 n_syll_range=nan(n_thresholds,1);
 n_too_fast=nan(n_thresholds,1);
-
+if ~skip_time_domain_plot
+    [stiched_envs,fs_envs]=load_stitched_envs();
+end
 
 for nt=1:n_thresholds
     %TODO: fix thresh_mask error
@@ -217,7 +221,8 @@ for nt=1:n_thresholds
     
     hist_wrapper(temp_thresh_rates,temp_tit,hist_param)
     if ~skip_time_domain_plot
-        time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps,thresh_mask,temp_tit)
+        time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
+            thresh_mask,temp_tit,stiched_envs,fs_envs)
     end
     % time_domain_plot_wrapper(temp_times,temp_amps,temp_tit)
     clear temp_rates temp_times temp_amps It
@@ -226,6 +231,17 @@ end
 threshold_distribution_plot_wrapper(n_syll_range,n_too_fast,thresh_info)
 
 %% helpers
+function [envs_stitched,fs]=load_stitched_envs()
+    global boxdir_mine
+    envs_dir=sprintf('%s/stimuli/',boxdir_mine);
+    envs_file=[envs_dir 'WrinkleEnvelopes64hz.mat'];
+    envs_data=load(envs_file);
+    %TODO: edit file so that it is self-evident which condition corresponds
+    %to which cell, by looking at source code found that 2nd cell is og
+    fs=envs_data.fs;
+    envs=envs_data.env(2,:);
+    envs_stitched=vertcat(envs{:});
+end
 function [all_times,clip_constants]=get_peak_times(peakRate,stim_info)
 % NOTE must be original times from peakrate
 % NOTE: i think the calculate rate will NOT work if we add the clip
@@ -256,27 +272,36 @@ function threshold_distribution_plot_wrapper(n_syll_range,n_too_fast,thresh_info
     title(sprintf('%s',thresh_info.tit_thresh))
     hold off
 end
-function time_domain_plot_wrapper(all_times,clip_constants,all_amplitudes,thresh_mask,tit_thresh)
+function time_domain_plot_wrapper(all_times,clip_constants,all_amplitudes, ...
+    thresh_mask,tit_thresh,stitched_envs,fs_envs)
 % time_domain_plot_wrapper(all_times,all_amplitudes,thresh_mask)
 % TODO: stitch all envelopes together for plotting, use fs too for x axis
 % next to stemp plot
 %TODO: rescale envelopes for vis purposes and determine appropriate ylim
     tit=sprintf('Peaks & Envelope before/after %s threshold',tit_thresh);
+    env_time=(0:1/fs_envs:(numel(stitched_envs)-1)/fs_envs)';
     % xlims=[300 304]; %plot start/end times in seconds
     % xlims=[];
-    ylims=[0 max(all_amplitudes)];
+    % ylims=[0 max(all_amplitudes)];
+    % normalize peak amplitudes to simplify visualization
+    all_amplitudes=normalize(all_amplitudes,'range');
+    ylims=[0 1];
     all_times_stitched=all_times+clip_constants;
     thresh_times=all_times_stitched(thresh_mask);
     thresh_amps=all_amplitudes(thresh_mask);
     figure
     axs(1)=subplot(2,1,1);
     stem(all_times_stitched,all_amplitudes)
+    hold on
+    plot(env_time,stitched_envs);
     xlabel('time (s)')
     ylabel('amplitude (au)')
     set(gca(),'YLim',ylims)
     axs(2)=subplot(2,1,2);
     fprintf('n peaks in stem plot:%d\n',sum(thresh_mask))
     stem(thresh_times,thresh_amps)
+    hold on
+    plot(env_time,stitched_envs);
     
     xlabel('time (s)')
     ylabel('amplitude (au)')
