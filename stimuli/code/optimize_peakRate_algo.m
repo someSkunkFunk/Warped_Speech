@@ -170,7 +170,7 @@ hist_wrapper(all_rates,'baseline',hist_param)
 all_peak_amps=vertcat(peakRate(:).amplitudes);
 skip_time_domain_plot=false;
 
-thresh_info.which_threshold='p';
+thresh_info.which_threshold='w';
 switch thresh_info.which_threshold
     case 'w'
         thresh_var=all_wvals;
