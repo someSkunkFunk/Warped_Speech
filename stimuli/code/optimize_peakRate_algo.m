@@ -150,9 +150,9 @@ hist_param.bin_lims=[.5, 36];
 hist_param.n_bins=100;
 fprintf('histogram params set.\n')
 %% get baseline distribution
-n_thresholds=9;
-median_rates=nan(n_thresholds+1,1);
-quantile_rates=nan(n_thresholds+1,2);
+N=9; %number of points for a threshold variable
+median_rates=nan(N+1,1);
+quantile_rates=nan(N+1,2);
 qtls=[.45 .55];
 % all_times=vertcat(peakRate(:).times);
 [all_times,clip_constants]=get_peak_times(peakRate,stim_info);
@@ -163,120 +163,124 @@ fprintf('baseline dist loaded.\n')
 
 median_rates(1)=median(all_rates);
 quantile_rates(1,:)=quantile(all_rates, qtls);
-%TODO: remove this once hist_wrapper is updated to include it in subplots
-%of each thresholded hist
-hist_wrapper(all_rates,'baseline',hist_param)
+
 %% Find median and for particular threshold
-thresh_opts.use_range='custom';
+% thresh_opts.use_range='custom';
 all_peak_amps=vertcat(peakRate(:).amplitudes);
-skip_time_domain_plot=false;
-
-thresh_opts.which_threshold='p&w';
-
-switch thresh_opts.which_threshold
-    case 'w'
-        thresh_var=all_wvals;
-        thresh_opts.tit='peakwidth';
-
-        thresh_opts.custom_range=linspace(0,2,n_thresholds);
-    case 'w2'
-        thresh_var=all_w2vals;
-        thresh_opts.tit='peakwidth2';
-
-        thresh_opts.custom_range=linspace(0,2,n_thresholds);
-    case 'p'
-        thresh_var=all_pvals;
-        thresh_opts.tit='prominence';
-
-        thresh_opts.custom_range=linspace(0,1.5,n_thresholds);
-    case {'w*p','p*w'}
-        all_wpvals=all_wvals.*all_pvals;
-        thresh_var=all_wpvals;
-        thresh_opts.tit='peakwidth*prominence';
-    case {'w2*p','p*w2'}
-        all_w2pvals=all_w2vals.*all_pvals;
-        thresh_var=all_w2pvals;
-        thresh_opts.tit='peakwidth2*prominence';
-    case 'p&w'
-        thresh_opts.tit='Prominence AND Peakwidth';
-        %rows: prominence; peakwidth
-        thresh_opts.custom_range=[linspace(0,2,n_thresholds);linspace(0,1.5,n_thresholds)];
+skip_time_domain_plots=false;
+% note: just make one variable equal to zero to view single-variable
+% threshold result
+% thresh_opts.prominence_range=linspace(0,2,N);
+thresh_opts.prominence_range=0;
+thresh_opts.width_range=linspace(0,2,N);
+% thresh_opts.width_range=0;
+[p_t,w_t]=meshgrid(thresh_opts.prominence_range,thresh_opts.width_range);
+% make both 1-D for final loop (even though we expand later, it's ok):
+p_t=p_t(:)';
+w_t=w_t(:)';
+n_thresholds=numel(p_t); %both should have the same number
+n_peaks=numel(all_times);
+% broadcast to match number of peaks
+P_t=repmat(p_t,n_peaks,1); % [n_peaks X n_thresholds]
+W_t=repmat(w_t,n_peaks,1); % [n_peaks X n_thresholds]
+% broadcast peak times, prominence, and width for mask
+% note: i think broadcasting times matrix is useless since iterating
+% through thresholds later anyway?
+% T=repmat(all_times,1,n_thresholds); % [n_peaks X n_thresholds]
+P=repmat(all_pvals,1,n_thresholds); % [n_peaks X n_thresholds]
+thresh_opts.which_width=1;
+switch thresh_opts.which_width
+    case 1
+        % i think this was the better one
+        W=repmat(all_wvals,1,n_thresholds);
+    case 2
+        W=repmat(all_w2vals,1,n_thresholds);
+    otherwise
+        error('select width 1 or 2 only.')
 end
+% filter/mask matrix
+F=(P>P_t)&(W>W_t);
 
-switch thresh_opts.use_range
-    case 'full'
-        % use full range
-        thresh_opts.thresh_vals=linspace(min(thresh_var),max(thresh_var)/2,n_thresholds);
-    case 'custom'
-        % use pre-specified range
-        thresh_opts.thresh_vals=thresh_opts.custom_range;
-end
 n_syll_range=nan(n_thresholds,1);
 n_too_fast=nan(n_thresholds,1);
-if ~skip_time_domain_plot
+if ~skip_time_domain_plots
     [stiched_envs,fs_envs]=load_stitched_envs();
 end
 
-
-%TODO: make masking more consistent when using 1 vs 2 AND variables
-if strcmp(thresh_opts.which_threshold,'p&w')
-    % thresh_mask=all_pvals>=
-    disp('this does nothing for now')
-else
-% note: replacing stuff below so loop is not needed and to reduce
-% redundant code in 2-D mask vs 1-D mask cases
-    use_loop=false;
-    if use_loop
-        %TODO: remove loop once vectorized soolution works
-        for nt=1:n_thresholds
-            thresh_mask=thresh_var>=thresh_opts.thresh_vals(nt);
-            
-            temp_thresh_rates=calculate_rates(all_times(thresh_mask));
-            
-            median_rates(1+nt)=median(temp_thresh_rates);
-            quantile_rates(1+nt,:)=quantile(temp_thresh_rates,qtls);
-            temp_tit=sprintf('%s threshold=%0.3f',thresh_opts.tit,thresh_opts.thresh_vals(nt));
-            % report distribution quantiles at different threshold
-            fprintf('%0.3f %s_thresh - median=%0.3f, quantiles= %0.3f, %0.3f \n', ...
-                thresh_opts.thresh_vals(nt),thresh_opts.tit,median_rates(1+nt),quantile_rates(1+nt,1),quantile_rates(1+nt,2))
-            % also report absolute numbers above/below 8 Hz to see if fast stuff being
-            % filtered out at all
-            n_too_fast(nt)=sum(temp_thresh_rates>=syllable_cutoff_hz);
-            n_syll_range(nt)=sum(temp_thresh_rates<syllable_cutoff_hz);
-            fprintf('number of peaks above 8 Hz: %d\n', n_too_fast(nt))
-            fprintf('number of peaks below 8 Hz: %d\n', n_syll_range(nt))
-            fprintf('their sum: %d, \ntotal sum of thresh mask:%d\n',sum([n_too_fast(nt) n_syll_range(nt)]),sum(thresh_mask))
-            fprintf('their diff: %d',sum([n_too_fast(nt) n_syll_range(nt)])-sum(thresh_mask))
-            
-            hist_wrapper(temp_thresh_rates,temp_tit,hist_param)
-            if ~skip_time_domain_plot
-                time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
-                    thresh_mask,temp_tit,stiched_envs,fs_envs)
-            end
-            % time_domain_plot_wrapper(temp_times,temp_amps,temp_tit)
-            clear temp_rates temp_times temp_amps It
-        end
-    else
-        % get vector for all the rates -> expand to matrix using repmat for
-        % thresholding
-        % note: when using AND to combine thresholds, will need a second
-        % expanded matrix...
-
-        % need to filter peaks before calculating rates
-        % all_rates=calculate_rates(all_times);
-        % R=repmat(all_rates,1,n_thresholds);
-        T=repmat(all_times,1,n_thresholds);
-        H=repmat(thresh_opts.thresh_vals,numel(all_times),1);
-        X=repmat(thresh_var,1,n_thresholds);
-        M=X>H;
-        % syll_rates=sum((R<syllable_cutoff_hz)&(X>T),1);
-    end
+for nt=1:n_thresholds
+    % M=thresh_var>=thresh_opts.thresh_vals(nt);
+    % T=all_times(M);
+    mask_temp=F(:,nt);
+    thresh_rates=calculate_rates(all_times(mask_temp));
+        
+    median_rates(1+nt)=median(thresh_rates);
+    quantile_rates(1+nt,:)=quantile(thresh_rates,qtls);
+    % report distribution quantiles at different threshold
+    sprintf('prominence, width: (%0.3f, %0.3f)\nmedian: %0.3f, quantiles= %0.3f, %0.3f \n', ...
+        p_t(nt),w_t(nt),median_rates(1+nt),quantile_rates(1+nt,1),quantile_rates(1+nt,2))
+    % also report absolute numbers above/below 8 Hz to see if fast stuff being
+    % filtered out at all
+    n_too_fast(nt)=sum(thresh_rates>=syllable_cutoff_hz);
+    n_syll_range(nt)=sum(thresh_rates<syllable_cutoff_hz);
+    sprintf('number of peaks above 8 Hz: %d\n', n_too_fast(nt))
+    sprintf('number of peaks below 8 Hz: %d\n', n_syll_range(nt))
+    sprintf('their sum: %d, \ntotal sum of thresh mask:%d\n',sum([n_too_fast(nt) n_syll_range(nt)]),sum(mask_temp))
+    sprintf('their diff: %d',sum([n_too_fast(nt) n_syll_range(nt)])-sum(mask_temp))
+    % hist_wrapper(thresh_rates,temp_tit,hist_param)
+    % if ~skip_time_domain_plots
+    %     time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
+    %         F(:,nt),temp_tit,stiched_envs,fs_envs)
+    % end
+    clear mask_temp
+    % temp_thresh_rates=calculate_rates(all_times(thresh_mask));
+    % 
+    % median_rates(1+nt)=median(temp_thresh_rates);
+    % quantile_rates(1+nt,:)=quantile(temp_thresh_rates,qtls);
+    % temp_tit=sprintf('%s threshold=%0.3f',thresh_opts.tit,thresh_opts.thresh_vals(nt));
+    % % report distribution quantiles at different threshold
+    % fprintf('%0.3f %s_thresh - median=%0.3f, quantiles= %0.3f, %0.3f \n', ...
+    %     thresh_opts.thresh_vals(nt),thresh_opts.tit,median_rates(1+nt),quantile_rates(1+nt,1),quantile_rates(1+nt,2))
+    % % also report absolute numbers above/below 8 Hz to see if fast stuff being
+    % % filtered out at all
+    % n_too_fast(nt)=sum(temp_thresh_rates>=syllable_cutoff_hz);
+    % n_syll_range(nt)=sum(temp_thresh_rates<syllable_cutoff_hz);
+    % fprintf('number of peaks above 8 Hz: %d\n', n_too_fast(nt))
+    % fprintf('number of peaks below 8 Hz: %d\n', n_syll_range(nt))
+    % fprintf('their sum: %d, \ntotal sum of thresh mask:%d\n',sum([n_too_fast(nt) n_syll_range(nt)]),sum(thresh_mask))
+    % fprintf('their diff: %d',sum([n_too_fast(nt) n_syll_range(nt)])-sum(thresh_mask))
+    % 
+    % hist_wrapper(temp_thresh_rates,temp_tit,hist_param)
+    % if ~skip_time_domain_plot
+    %     time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
+    %         thresh_mask,temp_tit,stiched_envs,fs_envs)
+    % end
+    % % time_domain_plot_wrapper(temp_times,temp_amps,temp_tit)
+    % clear temp_rates temp_times temp_amps It
 end
-threshold_distribution_plot_wrapper(n_syll_range,n_too_fast,thresh_opts)
-%% time domain plots
+% end
+%% plots
 
+%TODO: figure out how to map particular prominence/width vals to single
+%index
+% plot original distribution
+
+rates_hist_wrapper(all_rates,hist_param)
+title('PeakRate without Threshold')
+
+nt_plot=8; 
+rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
+title(sprintf('Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
+
+time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
+        F(:,nt_plot),stiched_envs,fs_envs)
+
+sgtitle(sprintf(['Peaks & Envelope before/after %0.3f,%0.3f Prominence,' ...
+    ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
+
+threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,syllable_cutoff_hz)
 
 %% helpers
+
 function [envs_stitched,fs]=load_stitched_envs()
     global boxdir_mine
     envs_dir=sprintf('%s/stimuli/',boxdir_mine);
@@ -304,27 +308,67 @@ function [all_times,clip_constants]=get_peak_times(peakRate,stim_info)
         start_clip=end_clip+1;
     end
 end
-function threshold_distribution_plot_wrapper(n_syll_range,n_too_fast,thresh_info)
-    % plot n_syllables in output vs threshold
-    ylims=[0 33989];
-    figure
-    plot(thresh_info.thresh_vals,n_syll_range)
-    hold on
-    plot(thresh_info.thresh_vals,n_too_fast)
-    legend('# rates in syllable range','# rates too fast')
-    ylabel('# of rates')
-    xlabel('threshold')
-    set(gca(),'YLim',ylims)
-    title(sprintf('%s',thresh_info.tit))
-    hold off
+
+function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,syllable_cutoff_hz)
+    %NOTE: this worked fine when each threshold var was one-dimensional -
+    %will need to update to conform with fact that we assume 2 vars in AND
+    %case - I think we can keep the current functionality with simple check
+    %if one of the two vars is always zero...
+    
+
+    % if only 1 param varies, can plot line
+    num_vars=1;
+    if all(w_t==w_t(1))
+        x_t=p_t;
+        x_str='prominence';
+    elseif all(p_t==p_t(1))
+        x_t=w_t;
+        x_str='peakwidth';
+    else
+        num_vars=2;
+    end
+    switch num_vars
+        case 1
+            % plot n_syllables in output vs threshold
+            ylims=[0 33989];
+            figure
+            plot(x_t,n_syll_range)
+            hold on
+            plot(x_t,n_too_fast)
+            legend('# rates in syllable range','# rates too fast')
+            ylabel('# of rates')
+            xlabel([x_str ' threshold'])
+            set(gca(),'YLim',ylims)
+            title('Single variable threshold')
+            hold off
+        case 2
+            % get unfiltered numbers
+            n_syll_0=n_syll_range(w_t==0&p_t==0);
+            n_fast_0=n_too_fast(w_t==0&&p_t==0);
+            % normalize numbers to unfiltered number
+            f_syll=n_syll_range/n_syll_0;
+            f_fast=n_too_fast/n_fast_0;
+            
+            figure
+            surf(w_t,p_t,f_syll)
+            xlabel('Width Threshold')
+            ylabel('Prominence Threshold')
+            zlabel(sprintf('fraction < %d Hz',syllable_cutoff_hz))
+
+            figure
+            surf(w_t,p_t,f_fast)
+            xlabel('Width Threshold')
+            ylabel('Prominence Threshold')
+            zlabel(sprintf('fraction > %d Hz',syllable_cutoff_hz))
+
+    end
 end
 function time_domain_plot_wrapper(all_times,clip_constants,all_amplitudes, ...
-    thresh_mask,tit,stitched_envs,fs_envs)
+    thresh_mask,stitched_envs,fs_envs)
 % time_domain_plot_wrapper(all_times,all_amplitudes,thresh_mask)
 % TODO: stitch all envelopes together for plotting, use fs too for x axis
 % next to stemp plot
 %TODO: rescale envelopes for vis purposes and determine appropriate ylim
-    tit=sprintf('Peaks & Envelope before/after %s threshold',tit);
     env_time=(0:1/fs_envs:(numel(stitched_envs)-1)/fs_envs)';
     % xlims=[300 304]; %plot start/end times in seconds
     % xlims=[];
@@ -355,10 +399,11 @@ function time_domain_plot_wrapper(all_times,clip_constants,all_amplitudes, ...
     % set(gca(),'XLim',xlims,'YLim',ylims)
 
     linkaxes(axs,'x','y')
-    sgtitle(tit)
+    % sgtitle(tit)
 end
 
-function hist_wrapper(distribution,tit,hist_param)
+function rates_hist_wrapper(distribution,hist_param)
+% plot distribution of syllable rates
 bin_lims=hist_param.bin_lims;
 n_bins=hist_param.n_bins;
 xticks=hist_param.xticks;
@@ -379,7 +424,6 @@ histogram(distribution,bins,'Normalization','pdf')
 ylabel('probability ')
 xlabel('syllable rate (Hz)')
 set(gca(),'XTick',xticks,'XLim',xlims,'YLim',ylims)
-title(tit)
 end
 
 
