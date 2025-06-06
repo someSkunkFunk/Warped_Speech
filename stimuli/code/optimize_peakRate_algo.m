@@ -153,8 +153,8 @@ fprintf('histogram params set.\n')
 %TODO: figure out why there's a weird bump below 8 Hz now...?
 % NOTE: maybe related to median_rates/quantile_rates being yoked to N
 % instead of number of thresholds
-n_p=9; %number of points for prominence
-n_w=9; % number of points for peakwidth
+n_p=20; %number of points for prominence
+n_w=20; % number of points for peakwidth
 n_thresholds=n_p*n_w;
 
 median_rates=nan(n_thresholds+1,1); % +1 for baseline...?
@@ -175,9 +175,11 @@ all_peak_amps=vertcat(peakRate(:).amplitudes);
 skip_time_domain_plots=false;
 % note: just make one variable equal to zero to view single-variable
 % threshold result
-thresh_opts.prominence_range=linspace(0,2,n_p);
+max_width=3.5;
+max_prom=2.0;
+thresh_opts.prominence_range=linspace(0,max_prom,n_p);
 % thresh_opts.prominence_range=0;
-thresh_opts.width_range=linspace(0,2,n_w);
+thresh_opts.width_range=linspace(0,max_width,n_w);
 % thresh_opts.width_range=0;
 [p_t,w_t]=meshgrid(thresh_opts.prominence_range,thresh_opts.width_range);
 % make both 1-D for threshold loop (even though we expand later, it's ok):
@@ -244,7 +246,11 @@ end
 rates_hist_wrapper(all_rates,hist_param)
 title('PeakRate without Threshold')
 
-nt_plot=8; 
+% select a particular distribution/time domain plot to view
+% select by index:
+% nt_plot=8; 
+% select by param vals:
+nt_plot=find(round(p_t,3)==0.105&round(w_t,3)==1.842);
 rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
 title(sprintf('Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
 
@@ -342,6 +348,14 @@ function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syll
             xlabel('Width Threshold')
             ylabel('Prominence Threshold')
             zlabel(sprintf('fraction > %d Hz',syllable_cutoff_hz))
+
+            % their difference is actually what we want to maximize
+            figure
+            surf(PP_t,WW_t,F_syll-F_fast)
+            xlabel('Prominence threshold')
+            ylabel('Width threshold')
+            zlabel(sprintf('# rates < %d Hz - # rates >= %d Hz', ...
+                syllable_cutoff_hz,syllable_cutoff_hz))
 
     end
 end
