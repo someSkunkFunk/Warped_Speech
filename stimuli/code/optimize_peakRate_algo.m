@@ -151,9 +151,15 @@ hist_param.n_bins=100;
 fprintf('histogram params set.\n')
 %% get baseline distribution
 %TODO: figure out why there's a weird bump below 8 Hz now...?
-N=9; %number of points for a threshold variable
-median_rates=nan(N+1,1);
-quantile_rates=nan(N+1,2);
+% NOTE: maybe related to median_rates/quantile_rates being yoked to N
+% instead of number of thresholds
+n_p=9; %number of points for prominence
+n_w=9; % number of points for peakwidth
+n_thresholds=n_p*n_w;
+
+median_rates=nan(n_thresholds+1,1); % +1 for baseline...?
+quantile_rates=nan(n_thresholds,2);
+% note: why did we want these quantiles again?
 qtls=[.45 .55];
 % all_times=vertcat(peakRate(:).times);
 [all_times,clip_constants]=get_peak_times(peakRate,stim_info);
@@ -169,15 +175,15 @@ all_peak_amps=vertcat(peakRate(:).amplitudes);
 skip_time_domain_plots=false;
 % note: just make one variable equal to zero to view single-variable
 % threshold result
-thresh_opts.prominence_range=linspace(0,2,N);
+thresh_opts.prominence_range=linspace(0,2,n_p);
 % thresh_opts.prominence_range=0;
-thresh_opts.width_range=linspace(0,2,N);
+thresh_opts.width_range=linspace(0,2,n_w);
 % thresh_opts.width_range=0;
 [p_t,w_t]=meshgrid(thresh_opts.prominence_range,thresh_opts.width_range);
-% make both 1-D for final loop (even though we expand later, it's ok):
+% make both 1-D for threshold loop (even though we expand later, it's ok):
 p_t=p_t(:)';
 w_t=w_t(:)';
-n_thresholds=numel(p_t); %both should have the same number
+
 n_peaks=numel(all_times);
 % broadcast to match number of peaks
 P_t=repmat(p_t,n_peaks,1); % [n_peaks X n_thresholds]
@@ -248,7 +254,7 @@ time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
 sgtitle(sprintf(['Peaks & Envelope before/after %0.3f,%0.3f Prominence,' ...
     ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
 
-threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,syllable_cutoff_hz)
+threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
 
 %% helpers
 
@@ -280,12 +286,10 @@ function [all_times,clip_constants]=get_peak_times(peakRate,stim_info)
     end
 end
 
-function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,syllable_cutoff_hz)
-    %NOTE: this worked fine when each threshold var was one-dimensional -
-    %will need to update to conform with fact that we assume 2 vars in AND
-    %case - I think we can keep the current functionality with simple check
-    %if one of the two vars is always zero...
-    
+function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
+    % threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
+    n_p=numel(thresh_opts.prominence_range);
+    n_w=numel(thresh_opts.width_range);
 
     % if only 1 param varies, can plot line
     num_vars=1;
@@ -315,19 +319,26 @@ function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,syllable_cutoff_
         case 2
             % get unfiltered numbers
             n_syll_0=n_syll_range(w_t==0&p_t==0);
-            n_fast_0=n_too_fast(w_t==0&&p_t==0);
+            n_fast_0=n_too_fast(w_t==0&p_t==0);
             % normalize numbers to unfiltered number
             f_syll=n_syll_range/n_syll_0;
             f_fast=n_too_fast/n_fast_0;
             
+            % order of dimension sizes has to match what we put in meshgrid
+            % originally
+            WW_t=reshape(w_t,n_p,n_w);
+            PP_t=reshape(p_t,n_p,n_w);
+            F_syll=reshape(f_syll,n_p,n_w);
+            F_fast=reshape(f_fast,n_p,n_w);
+            
             figure
-            surf(w_t,p_t,f_syll)
+            surf(WW_t,PP_t,F_syll)
             xlabel('Width Threshold')
             ylabel('Prominence Threshold')
             zlabel(sprintf('fraction < %d Hz',syllable_cutoff_hz))
 
             figure
-            surf(w_t,p_t,f_fast)
+            surf(WW_t,PP_t,F_fast)
             xlabel('Width Threshold')
             ylabel('Prominence Threshold')
             zlabel(sprintf('fraction > %d Hz',syllable_cutoff_hz))

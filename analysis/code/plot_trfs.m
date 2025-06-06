@@ -1,7 +1,7 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 %
-
+close all
 subjs=2:17;
 plot_chns=85;
 separate_conditions=true; %NOTE: not operator required when 
@@ -10,8 +10,9 @@ separate_conditions=true; %NOTE: not operator required when
     % ignoring the false case rn sincee buggy but not a priority but should
     % fix
 n_subjs=numel(subjs);
-plot_individual_weights=false;
+plot_individual_weights=true;
 plot_avg_weights=true;
+% plot_config
 %% Main script
 for ss=1:n_subjs
     subj=subjs(ss);
@@ -33,13 +34,35 @@ if plot_avg_weights
     avg_models=construct_avg_models(ind_models);
     plot_model_weights(avg_models,trf_config,plot_chns)
 end
-%% estimate snr
+%% estimate snr overall
 snr=estimate_snr(avg_models);
 for cc=1:3
     %TODO: take conditions cell out
     fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
 end
+%% estimate snr per subject (simplified)
+snr_per_subj=nan(n_subjs,3);
+for ss=1:n_subjs
+    subset_avg_model=construct_avg_models(ind_models(1:ss,:));
+    %TODO: need to transpose?
+    snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
+end
+%% plot snr vs subject
+figure
+for cc=1:3
+     plot(1:n_subjs,snr_per_subj(:,cc))
+     hold on
+end
+legend({'fast','og','slow'})
 %% Helpers
+function snr_plot(snr_per_subj)
+    [n_subjs,n_conditions]=size(snr_per_subj);
+    for cc=1:3
+        plot(1:n_subjs,snr_per_subj(ss,cc));
+        
+    end
+end
+
 function snr=estimate_snr(avg_models,noise_window,signal_window)
 % assumes (1,3) avg models given
 arguments
