@@ -150,6 +150,7 @@ hist_param.bin_lims=[.5, 36];
 hist_param.n_bins=100;
 fprintf('histogram params set.\n')
 %% get baseline distribution
+%TODO: figure out why there's a weird bump below 8 Hz now...?
 N=9; %number of points for a threshold variable
 median_rates=nan(N+1,1);
 quantile_rates=nan(N+1,2);
@@ -159,19 +160,17 @@ qtls=[.45 .55];
 all_rates=calculate_rates(all_times);
 % [all_intervals,all_rates,all_times]=get_distributions(peakRate);
 fprintf('baseline dist loaded.\n')
-%% plot baseline distribution
-
 median_rates(1)=median(all_rates);
 quantile_rates(1,:)=quantile(all_rates, qtls);
 
-%% Find median and for particular threshold
+%% set thresholds
 % thresh_opts.use_range='custom';
 all_peak_amps=vertcat(peakRate(:).amplitudes);
 skip_time_domain_plots=false;
 % note: just make one variable equal to zero to view single-variable
 % threshold result
-% thresh_opts.prominence_range=linspace(0,2,N);
-thresh_opts.prominence_range=0;
+thresh_opts.prominence_range=linspace(0,2,N);
+% thresh_opts.prominence_range=0;
 thresh_opts.width_range=linspace(0,2,N);
 % thresh_opts.width_range=0;
 [p_t,w_t]=meshgrid(thresh_opts.prominence_range,thresh_opts.width_range);
@@ -200,62 +199,34 @@ switch thresh_opts.which_width
 end
 % filter/mask matrix
 F=(P>P_t)&(W>W_t);
-
+% preallocate arrays for plots
 n_syll_range=nan(n_thresholds,1);
 n_too_fast=nan(n_thresholds,1);
 if ~skip_time_domain_plots
     [stiched_envs,fs_envs]=load_stitched_envs();
 end
-
+%% apply thresholds
 for nt=1:n_thresholds
     % M=thresh_var>=thresh_opts.thresh_vals(nt);
     % T=all_times(M);
     mask_temp=F(:,nt);
-    thresh_rates=calculate_rates(all_times(mask_temp));
+    thresh_rates_temp=calculate_rates(all_times(mask_temp));
         
-    median_rates(1+nt)=median(thresh_rates);
-    quantile_rates(1+nt,:)=quantile(thresh_rates,qtls);
+    median_rates(1+nt)=median(thresh_rates_temp);
+    quantile_rates(1+nt,:)=quantile(thresh_rates_temp,qtls);
     % report distribution quantiles at different threshold
     sprintf('prominence, width: (%0.3f, %0.3f)\nmedian: %0.3f, quantiles= %0.3f, %0.3f \n', ...
         p_t(nt),w_t(nt),median_rates(1+nt),quantile_rates(1+nt,1),quantile_rates(1+nt,2))
     % also report absolute numbers above/below 8 Hz to see if fast stuff being
     % filtered out at all
-    n_too_fast(nt)=sum(thresh_rates>=syllable_cutoff_hz);
-    n_syll_range(nt)=sum(thresh_rates<syllable_cutoff_hz);
-    sprintf('number of peaks above 8 Hz: %d\n', n_too_fast(nt))
-    sprintf('number of peaks below 8 Hz: %d\n', n_syll_range(nt))
+    n_too_fast(nt)=sum(thresh_rates_temp>=syllable_cutoff_hz);
+    n_syll_range(nt)=sum(thresh_rates_temp<syllable_cutoff_hz);
+    sprintf('number of peaks above %d Hz: %d\n', syllable_cutoff_hz,n_too_fast(nt))
+    sprintf('number of peaks below %d Hz: %d\n', syllable_cutoff_hz,n_syll_range(nt))
     sprintf('their sum: %d, \ntotal sum of thresh mask:%d\n',sum([n_too_fast(nt) n_syll_range(nt)]),sum(mask_temp))
     sprintf('their diff: %d',sum([n_too_fast(nt) n_syll_range(nt)])-sum(mask_temp))
-    % hist_wrapper(thresh_rates,temp_tit,hist_param)
-    % if ~skip_time_domain_plots
-    %     time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
-    %         F(:,nt),temp_tit,stiched_envs,fs_envs)
-    % end
-    clear mask_temp
-    % temp_thresh_rates=calculate_rates(all_times(thresh_mask));
-    % 
-    % median_rates(1+nt)=median(temp_thresh_rates);
-    % quantile_rates(1+nt,:)=quantile(temp_thresh_rates,qtls);
-    % temp_tit=sprintf('%s threshold=%0.3f',thresh_opts.tit,thresh_opts.thresh_vals(nt));
-    % % report distribution quantiles at different threshold
-    % fprintf('%0.3f %s_thresh - median=%0.3f, quantiles= %0.3f, %0.3f \n', ...
-    %     thresh_opts.thresh_vals(nt),thresh_opts.tit,median_rates(1+nt),quantile_rates(1+nt,1),quantile_rates(1+nt,2))
-    % % also report absolute numbers above/below 8 Hz to see if fast stuff being
-    % % filtered out at all
-    % n_too_fast(nt)=sum(temp_thresh_rates>=syllable_cutoff_hz);
-    % n_syll_range(nt)=sum(temp_thresh_rates<syllable_cutoff_hz);
-    % fprintf('number of peaks above 8 Hz: %d\n', n_too_fast(nt))
-    % fprintf('number of peaks below 8 Hz: %d\n', n_syll_range(nt))
-    % fprintf('their sum: %d, \ntotal sum of thresh mask:%d\n',sum([n_too_fast(nt) n_syll_range(nt)]),sum(thresh_mask))
-    % fprintf('their diff: %d',sum([n_too_fast(nt) n_syll_range(nt)])-sum(thresh_mask))
-    % 
-    % hist_wrapper(temp_thresh_rates,temp_tit,hist_param)
-    % if ~skip_time_domain_plot
-    %     time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
-    %         thresh_mask,temp_tit,stiched_envs,fs_envs)
-    % end
-    % % time_domain_plot_wrapper(temp_times,temp_amps,temp_tit)
-    % clear temp_rates temp_times temp_amps It
+    
+    clear mask_temp thresh_rates_temp
 end
 % end
 %% plots
