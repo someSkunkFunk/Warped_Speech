@@ -21,7 +21,7 @@ stimuli_dir_contents=dir([og_stimuli_dir '*.wav']);
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 baseline_peakRate_file=[peakRate_dir 'og.mat'];
 syllable_cutoff_hz=8;
-stim_info.clip_duration=64; % in seconds
+clip_duration=64; % in seconds
 
 if exist(baseline_peakRate_file,'file')
     fprintf('loading data from pre-existing %s file\n',baseline_peakRate_file)
@@ -102,7 +102,7 @@ if peakRate_from_file
 else
     % filter/downsample envelopes before saving
     env_fs=128; %bc that's what we using in trfs
-    bark_envs=nan(stim_info.clip_duration*env_fs,numel(peakRate));
+    bark_envs=nan(clip_duration*env_fs,numel(peakRate));
     %same filter as used in get_peakRate
     Hd = getLPFilt(wav_fs,10);
     for nn=1:numel(peakRate)
@@ -162,7 +162,7 @@ quantile_rates=nan(n_thresholds,2);
 % note: why did we want these quantiles again?
 qtls=[.45 .55];
 % all_times=vertcat(peakRate(:).times);
-[all_times,clip_constants]=get_peak_times(peakRate,stim_info);
+[all_times,clip_constants]=get_peak_times(peakRate,clip_duration);
 all_rates=calculate_rates(all_times);
 % [all_intervals,all_rates,all_times]=get_distributions(peakRate);
 fprintf('baseline dist loaded.\n')
@@ -275,22 +275,22 @@ function [envs_stitched,fs]=load_stitched_envs()
     envs=envs_data.env(2,:);
     envs_stitched=vertcat(envs{:});
 end
-function [all_times,clip_constants]=get_peak_times(peakRate,stim_info)
+function [all_times,clip_constants]=get_peak_times(peakRate,clip_duration)
+% [all_times,clip_constants]=get_peak_times(peakRate,clip_duration)
 % NOTE must be original times from peakrate
-% NOTE: i think the calculate rate will NOT work if we add the clip
-% constants so leaving them separate for now
     all_times=vertcat(peakRate(:).times);
     clip_constants=nan(size(all_times));
     start_clip=1;
     % prev_clips=0;
     for nn=1:numel(peakRate)
-        start_time=stim_info.clip_duration.*(nn-1);
+        start_time=clip_duration.*(nn-1);
         n_clip_peaks=numel(peakRate(nn).times);
         end_clip=start_clip+n_clip_peaks-1;
         clip_constants(start_clip:end_clip)=start_time;
         start_clip=end_clip+1;
     end
 end
+
 
 function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
     % threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
