@@ -158,9 +158,10 @@ n_w=20; % number of points for peakwidth
 n_thresholds=n_p*n_w;
 
 median_rates=nan(n_thresholds+1,1); % +1 for baseline...?
-quantile_rates=nan(n_thresholds,2);
+quantile_rates=nan(n_thresholds+1,2);
 % note: why did we want these quantiles again?
-qtls=[.45 .55];
+% re: for smooth transition between distribution extremes
+qtls=[.25 .55];
 % all_times=vertcat(peakRate(:).times);
 [all_times,clip_constants]=get_peak_times(peakRate,clip_duration);
 all_rates=calculate_rates(all_times);
@@ -251,6 +252,11 @@ title('PeakRate without Threshold')
 % nt_plot=8; 
 % select by param vals:
 nt_plot=find(round(p_t,3)==0.105&round(w_t,3)==1.842);
+sprintf('Quantiles: %0.3f, %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
+    quantile_rates(1+nt_plot,1),quantile_rates(1+nt_plot,2),p_t(nt_plot),w_t(nt_plot))
+sprintf('median: %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
+    median_rates(1+nt_plot),p_t(nt_plot),w_t(nt_plot))
+
 rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
 title(sprintf('Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
 

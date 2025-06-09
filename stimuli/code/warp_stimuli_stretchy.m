@@ -1,13 +1,16 @@
-% andre's copy of warp stimuli to avoid making changes we want to undo and
+% use this scriptf - implements stretchy/compressy rules
 %% TODOS: NEW IMPLEMENTATION
 
 clear;
 clc;
-userProfile=getenv('USERPROFILE');
-inputStimfolder = sprintf('%s/Box/Lalor Lab Box/Research Projects/Aaron - Warped Speech/stimuli/',userProfile);
-
+% userProfile=getenv('USERPROFILE');
+global boxdir_lab
+global boxdir_mine
+inputStimfolder = sprintf('%s/stimuli/',boxdir_lab);
+outputStimfolder=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/',boxdir_mine);
 %need TSM toolbox
-addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
+
+% addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
 % save output to my personal box location - avoid mixing files with shared
 % drive
 warp_rules=2;
@@ -38,7 +41,12 @@ stimspeed=[];
 param.tolerance = 256;
 param.synHop = 256;
 param.win = win(1024,2); % hann window
-outputStimfolder='./wrinkle/stretchy_compressy_temp/';
+
+% lowpass filter for get_peakrate:
+%TODO: verify this wav_fs matches what's going into audio read
+% wav_fs=44100;
+% Hd = getLPFilt(wav_fs,10);
+
 for warp_rule=warp_rules
     fprintf('warp_rule: %d\n',warp_rule)
     for ff = 1:length(center_freqs)
@@ -68,10 +76,10 @@ for warp_rule=warp_rules
     
         d = dir(sprintf('%s%s/og/*.wav',inputStimfolder,stimgroup{gg}));
         for dd = 1:length(d)
-            fprintf('file: %s ',d(dd).name)
+            fprintf('file: %s \n',d(dd).name)
             audiofile = sprintf('%s%s/og/%s',inputStimfolder,stimgroup{gg},d(dd).name);
             [audio,wav_fs]=audioread(audiofile);
-    
+            
             % % Warp speech -> more reg
             if ismember(2,conditions)
                 % reg is 2 bc we later on switched to "stretchy/compressy"
@@ -87,7 +95,7 @@ for warp_rule=warp_rules
                 audioParamsFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name(1:end-4));
     
                 if ~exist(audioOutputFileTemp,'file') || overwrite
-                    fprintf('%s - f: %0.3f:',type,center_f)
+                    fprintf('%s - f: %0.3f\n',type,center_f)
                     [audio_warp_temp,s_temp] = stretchyWrinkle(audio,wav_fs,warp_gravity,center_f,warp_rule); 
     
                     if ~exist(outputDirTemp,'dir')
@@ -112,7 +120,7 @@ for warp_rule=warp_rules
                 audioParamsFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name(1:end-4));
                 
                 if ~exist(audioOutputFileTemp,'file') || overwrite
-                    fprintf('%s- f: %0.3f:',type,center_f)
+                    fprintf('%s- f: %0.3f\n',type,center_f)
                     [audio_warp_temp,s_temp] = stretchyWrinkle(audio,wav_fs,warp_gravity,center_f,warp_rule); 
         
                     if ~exist(outputDirTemp,'dir')

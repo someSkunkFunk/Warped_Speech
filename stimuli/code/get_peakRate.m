@@ -1,16 +1,14 @@
-function [peakTs,peakVals,p,w,w2]=get_peakRate(env,fs,peak_tol)
+function [peakTs,peakVals,p,w,w2]=get_peakRate(env,fs,Hd,peak_tol)
 % [peakTs,peakVals,p,w]=get_peakRate(env,fs,peak_tol)
 
 arguments
     env
     fs
+    Hd
     peak_tol (1,1) double = 0;
 end
 % [peakTs,peakVals]=peakRate(env,fs,peak_tol)
-% TODO: make the filter an input param so it doesn't have to be
-% recalculated every time
-fprintf(['before running get_peakrate in stretchy wrinkle script again,' ...
-    ' make lpfilt an input parameter to save computation time.'])
+% TODO: can we make Hd an input param conveniently? 
 Hd = getLPFilt(fs,10); %% Maybe don't filter so harshly?
 env = filtfilthd(Hd,env);
 % Find onsets

@@ -47,7 +47,7 @@ arguments
     rule (1,1) = 1;    
     %TODO: figure out what happens when we make this smaller or larger
     % shift_rate (1,1) double = 0.40; % percentage of original interval - NOTE: should consider spitting this variable out if we start varying it in future - i think once we get rid of long pauses in the estimation that won't really be necessary
-    shift_rate (1,1) double = 0.75; 
+    shift_rate (1,1) double = 1.00; 
     peak_tol (1,1) double = 0.1;
     %we checked that sil_tol=inf replicates original unsegmented results
     %but now we also gotta remember that sil_tol needs to be larger than
@@ -62,13 +62,20 @@ arguments
     % min_mod_interval (1,1) double = 1/7; %(1/ Hz) % where the "stretch" reaches max warp (shift_rate) for fast syllables
     % config.mod_factor_lims=[3.93328576525152 6.371911573472042]; upper
     % and lower quartiles ^
-    min_mod_interval (1,1) double =1/6.371911573472042; %1/5.5;%
-    max_mod_interval (1,1) double = 1/3.93328576525152; %1/2.5;
+    % min_mod_interval (1,1) double =1/6.371911573472042; %1/5.5;%
+    % max_mod_interval (1,1) double = 1/3.93328576525152; %1/2.5;
     % max_mod_interval (1,1) double = 0.5; % 2 hz
     % max_mod_interval (1,1) double = 1/2;
     % max_mod_interval (1,1) double = 0.75; %1.33 Hz-> 
     % max_mod_interval (1,1) double = 1/3;%1/hz where the "stretch" reaches max warp (shift_rate) for slow syllables
     % max_mod_interval (1,1) double = 100000/1; %.000001 hz
+    % Quantiles (45%,55% in Hz): 4.320, 4.927 (prominence,width - 0.105, 1.842)
+    min_mod_interval (1,1) double = 1/4.927;
+    % max_mod_interval (1,1) double = 1/4.32;
+    %trying something a bit slower (25% quantile) cuz too many slow syllables:
+    % max_mod_interval (1,1) double = 1/3.186;
+    % that wasn't low enough, trying some random number:
+    max_mod_interval (1,1) double = 1/2.0;
     env_method (1,1) double = 2 % 1-> use broadband 2-> use bark filterbank 3-> use gammatone filterbank (TODO)
     % jitter=3.3225; % 1 std of ogPeakFreqs... must do rules 3 and up reg operation in freq domain then convert to time
     jitter=[1.75, .25]; %in Hz - slow jitter, fast jitter - should add to 2 hz
@@ -84,64 +91,6 @@ arguments
 
 
 end
-% note that since we added this, s values no longer will contain values
-% outside tMin tMax in our other gammaFit scripts and thus obviate a need
-% to filter, but we can always recover them from ogPeakRateFile=sprintf('%s/wrinklePeakrateLongpauses.mat',peakRateDir);
-% syl_rate_dist_range=1/minInt - 1/maxInt;
-% if sil_tol==inf
-%     switch center
-% 
-%         case -1 
-%             % use lower quartile
-%             % estimated from empirical distribution (bark-envelope)
-%             f_center=4.12960014982676;
-%             % use mean
-%             % calculated using product of gammafit a,b params: 3.2751, 2.0123 -> mean freq: 6.5905 hz (0.15 s)
-%             % f_center=6.5905;% calculated on untruncated distribution
-%         case 0 % use median
-%             % estimated from median of 1e5 gamma samples using a,b: 3.2751, 2.0123
-%             % realizing this one should probably also be estimated with
-%             % rejection resampling since even if using entire range of
-%             % intervals to model distribution, there is not an unbounded
-%             % 0-inf range on intervals....
-%             % f_center=5.9276;
-%             % median from using bark-env envelope gamma pdf fit 
-%             % (a,b : 5.47, 1.11) 2-8Hz clipping
-%             % f_center=5.1412;
-%             % empirical median from bark-envelope sylrate:
-%             f_center=5.86436170212766;
-%         case 1 
-%             % upper quartile
-%             % estimated from empirical distribution (bark-env)
-%             f_center=8.21688093907211;
-%             % use mode
-%             % f_center=4.5782;% calculated on untruncated distribution
-%         otherwise
-%             % explicitly provide a specific numeric value
-%             f_center=center;
-%     end
-% else
-%     switch center
-%         % use parameters from truncated fit
-%         % NOTE: only worried about median b.c. others seemed harder to work
-%         % with untruncated case so it didn't seem worth the effort to
-%         % evaluate them in truncated case - although can probably just
-%         % estimate them like the median
-%         case -1 % use mean
-%             error('oops no code for u.')
-%         case 0 % use median
-%             % using sampling with rejection and resampling on truncated
-%             % gamma fit (params: 5.28, 1.18)
-%             % note this actually is a bit lower than the one calculated
-%             % without truncated fit..
-%             f_center=5.165503916193135;
-%         case 1 % use mode
-%             error('oops no code for u.')
-%         otherwise
-%             % explicitly provide a specific numeric value
-%             f_center=center;
-%     end
-% end
 switch center 
         case -1 
             % use lower quartile
@@ -164,7 +113,9 @@ switch center
             % empirical median from bark-envelope sylrate (over entire freq range):
             % f_center=5.86436170212766;
             % empirical median from bark-envelope sylrate (filtered between 2-8 Hz):
-            f_center=5.09532062391681;
+            % f_center=5.09532062391681;
+            % median: 4.626 (prominence,width - 0.105, 1.842)
+            f_center=4.626;
         case 1 
             % upper quartile
             % estimated from empirical distribution (bark-env)
@@ -217,7 +168,12 @@ end
 % Eliminate small peaks
 % Ifrom(p<peak_tol)=[];
 % p(p<peak_tol)=[];
-[Ifrom,~]=get_peakRate(env,fs,peak_tol);
+[Ifrom,~,p,w,~]=get_peakRate(env,fs,peak_tol);
+%% FILTER PEAKS HERE
+% set thresholds
+p_t=0.105;
+w_t=2.026;
+Ifrom=Ifrom(p>p_t&w>w_t);
 %%
 
 
