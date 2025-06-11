@@ -21,6 +21,11 @@ stimuli_dir_contents=dir([og_stimuli_dir '*.wav']);
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 baseline_peakRate_file=[peakRate_dir 'og.mat'];
 syllable_cutoff_hz=8;
+use_cutoff_filter=true; % if true remove peaks that will give stuff above 
+% syllable_cutoff_hz... only use if happy with p + w filter results and
+% reasonably certain this won't remove real syllables - keeps the first
+% peak in such sequences
+% NOTE: only using above in the histogram + time domain plots for clarity
 clip_duration=64; % in seconds
 
 if exist(baseline_peakRate_file,'file')
@@ -157,8 +162,8 @@ n_p=20; %number of points for prominence
 n_w=20; % number of points for peakwidth
 n_thresholds=n_p*n_w;
 
-median_rates=nan(n_thresholds+1,1); % +1 for baseline...?
-quantile_rates=nan(n_thresholds+1,2);
+median_rates=nan(n_thresholds,1); % +1 for baseline...?
+quantile_rates=nan(n_thresholds,2);
 % note: why did we want these quantiles again?
 % re: for smooth transition between distribution extremes
 qtls=[.25 .55];
@@ -167,8 +172,8 @@ qtls=[.25 .55];
 all_rates=calculate_rates(all_times);
 % [all_intervals,all_rates,all_times]=get_distributions(peakRate);
 fprintf('baseline dist loaded.\n')
-median_rates(1)=median(all_rates);
-quantile_rates(1,:)=quantile(all_rates, qtls);
+% median_rates(1)=median(all_rates);
+% quantile_rates(1,:)=quantile(all_rates, qtls);
 
 %% set thresholds
 % thresh_opts.use_range='custom';
@@ -176,8 +181,8 @@ all_peak_amps=vertcat(peakRate(:).amplitudes);
 skip_time_domain_plots=false;
 % note: just make one variable equal to zero to view single-variable
 % threshold result
-max_width=3.5;
-max_prom=2.0;
+max_width=4.0;
+max_prom=4.0;
 thresh_opts.prominence_range=linspace(0,max_prom,n_p);
 % thresh_opts.prominence_range=0;
 thresh_opts.width_range=linspace(0,max_width,n_w);
@@ -215,29 +220,18 @@ if ~skip_time_domain_plots
     [stiched_envs,fs_envs]=load_stitched_envs();
 end
 %% apply thresholds
+filtered_rates=apply_thresholds(F,all_times);
 for nt=1:n_thresholds
-    % M=thresh_var>=thresh_opts.thresh_vals(nt);
-    % T=all_times(M);
-    mask_temp=F(:,nt);
-    thresh_rates_temp=calculate_rates(all_times(mask_temp));
-        
-    median_rates(1+nt)=median(thresh_rates_temp);
-    quantile_rates(1+nt,:)=quantile(thresh_rates_temp,qtls);
+    median_rates(nt)=median(filtered_rates{nt});
+    quantile_rates(nt,:)=quantile(filtered_rates{nt},qtls);
     % report distribution quantiles at different threshold
     sprintf('prominence, width: (%0.3f, %0.3f)\nmedian: %0.3f, quantiles= %0.3f, %0.3f \n', ...
-        p_t(nt),w_t(nt),median_rates(1+nt),quantile_rates(1+nt,1),quantile_rates(1+nt,2))
+        p_t(nt),w_t(nt),median_rates(nt),quantile_rates(nt,1),quantile_rates(nt,2))
     % also report absolute numbers above/below 8 Hz to see if fast stuff being
     % filtered out at all
-    n_too_fast(nt)=sum(thresh_rates_temp>=syllable_cutoff_hz);
-    n_syll_range(nt)=sum(thresh_rates_temp<syllable_cutoff_hz);
-    sprintf('number of peaks above %d Hz: %d\n', syllable_cutoff_hz,n_too_fast(nt))
-    sprintf('number of peaks below %d Hz: %d\n', syllable_cutoff_hz,n_syll_range(nt))
-    sprintf('their sum: %d, \ntotal sum of thresh mask:%d\n',sum([n_too_fast(nt) n_syll_range(nt)]),sum(mask_temp))
-    sprintf('their diff: %d',sum([n_too_fast(nt) n_syll_range(nt)])-sum(mask_temp))
-    
-    clear mask_temp thresh_rates_temp
+    n_too_fast(nt)=sum(filtered_rates{nt}>=syllable_cutoff_hz);
+    n_syll_range(nt)=sum(filtered_rates{nt}<syllable_cutoff_hz);
 end
-% end
 %% plots
 
 %TODO: figure out how to map particular prominence/width vals to single
@@ -251,25 +245,78 @@ title('PeakRate without Threshold')
 % select by index:
 % nt_plot=8; 
 % select by param vals:
-nt_plot=find(round(p_t,3)==0.105&round(w_t,3)==1.842);
+% nt_plot=find(round(p_t,3)==2.526&round(w_t,3)==2.105);
+
+pt_plot=0.105;
+wt_plot=2.026;
+nt_plot=find(round(p_t,3)==pt_plot&round(w_t,3)==wt_plot);
+if isempty(nt_plot)
+    % specified point was not grid, just add it
+    nt_plot=n_thresholds+1;
+    p_t(nt_plot)=pt_plot;
+    w_t(nt_plot)=wt_plot;
+    F(:,nt_plot)=(all_pvals>pt_plot)&(all_wvals)>wt_plot;
+    filtered_rates{nt_plot}=calculate_rates(all_times(F(:,nt_plot)));
+    median_rates(nt_plot)=median(filtered_rates{nt_plot});
+    quantile_rates(nt_plot,:)=quantile(filtered_rates{nt_plot},qtls);
+end
 sprintf('Quantiles: %0.3f, %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
-    quantile_rates(1+nt_plot,1),quantile_rates(1+nt_plot,2),p_t(nt_plot),w_t(nt_plot))
+    quantile_rates(nt_plot,1),quantile_rates(nt_plot,2),p_t(nt_plot),w_t(nt_plot))
 sprintf('median: %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
-    median_rates(1+nt_plot),p_t(nt_plot),w_t(nt_plot))
+    median_rates(nt_plot),p_t(nt_plot),w_t(nt_plot))
 
-rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
-title(sprintf('Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
+if use_cutoff_filter
+    % filter by prominence and widths, then remove second peak in any
+    % sequence that still gives rate above syllable cutoff
+    filtered_times=all_times(F(:,nt_plot));
+    filtered_rates=calculate_rates(filtered_times);
+    cutoff_filter_idx=find(filtered_rates>syllable_cutoff_hz)+1;
+    
+    ff=F(:,nt_plot);
+    %%TODO: between previous line and next the issue is that the indexes
+    %%pertain just to the list of true values in ff, which is obviousl
+    %%much shorter than ff itself
+    ff(cutoff_filter_idx)=false;
 
-time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
-        F(:,nt_plot),stiched_envs,fs_envs)
+    rates_hist_wrapper(calculate_rates(all_times(ff)),hist_param)
+    title(sprintf('syllable cutoff + Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
+    % note: idk how to map back to a mask array that is commensurate with
+    % original times array size so the way I wrote time domain plot wrapper
+    % can function in this case but I don't think it's the most important
+    % thing atm.... assuming we're removing a small number of peaks with
+    % existing time domain plot
+    time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
+            ff,stiched_envs,fs_envs)
 
-sgtitle(sprintf(['Peaks & Envelope before/after %0.3f,%0.3f Prominence,' ...
-    ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
+    sgtitle(sprintf(['syllable cutoff + Peaks & Envelope before/after %0.3f,%0.3f Prominence,' ...
+        ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
+    threshold_plot_wrapper(n_syll_range,n_too_fast,p_t(1:n_thresholds),w_t(1:n_thresholds),thresh_opts,syllable_cutoff_hz)
 
-threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
+else
+    rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
+    title(sprintf('Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
+    
+    time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
+            F(:,nt_plot),stiched_envs,fs_envs)
+    
+    sgtitle(sprintf(['Peaks & Envelope before/after %0.3f,%0.3f Prominence,' ...
+        ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
+    threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
+end
+
 
 %% helpers
-
+function filtered_rates=apply_thresholds(F,all_times)
+% F: [peaks x filters]
+n_thresholds=size(F,2);
+    filtered_rates=cell(n_thresholds,1);
+    for nt=1:n_thresholds
+        % M=thresh_var>=thresh_opts.thresh_vals(nt);
+        % T=all_times(M);
+        fm=F(:,nt);
+        filtered_rates{nt}=calculate_rates(all_times(fm));
+    end
+end
 function [envs_stitched,fs]=load_stitched_envs()
     global boxdir_mine
     envs_dir=sprintf('%s/stimuli/',boxdir_mine);
@@ -302,6 +349,8 @@ function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syll
     % threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syllable_cutoff_hz)
     n_p=numel(thresh_opts.prominence_range);
     n_w=numel(thresh_opts.width_range);
+    % n_p=numel(p_t);
+    % n_w=numel(w_t);
 
     % if only 1 param varies, can plot line
     num_vars=1;
@@ -330,11 +379,11 @@ function threshold_plot_wrapper(n_syll_range,n_too_fast,p_t,w_t,thresh_opts,syll
             hold off
         case 2
             % get unfiltered numbers
-            n_syll_0=n_syll_range(w_t==0&p_t==0);
-            n_fast_0=n_too_fast(w_t==0&p_t==0);
+            % n_syll_0=n_syll_range(w_t==0&p_t==0);
+            % n_fast_0=n_too_fast(w_t==0&p_t==0);
             % normalize numbers to unfiltered number
-            f_syll=n_syll_range/n_syll_0;
-            f_fast=n_too_fast/n_fast_0;
+            f_syll=n_syll_range./(n_syll_range+n_too_fast);
+            f_fast=n_too_fast./(n_syll_range+n_too_fast);
             
             % order of dimension sizes has to match what we put in meshgrid
             % originally

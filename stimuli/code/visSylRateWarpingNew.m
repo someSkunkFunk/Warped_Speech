@@ -96,6 +96,12 @@ for dd=1:size(D,2)
     fprintf('%s median: %0.3g\n',warpedDistNms{dd},medians(dd))
 end
 %% helpers
+% trying a randomized redistribution again...
+function [stretchy,compressy]=rule7(og_dist,config)
+    center_f=median(og_dist);
+    stretchy=center_f*ones(size(og_dist))+(max(og_dist)-min(og_dist)).*rand(size(og_dist));
+    compressy=center_f*ones(size(og_dist))+config.jitter.*(2.*rand(size(og_dist))-1);
+end
 function [all_times,clip_constants]=get_peak_times(peakRate,clip_duration)
 % [all_times,clip_constants]=get_peak_times(peakRate,clip_duration)
 % NOTE must be original times from peakrate
@@ -366,6 +372,8 @@ function [stretchy,compressy]=warp(og_dist,config)
             [stretchy,compressy]=rule5(og_dist,config);
         case 6
             [stretchy,compressy]=rule6(og_dist,config);
+        case 7
+            [stretchy,compressy]=rule7(og_dist,config);
     end
 end
 function plot_warp_rule(hline_loc,config,plot_scales,freqs_in,xtix,xlims)
