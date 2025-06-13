@@ -13,7 +13,7 @@ outputStimfolder=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/',boxdir_mi
 % addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
 % save output to my personal box location - avoid mixing files with shared
 % drive
-warp_rules=2;
+warp_rules=7;
 % warp_rules=2;
 % warp_rules=4; % to debug only....
 % warp_rules=[1 2];

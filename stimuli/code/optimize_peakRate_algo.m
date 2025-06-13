@@ -166,7 +166,7 @@ median_rates=nan(n_thresholds,1); % +1 for baseline...?
 quantile_rates=nan(n_thresholds,2);
 % note: why did we want these quantiles again?
 % re: for smooth transition between distribution extremes
-qtls=[.25 .55];
+qtls=[.45 .55];
 % all_times=vertcat(peakRate(:).times);
 [all_times,clip_constants]=get_peak_times(peakRate,clip_duration);
 all_rates=calculate_rates(all_times);
@@ -257,13 +257,9 @@ if isempty(nt_plot)
     w_t(nt_plot)=wt_plot;
     F(:,nt_plot)=(all_pvals>pt_plot)&(all_wvals)>wt_plot;
     ff_rates{nt_plot}=calculate_rates(all_times(F(:,nt_plot)));
-    median_rates(nt_plot)=median(ff_rates{nt_plot});
-    quantile_rates(nt_plot,:)=quantile(ff_rates{nt_plot},qtls);
+    
 end
-sprintf('Quantiles: %0.3f, %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
-    quantile_rates(nt_plot,1),quantile_rates(nt_plot,2),p_t(nt_plot),w_t(nt_plot))
-sprintf('median: %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
-    median_rates(nt_plot),p_t(nt_plot),w_t(nt_plot))
+
 
 if use_cutoff_filter
     % filter by prominence and widths, then remove second peak in any
@@ -277,16 +273,21 @@ if use_cutoff_filter
     % % apply hard cutoff:
     % ff(ff_idx(cutoff_filter_idx))=false;
     ff=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz);
+    rates_with_cutoff=calculate_rates(all_times(ff));
     % plot without the hard cutoff for comparison:
     rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
     title(sprintf('JUST Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
-    rates_hist_wrapper(calculate_rates(all_times(ff)),hist_param)
+    rates_hist_wrapper(rates_with_cutoff,hist_param)
     title(sprintf('syllable cutoff + Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
     time_domain_plot_wrapper(all_times,clip_constants,all_peak_amps, ...
             ff,stiched_envs,fs_envs)
 
     sgtitle(sprintf(['syllable cutoff + Peaks & Envelope before/after %0.3f,%0.3f Prominence,' ...
         ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
+    fprintf('Median with hard cutoff at %d hz (%0.3f, %0.3f p, w): %0.3f\n', ...
+        syllable_cutoff_hz,p_t(nt_plot),w_t(nt_plot),median(rates_with_cutoff));
+    fprintf('Quantiles with hard cutoff at %d hz (%0.3f, %0.3f p, w): %0.3f, %0.3f\n', ...
+        syllable_cutoff_hz,p_t(nt_plot),w_t(nt_plot),quantile(rates_with_cutoff,qtls));
     % threshold_plot_wrapper(n_syll_range,n_too_fast,p_t(1:n_thresholds),w_t(1:n_thresholds),thresh_opts,syllable_cutoff_hz)
 
 else
@@ -302,6 +303,13 @@ else
 end
 threshold_plot_wrapper(n_syll_range,n_too_fast,p_t(1:n_thresholds),w_t(1:n_thresholds),thresh_opts,syllable_cutoff_hz)
 
+median_rates(nt_plot)=median(ff_rates{nt_plot});
+quantile_rates(nt_plot,:)=quantile(ff_rates{nt_plot},qtls);
+
+fprintf('Quantiles: %0.3f, %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
+    quantile_rates(nt_plot,1),quantile_rates(nt_plot,2),p_t(nt_plot),w_t(nt_plot))
+fprintf('median: %0.3f (prominence,width - %0.3f, %0.3f)\n', ...
+    median_rates(nt_plot),p_t(nt_plot),w_t(nt_plot))
 %% helpers
 function ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz)
     

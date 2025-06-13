@@ -70,12 +70,15 @@ arguments
     % max_mod_interval (1,1) double = 1/3;%1/hz where the "stretch" reaches max warp (shift_rate) for slow syllables
     % max_mod_interval (1,1) double = 100000/1; %.000001 hz
     % Quantiles (45%,55% in Hz): 4.320, 4.927 (prominence,width - 0.105, 1.842)
-    min_mod_interval (1,1) double = 1/4.927;
-    % max_mod_interval (1,1) double = 1/4.32;
-    %trying something a bit slower (25% quantile) cuz too many slow syllables:
-    % max_mod_interval (1,1) double = 1/3.186;
-    % that wasn't low enough, trying some random number:
-    max_mod_interval (1,1) double = 1/2.0;
+    % min_mod_interval (1,1) double = 1/4.927;
+    % % max_mod_interval (1,1) double = 1/4.32;
+    % %trying something a bit slower (25% quantile) cuz too many slow syllables:
+    % % max_mod_interval (1,1) double = 1/3.186;
+    % % that wasn't low enough, trying some random number:
+    % max_mod_interval (1,1) double = 1/2.0;
+    % Quantiles (45%-55%) with hard cutoff at 8 hz (0.105, 2.026 p, w): 3.472, 3.949
+    min_mod_interval (1,1) double = 1/3.949;
+    max_mod_interval (1,1) double = 1/3.472;
     env_method (1,1) double = 2 % 1-> use broadband 2-> use bark filterbank 3-> use gammatone filterbank (TODO)
     % jitter=3.3225; % 1 std of ogPeakFreqs... must do rules 3 and up reg operation in freq domain then convert to time
     jitter=[1.75, .25]; %in Hz - slow jitter, fast jitter - should add to 2 hz
@@ -115,7 +118,9 @@ switch center
             % empirical median from bark-envelope sylrate (filtered between 2-8 Hz):
             % f_center=5.09532062391681;
             % median: 4.626 (prominence,width - 0.105, 1.842)
-            f_center=4.626;
+            % f_center=4.626;
+            % Median with hard cutoff at 8 hz (0.105, 2.026 p, w): 3.714
+            f_center=3.714;
         case 1 
             % upper quartile
             % estimated from empirical distribution (bark-env)
@@ -398,11 +403,13 @@ for ss=1:n_segs
                 peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
                 too_fast=(1./IPI0_seg)>peakRate_cutoff;
-                min_stretch_rate=1/sil_tol;
-                max_stretch_rate=2*f_center-min_stretch_rate 
-
+                % min_stretch_rate=1/sil_tol;
+                min_stretch_rate=.5;
+                % mathematically symmetric distance above f_center 
+                max_stretch_rate=2*f_center-min_stretch_rate; 
+                % leave overly fast intervals unchanged
                 IPI1_seg(too_fast)=IPI0_seg(too_fast);
-                IPI1_seg(~too_fast)=1./()
+                IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate.*rand(sum(~too_fast),1)));
         end
     
     end
@@ -464,6 +471,22 @@ wf_warp = wsolaTSM(wf,s,param);
 end
 function y=reflect_about(x,xr)
     y=x-2.*(x-xr);
+end
+
+function ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz)
+    
+    ff_rates=calculate_rates(all_times(ff));
+    cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
+    % apply hard cutoff:
+    if isempty(cutoff_filter_idx)
+        ff_cleaned=ff;
+        return;
+    end
+    ff_idx=find(ff);
+    ff(ff_idx(cutoff_filter_idx))=false;
+
+    % recursive step
+    ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz);
 end
 
 
