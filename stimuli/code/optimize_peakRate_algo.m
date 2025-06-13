@@ -271,12 +271,12 @@ if use_cutoff_filter
     %TODO: run this process repeteadly/recursively (?) until we have
     %removed all subsequent peaks above cutoff
     ff=F(:,nt_plot);
-    ff_idx=find(ff);
-    ff_rates=calculate_rates(all_times(ff));
-    cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
-    % apply hard cutoff:
-    ff(ff_idx(cutoff_filter_idx))=false;
-
+    % ff_idx=find(ff);
+    % ff_rates=calculate_rates(all_times(ff));
+    % cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
+    % % apply hard cutoff:
+    % ff(ff_idx(cutoff_filter_idx))=false;
+    ff=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz);
     % plot without the hard cutoff for comparison:
     rates_hist_wrapper(calculate_rates(all_times(F(:,nt_plot))),hist_param)
     title(sprintf('JUST Prominence, Width thresholds= %0.3f,%0.3f',p_t(nt_plot),w_t(nt_plot)))
@@ -303,6 +303,21 @@ end
 threshold_plot_wrapper(n_syll_range,n_too_fast,p_t(1:n_thresholds),w_t(1:n_thresholds),thresh_opts,syllable_cutoff_hz)
 
 %% helpers
+function ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz)
+    
+    ff_rates=calculate_rates(all_times(ff));
+    cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
+    % apply hard cutoff:
+    if isempty(cutoff_filter_idx)
+        ff_cleaned=ff;
+        return;
+    end
+    ff_idx=find(ff);
+    ff(ff_idx(cutoff_filter_idx))=false;
+
+    % recursive step
+    ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz);
+end
 function filtered_rates=apply_thresholds(F,all_times)
 % F: [peaks x filters]
 n_thresholds=size(F,2);
@@ -339,6 +354,7 @@ function [all_times,clip_constants]=get_peak_times(peakRate,clip_duration)
         clip_constants(start_clip:end_clip)=start_time;
         start_clip=end_clip+1;
     end
+    all_times=all_times+clip_constants;
 end
 
 
@@ -424,12 +440,12 @@ function time_domain_plot_wrapper(all_times,clip_constants,all_amplitudes, ...
     % normalize peak amplitudes to simplify visualization
     all_amplitudes=normalize(all_amplitudes,'range');
     ylims=[0 1];
-    all_times_stitched=all_times+clip_constants;
-    thresh_times=all_times_stitched(thresh_mask);
+    % all_times=all_times+clip_constants;
+    thresh_times=all_times(thresh_mask);
     thresh_amps=all_amplitudes(thresh_mask);
     figure
     axs(1)=subplot(2,1,1);
-    stem(all_times_stitched,all_amplitudes)
+    stem(all_times,all_amplitudes)
     hold on
     plot(env_time,stitched_envs);
     xlabel('time (s)')
@@ -483,54 +499,11 @@ function rates=calculate_rates(all_times)
 % case of time x thresholds input
 ipis=diff(all_times);
 %remove clip edges
-ipis(ipis<0)=[];
+if any(ipis<0)
+    error('should all be positive now.')
+end
+% ipis(ipis<0)=[];
 rates=1./ipis;
 
-% I thought this was smart then realized clip_constants are not needed at
-% all since clip edges are only intervals that will come out negative and
-% can just prune them
-    % arguments
-    %     all_times
-    %     clip_constants
-    %     thresh_mask
-    % end
-    % if size(all_times,1)~=size(clip_constants,1)
-    %     error('this shit wont work')
-    % end
-    % npeaks=size(all_times,1);
-    % 
-    % if nargin <3||isempty(thresh_mask)
-    %     % keep all values provided by default
-    %     thresh_mask=ones(npeaks,1);
-    % end
-    % 
-    % clip_start_mask=min(diff(clip_constants),1);
-    % % assuming clip constants only increase, this won't work otherwise
-    % if any(clip_start_mask<0)
-    %     error('this shit wont work')
-    % end
-    % ipis=diff()
-    
 end
 
-%% REALM OF BANISHMENT
-function [intervals,rates,all_times]=get_distributions(peakRate,config)
-% [intervals, rates, peak_vals,all_times]=get_distributions(peakRate)
-% from absolute time (all_times) -> interpeak intervals/rates
-    % add 1-min correction to each clip
-    
-    all_times=vertcat(peakRate(:).times);
-    % clip_constants=nan(size(all_times));
-    % start_clip=1;
-    % % prev_clips=0;
-    % for nn=1:numel(peakRate)
-    %     start_time=config.clip_duration.*(nn-1);
-    %     n_clip_peaks=numel(peakRate(nn).times);
-    %     end_clip=start_clip+n_clip_peaks-1;
-    %     clip_constants(start_clip:end_clip)=start_time;
-    %     start_clip=end_clip+1;
-    % end
-    % all_times=all_times+clip_constants;
-    % intervals=diff(all_times);
-    % rates=1./intervals;
-end
