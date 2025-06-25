@@ -40,6 +40,7 @@ config_output_paths.model='trf_model_path';
 output_path=output_config.(config_output_paths.(data_name));
 % output_stage=0;
 if exist(output_path,"file")
+    % there's a file already but we know nothing about its inside
     output_stage=1;
 else
     output_stage=0;

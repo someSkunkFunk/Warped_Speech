@@ -1,22 +1,29 @@
 %plot tuning curve based on null_distribution test based on all conditions
 %trf
 clear,clc,close all 
-subj=11;
+subj=19;
 % kind of a misnomer here... should have already computed optimization
 % before trying to plot lambda curve, but we need the null_distribution
 % file
+
+%^TODO: verify if above is true since updated code doesn't generate a
+%null_distribution file?
 do_lambda_optimization=true;
 
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
-load(trf_config.nulldistribution_file);
+% load(trf_config.nulldistribution_file);
+load(trf_config.model_metric_path)
 % error checking that will be useful as we continue refactoring code:
-if all(trf_config.lam_range==lam)
-    best_lambda=trf_config.lam_range(best_lam_idx);
-else
-    error('u done fuked up.')
-end
+% if all(trf_config.lam_range==lam)
+%     best_lambda=trf_config.lam_range(best_lam_idx);
+% else
+%     error('u done fuked up.')
+% end
+% ^ not sure what the purpose of these lines was...
+
 % average r across trials
+best_lam_idx=find(trf_config.lam_range==trf_config.best_lam);
 r_avg_best_lam=squeeze(mean(stats_obs.r(:,best_lam_idx,:),1));
 %TODO: get this from trf_analysis script instead of here
 [r_max,best_chn_idx]=max(r_avg_best_lam);

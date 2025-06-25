@@ -14,7 +14,7 @@ clc
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
 %that differentiates them from condition-specific TRFs
 %%
-for subj=2:17
+for subj=18:19
     clearvars -except user_profile boxdir_mine boxdir_lab subj
     close all
     % subj
@@ -27,7 +27,9 @@ trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 %NOTE: do_nulltest=false case may complicate config validation if we
 %suddenly choose to do a different analysis configuration... but maybe
 %not... should check this
-do_nulltest=false;
+% still havent investigated this issue ^ but running with do_nulltest=false
+% also seems to prevent saving of stats_obs...?
+do_nulltest=true;
 
 
 
@@ -217,7 +219,7 @@ if trf_config.separate_conditions
         % cc_trials_idx=find(preprocessed_eeg.cond==cc);
         %TODO: check size resulting from squeeze agrees with plotting
         %commands
-        disp('r_null calculation below might be incorrect...?')
+        % disp('r_null calculation below might be incorrect...?')
         r_null=squeeze(mean([stats_null(1,cc,:).r],1));
         % fprintf('_rnull size correct?\n')
         % disp(size(r_null))
