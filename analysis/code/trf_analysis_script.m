@@ -14,7 +14,8 @@ clc
 %TODO: rename lambda_optimization 'nulldistribution_files' to something
 %that differentiates them from condition-specific TRFs
 %%
-for subj=18:19
+% remember to skip subject 8
+for subj=15:17
     clearvars -except user_profile boxdir_mine boxdir_lab subj
     close all
     % subj

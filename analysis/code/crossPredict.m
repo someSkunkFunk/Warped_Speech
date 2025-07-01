@@ -1,27 +1,38 @@
 clear, clc
-user_profile=getenv('USERPROFILE');
+% user_profile=getenv('USERPROFILE');
 % use these params since what we used on sfn poster and looked nicest
 subj=7;
-condsDir='sep_conditions/';
-corrDir='corrected/';
-cvDir='';
-bpfilter = [1 15];
+% load saved model
+preprocess_config=config_preprocess(subj);
+% I think the sep conditions needs false below
+do_lambda_optimization=false;
+trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 
-fprintf('bpfilter lims: [%g %g]\n', bpfilter(1), bpfilter(2))
-ref = 'mast';
-fs = 128;
-datafolder = sprintf('%s/Box/my box/LALOR LAB/oscillations project/MATLAB/Warped Speech/data/',user_profile);
-matfolder = sprintf('%smat/%g-%g_%s-ref_%dHz/%s',datafolder,bpfilter(1),bpfilter(2),ref,fs,corrDir);
-matfile = sprintf('%swarpedSpeech_s%0.2d.mat',matfolder,subj);
-nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat',matfolder,condsDir,cvDir,subj);
+model_data=load_checkpoint(trf_config.trf_model_path,trf_config);
+stats_data=load_checkpoint(trf_config.model_metric_path,trf_config);
 
-outputFile=sprintf('%s%s%smismatchPrediction_s%0.2d.mat',matfolder,condsDir, ...
-    'mismatch_predict/',subj);
-if ~exist(outputFile,'file')
-    load(nulldistribution_file,'model_lam','stim', ...
-        'resp','model','cond','r_obs','mtmin','mtmax')
-    % assuming dumb cell format still in saved file:
-    model=modelCell2Struct(model);
+%%
+% condsDir='sep_conditions/';
+% corrDir='corrected/';
+% cvDir='';
+% bpfilter = [1 15];
+% 
+% fprintf('bpfilter lims: [%g %g]\n', bpfilter(1), bpfilter(2))
+% ref = 'mast';
+% fs = 128;
+% datafolder = sprintf('%s/Box/my box/LALOR LAB/oscillations project/MATLAB/Warped Speech/data/',user_profile);
+% matfolder = sprintf('%smat/%g-%g_%s-ref_%dHz/%s',datafolder,bpfilter(1),bpfilter(2),ref,fs,corrDir);
+% matfile = sprintf('%swarpedSpeech_s%0.2d.mat',matfolder,subj);
+% nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat',matfolder,condsDir,cvDir,subj);
+
+% just append to metric file
+% outputFile=sprintf('%s%s%smismatchPrediction_s%0.2d.mat',matfolder,condsDir, ...
+%     'mismatch_predict/',subj);
+% if ~exist(outputFile,'file')
+%     load(nulldistribution_file,'model_lam','stim', ...
+%         'resp','model','cond','r_obs','mtmin','mtmax')
+%     % assuming dumb cell format still in saved file:
+%     model=modelCell2Struct(model);
     %%
     conditions=1:3;
     r_obs_cross=zeros(3,3,size(r_obs,2));
@@ -42,11 +53,11 @@ if ~exist(outputFile,'file')
     end
     clear cc r_obs
     
-    save(outputFile)
-else
-    fprintf('loading pre-existing file')
-    load(outputFile)
-end
+    % save(outputFile)
+% else
+%     fprintf('loading pre-existing file')
+%     load(outputFile)
+% end
 %TODO: un-hardcode mistmatch_predict
 %%
 plotChn=85;

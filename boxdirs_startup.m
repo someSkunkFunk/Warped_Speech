@@ -2,7 +2,8 @@
 global user_profile
 global boxdir_mine
 global boxdir_lab
-user_profile=getenv('USERPROFILE');
+% user_profile=getenv('USERPROFILE');
+user_profile=strrep(getenv('USERPROFILE'),'\','/');
 fprintf('setting boxpaths\n')
 %TODO move stuff around so this is easier to access/shorter path
 boxdir_mine=sprintf(['%s/Box/my box/LALOR LAB/oscillations project/' ...

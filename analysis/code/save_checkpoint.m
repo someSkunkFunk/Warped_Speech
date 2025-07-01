@@ -120,9 +120,20 @@ switch output_stage
                 %this workaround
                 % output_config=rmfield(output_config,'best_lam');
 
-                %copy best lam form agnostic to separate conditions because
+                %copy best lam from agnostic to separate conditions because
                 %we forgot to inlcude it before
                 output_config.best_lam=existing_file_data.(config_name).best_lam;
+            end
+
+            % check for missing fields in config and add them as empty if not
+            % previously in saved file mats
+            all_fields=union(fieldnames(output_config),fieldnames(existing_file_data.(config_name)));
+            for configi=1:n_configs_saved
+                for ff=1:numel(all_fields)
+                    if ~isfield(existing_file_data,all_fields{ff})
+                        existing_file_data.(config_name)(configi).(all_fields{ff})=[];
+                    end
+                end
             end
             output_struct=struct(config_name, ...
                 cat(1,existing_file_data.(config_name),output_config), ...

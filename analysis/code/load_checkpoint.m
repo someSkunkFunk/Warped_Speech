@@ -69,15 +69,15 @@ if found_desired_config
     checkpoint_data.(config_fieldname{:})=expected_config;
     if ~load_config_only
         for ff=1:numel(data_fieldnames)
-            if ~strcmp(data_fieldnames{ff},'stats_null');
+            if strcmp(data_fieldnames{ff},'stats_null')
+            %note: stats_null numbering is a problem below...
+                checkpoint_data=rmfield(checkpoint_data,'stats_null');
+                disp('ignoring stats_null in file.')
+            else
                 temp_data=checkpoint_data.(data_fieldnames{ff});
                 %TODO: verify that triple dot indexing below works when struct
                 %in data has less than 3 dimensions
                 checkpoint_data.(data_fieldnames{ff})=temp_data(nc,:,:);
-            else
-                checkpoint_data=rmfield(checkpoint_data,'stats_null');
-                %TODO: fix thing below or jusst stop tracking stats_null
-                disp('avoiding preloading stats_null because we saved it wrong initially and cant access via index...')
             end
         end
     end
