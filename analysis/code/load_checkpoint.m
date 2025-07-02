@@ -64,9 +64,7 @@ end
 if found_desired_config
     % replace checkpoint data config (which may contain multiple) with
     % single desired config
-
-    % error('TODO: account for case where multiple data vars contained in same file- loop thru them')
-    checkpoint_data.(config_fieldname{:})=expected_config;
+    checkpoint_data.(config_fieldname{:})=checkpoint_data.(config_fieldname{:})(nc);
     if ~load_config_only
         for ff=1:numel(data_fieldnames)
             if strcmp(data_fieldnames{ff},'stats_null')
@@ -92,25 +90,6 @@ else
     checkpoint_data=struct();
 end
 
-% catch ME
-%     fprintf('wtf...')
-%     rethrow(ME)
-% end
-
-    % function config_fieldname=get_config_fieldname(checkpoint_data)
-    %     %NOTE function assumes (for simplicity) that only ony config file
-    %     %is contained....
-    %     %TODO: need to update such that it also finds configs contained as
-    %     %subfields of outer-config
-    %     checkpoint_fieldnames=fieldnames(checkpoint_data);
-    %     config_fieldmask=cellfun(@(x) contains(x,'config'),checkpoint_fieldnames);
-    %     config_fieldname=checkpoint_fieldnames(config_fieldmask);
-    %     if numel(config_fieldname)~=1
-    %         fprintf('number of config-matched vars in checkpoint file:%d\n', ...
-    %             numel(config_fieldname))
-    %         error('either there is no config struct in checkpoint mat file or there are too many')
-    %     end   
-    % end
     function mismatched_fields=validate_configs(expected_config, ...
             load_config)
         % assumes expected and load configs are both (1x1)
@@ -161,7 +140,7 @@ end
                         case 1
                             if ~(isfolder(expected_val)||isfile(expected_val))
                                 paths_only=false;
-                                break
+                                return
                             end
                         case 0
                             if contains(field_name,'config')
@@ -169,7 +148,7 @@ end
                                     'also not registering as erroneous.\n'],field_name)
                             else
                                 paths_only=false;
-                                break
+                                return
                             end
                     end
                 end

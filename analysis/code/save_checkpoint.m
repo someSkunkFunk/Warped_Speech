@@ -71,10 +71,16 @@ switch output_stage
 
     case 2
         %% append current data var + config to end of existing data var
-        % NOTE: case 2 nearly verified... just need to check actual file
-        % contents against copy to see that old stuff preserved
-        % vars, then re-save file
-        % output_struct=struct(config_name,output_config,data_name,output_data);
+        % NOTE: case 2 also needs to determine if a new data is redundant
+        % or not...
+        
+        % EXTRA NOTE: in this case, we probably don't need to add a new
+        % config - just verify that the existing config is the same
+
+        % then perhaps a third case where we find that configs don't match
+        % we can initialize a new file...? or variable? this can't be that
+        % complicated you lil bitch figure it out
+
         existing_file_data=load(output_path);
         % output_struct=struct(config_name,output_config,data_name,output_data);
         % concatenate existing data and output struct data accounting for
@@ -130,7 +136,7 @@ switch output_stage
             all_fields=union(fieldnames(output_config),fieldnames(existing_file_data.(config_name)));
             for configi=1:n_configs_saved
                 for ff=1:numel(all_fields)
-                    if ~isfield(existing_file_data,all_fields{ff})
+                    if ~isfield(existing_file_data.(config_name)(configi),all_fields{ff})
                         existing_file_data.(config_name)(configi).(all_fields{ff})=[];
                     end
                 end
