@@ -49,7 +49,7 @@ config.use_warped_result=false; %toggle between using "real" results or
 % warp script results)
 distribution='peakRate'; % 'beta' or 'uniform' or 's_mats'or 'peakRate'
 
-config.warp_rule=2; %: 1 - rate shift constant 2 - rate w shift distance modulation
+config.warp_rule=7; %: 1 - rate shift constant 2 - rate w shift distance modulation
 config.stretch_floor=1/0.75; % in hz, slowest allowed output rate
 config.rule6pow=2;
 % config.jitter=3.3225; %1 std of ogPeakFreqs
