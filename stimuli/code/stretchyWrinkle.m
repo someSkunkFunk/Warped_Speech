@@ -1,4 +1,4 @@
-function [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
+function [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,corrective_factor,shift_rate, ...
     peak_tol,sil_tol,min_mod_interval,max_mod_interval,env_method,jitter, ...
     interval_ceil_out)%,input_syll_rate_lims,output_syll_rate_lims)
 % [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
@@ -47,6 +47,7 @@ arguments
     rule (1,1) = 7;    
     %TODO: figure out what happens when we make this smaller or larger
     % shift_rate (1,1) double = 0.40; % percentage of original interval - NOTE: should consider spitting this variable out if we start varying it in future - i think once we get rid of long pauses in the estimation that won't really be necessary
+    corrective_factor (1,1) double = 1; % rule and waveform spectific corrective factor for rules 2 and 7 to get same durations as original audio
     shift_rate (1,1) double = 1.00; 
     peak_tol (1,1) double = 0.0;
     %we checked that sil_tol=inf replicates original unsegmented results
@@ -318,6 +319,10 @@ for ss=1:n_segs
                     IPI1_seg(slow)=IPI0_seg(slow).*rate_shift(slow);
                     % fast intervals get faster (shorter)
                     IPI1_seg(fast)=IPI0_seg(fast)./rate_shift(fast);
+
+                    %NEW: correct intervals by duration-specific factor to
+                    %get 64s output
+                    IPI1_seg=IPI1_seg/corrective_factor;
     
             end
             
