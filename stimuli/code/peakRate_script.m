@@ -7,7 +7,7 @@
 % first col in output mats is og condition
 clear, clc
 global boxdir_mine
-out_dir=[boxdir_mine '/peakRate/'];
+out_dir=[boxdir_mine '/stimuli/peakRate/'];
 
 soundchn=1;
 % conditions={'compressy_reg','stretchy_irreg'};
@@ -22,9 +22,9 @@ overwrite=0;
 % script run
 get_smat=false;
 % "C:\Users\apalaci6.URMC-SH\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_blanket_normalized_durations"
+cond_nm='rule2_seg_bark_median_segment_normalized_durations';
+cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
 
-cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/rule2_seg_bark_median_blanket_normalized_durations/',boxdir_mine);
-cond_nm='rule2_seg_bark_median_blanket_normalized_durations';
 out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);
 
 % for cc=1:numel(conditions)
@@ -50,7 +50,7 @@ if ~exist(out_flpth,'file') || overwrite
         % peakRate(nn).times=peakTs;
     end
     fprintf('saving output...\n')
-    save(out_flpth,"peakRate","cc_source_dir","fs","cond")
+    save(out_flpth,"peakRate","cc_source_dir","fs")
 else
     fprintf('file %s exists already, skipping\n',out_flpth)
 end
