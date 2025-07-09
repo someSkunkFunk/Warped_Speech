@@ -28,7 +28,7 @@ cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg
 out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);
 
 % for cc=1:numel(conditions)
-peakRate=struct('times',[],'amplitudes',[]);
+peakRate=struct('times',[],'amplitudes',[],'prominence',[],'peakwidth',[],'peakwidth2',[]);
 % cond=conditions(cc);
 
 % [cc_source_dir,cond_nm]=get_source_dir_cond(cond);
@@ -45,7 +45,8 @@ if ~exist(out_flpth,'file') || overwrite
         [wf,fs]=audioread(wavpath);
         env=bark_env(wf(:,soundchn),fs,fs);
         % [peakTs, peakVals]=get_peakRate(env,fs);
-        [peakRate(nn).times, peakRate(nn).amplitudes]=get_peakRate(env,fs);
+        [peakRate(nn).times, peakRate(nn).amplitudes, peakRate(nn).prominence,... 
+            peakRate(nn).peakwidth, peakRate(nn).peakwidth2]=get_peakRate(env,fs);
         % pkIs=round(peakTs.*fs);
         % peakRate(nn).times=peakTs;
     end
