@@ -1,10 +1,10 @@
-function [peakTs,peakVals,p,w,w2]=get_peakRate(env,fs,Hd,peak_tol)
+function [peakTs,peakVals,p,w,w2]=get_peakRate(env,fs,peak_tol)
 % [peakTs,peakVals,p,w]=get_peakRate(env,fs,peak_tol)
 
 arguments
     env
     fs
-    Hd
+    % Hd % NOTE: why do we have it as an input param but it's defined within the function??
     peak_tol (1,1) double = 0;
 end
 % [peakTs,peakVals]=peakRate(env,fs,peak_tol)

@@ -6,7 +6,8 @@
 % stimulus like getPeakRate.m)
 % first col in output mats is og condition
 clear, clc
-out_dir='./peakRate/';
+global boxdir_mine
+out_dir=[boxdir_mine '/peakRate/'];
 
 soundchn=1;
 % conditions={'compressy_reg','stretchy_irreg'};
@@ -14,47 +15,50 @@ soundchn=1;
 % 0 -> og 1 -> regular -1-> irregular  2/3-> slow 3/2-> fast
 
 % conditions=[0,2/3,3/2];
-conditions=[-1 1];
-overwrite=1;
-% peak_tol=0.1;
-% peakrateFileOut="./peakRate/medianStretchyRule3SegBarkPeakrate.mat";
-get_smat=false;
+% conditions=[-1 1];
+overwrite=0;
+
 % get just s-mat files that have timing of peakrate events from warping
 % script run
-% envKind='bark'; %NOTE: this probably doesn't need to be a variable
-% anymore...
-for cc=1:numel(conditions)
-    peakRate=struct('times',[],'amplitudes',[]);
-    cond=conditions(cc);
-    
-    [cc_source_dir,cond_nm]=get_source_dir_cond(cond);
-    fprintf('processing %s condition...\n',cond_nm)
-    out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);
-    if ~exist(out_flpth,'file') || overwrite
-        if exist(out_flpth,'file')
-            fprintf('%s exists already, overwriting...\n',out_flpth)
-        end
-        D=dir([cc_source_dir '*.wav']);
-        for nn=1:numel(D)
-            fprintf('%d/%d\n',nn,numel(D))
-            wavpath=[cc_source_dir D(nn).name];
-            [wf,fs]=audioread(wavpath);
-            env=bark_env(wf(:,soundchn),fs,fs);
-            [peakTs, peakVals]=get_peakRate(env,fs);
-            [peakRate(nn).times, peakRate(nn).amplitudes]=get_peakRate(env,fs);
-            % pkIs=round(peakTs.*fs);
-            % peakRate(nn).times=peakTs;
-        end
-        fprintf('saving output...\n')
-        save(out_flpth,"peakRate","cc_source_dir","fs","cond")
-    else
-        fprintf('file %s exists already, skipping\n',out_flpth)
-    end
-clear out_flpth D peakRate cc_source_dir cond_nm
-end
+get_smat=false;
+% "C:\Users\apalaci6.URMC-SH\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_blanket_normalized_durations"
 
-%% Verify results
-% quick and dirty
+cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/rule2_seg_bark_median_blanket_normalized_durations/',boxdir_mine);
+cond_nm='rule2_seg_bark_median_blanket_normalized_durations';
+out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);
+
+% for cc=1:numel(conditions)
+peakRate=struct('times',[],'amplitudes',[]);
+% cond=conditions(cc);
+
+% [cc_source_dir,cond_nm]=get_source_dir_cond(cond);
+fprintf('processing %s condition...\n',cond_nm)
+% out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);
+if ~exist(out_flpth,'file') || overwrite
+    if exist(out_flpth,'file')
+        fprintf('%s exists already, overwriting...\n',out_flpth)
+    end
+    D=dir([cc_source_dir '*.wav']);
+    for nn=1:numel(D)
+        fprintf('%d/%d\n',nn,numel(D))
+        wavpath=[cc_source_dir D(nn).name];
+        [wf,fs]=audioread(wavpath);
+        env=bark_env(wf(:,soundchn),fs,fs);
+        % [peakTs, peakVals]=get_peakRate(env,fs);
+        [peakRate(nn).times, peakRate(nn).amplitudes]=get_peakRate(env,fs);
+        % pkIs=round(peakTs.*fs);
+        % peakRate(nn).times=peakTs;
+    end
+    fprintf('saving output...\n')
+    save(out_flpth,"peakRate","cc_source_dir","fs","cond")
+else
+    fprintf('file %s exists already, skipping\n',out_flpth)
+end
+clear out_flpth D peakRate cc_source_dir cond_nm
+% end
+
+%% Verify results NOTE: better do everything below on separate script "plot_peakrate_dist"
+%% quick and dirty time domain plot
 n_display_stim=40;
 scale_multiplier=1e4;
 for cc=1:numel(conditions)
@@ -71,7 +75,11 @@ for cc=1:numel(conditions)
     stem(peakTs,peakVals.*scale_multiplier)
     title(sprintf('%s - stim # %d',cond_nm, n_display_stim))
 end
-
+%% histogram
+% include s_mat + peakRate - will need to filter the peakrate based on
+% width and prominence, as well as excessively long pauses; the s_mats
+% should already be filtered in terms of width and prominence, but not in
+% terms of long pauses
 
 %% old version of code that we might want to abandon tbh
 
@@ -127,11 +135,13 @@ end
 disp('done')
 end
 function [cc_source_dir,cond_nm]=get_source_dir_cond(cond)
+global boxdir_mine
 stimset='wrinkle';
 stimulifolder=sprintf('./%s_wClicks/',stimset);
 
 % different location for pilot stimuli - subject to change
-pilot.stimulifolder=sprintf('./%s/stretchy_compressy/',stimset);
+% "C:\Users\apalaci6.URMC-SH\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_blanket_normalized_durations"
+pilot.stimulifolder=sprintf('%s/%s/stretchy_compressy_temp/stretchy_irreg/rule2_seg_bark_median_blanket_normalized_durations/',stimset);
 pilot.irreg_rule='stretchy_irreg/rule2_seg_bark_median/';
 pilot.reg_rule='compressy_reg/rule5_seg_bark_median/';
     if mod(cond,1)==0

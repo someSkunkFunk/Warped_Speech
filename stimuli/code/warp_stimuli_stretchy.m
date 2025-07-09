@@ -13,7 +13,7 @@ outputStimfolder=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/',boxdir_mi
 % addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
 % save output to my personal box location - avoid mixing files with shared
 % drive
-warp_rules=[2];
+warp_rules=[2,7];
 % make freqs -1, 0, or 1 to use mean median or mode
 % upper/lower quartiles: 6.358/3.940 Hz (estimated using truncated gamma
 % pdf fit to bark-derived peakRates)
@@ -50,12 +50,12 @@ param.win = win(1024,2); % hann window
 for warp_rule=warp_rules
     fprintf('warp_rule: %d\n',warp_rule)
     % import corrective factor for rule 2
-    if warp_rule==2
-        global boxdir_mine
-        load(fullfile(boxdir_mine, 'stimuli', 'rule2_corrective_factor.mat'))
-    else
-        error('will need to edit code to run normally in irreg case')
-    end
+    % if warp_rule==2
+    %     global boxdir_mine
+    %     load(fullfile(boxdir_mine, 'stimuli', 'rule2_corrective_factor.mat'))
+    % else
+    %     error('will need to edit code to run normally in irreg case')
+    % end
     for ff = 1:length(center_freqs)
         center_f=center_freqs(ff);
         switch center_f
@@ -128,7 +128,7 @@ for warp_rule=warp_rules
                 
                 if ~exist(audioOutputFileTemp,'file') || overwrite
                     fprintf('%s- f: %0.3f\n',type,center_f)
-                    [audio_warp_temp,s_temp] = stretchyWrinkle(audio,wav_fs,warp_gravity,center_f,warp_rule,interval_factor(dd)); 
+                    [audio_warp_temp,s_temp] = stretchyWrinkle(audio,wav_fs,warp_gravity,center_f,warp_rule); 
         
                     if ~exist(outputDirTemp,'dir')
                         mkdir(outputDirTemp)

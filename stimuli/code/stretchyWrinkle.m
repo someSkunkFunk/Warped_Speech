@@ -1,4 +1,4 @@
-function [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,corrective_factor,shift_rate, ...
+function [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
     peak_tol,sil_tol,min_mod_interval,max_mod_interval,env_method,jitter, ...
     interval_ceil_out)%,input_syll_rate_lims,output_syll_rate_lims)
 % [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
@@ -47,7 +47,7 @@ arguments
     rule (1,1) = 7;    
     %TODO: figure out what happens when we make this smaller or larger
     % shift_rate (1,1) double = 0.40; % percentage of original interval - NOTE: should consider spitting this variable out if we start varying it in future - i think once we get rid of long pauses in the estimation that won't really be necessary
-    corrective_factor (1,1) double = 1; % rule and waveform spectific corrective factor for rules 2 and 7 to get same durations as original audio
+    % corrective_factor (1,1) double = 1; % rule and waveform spectific corrective factor for rules 2 and 7 to get same durations as original audio
     shift_rate (1,1) double = 1.00; 
     peak_tol (1,1) double = 0.0;
     %we checked that sil_tol=inf replicates original unsegmented results
@@ -210,17 +210,11 @@ ISI=0;
 n_segs=size(seg,1);
 for ss=1:n_segs 
     % % get rates for current segment
-    % IPF0_seg=IPF0(seg(ss,1):seg(ss,2));
-    % IPF1_seg=IPF1_seg(seg(ss,1):seg(ss,2));
-    % get intervals for current segment
     IPI0_seg=diff(Ifrom(seg(ss,1):seg(ss,2)));
-    % constrain to syl_rate_limits %NOTE this won't actually work...
-    % IPI0_seg=max(IPI0_seg,min(1./input_syll_rate_lims));
-    % IPI0_seg=min(IPI0_seg,max(1./input_syll_rate_lims));
-    % IPI1_seg=IPI1(seg(ss,1):seg(ss,2));
-    % slow=IPF0_seg<f_center;
-    % fast=IPF0_seg>f_center;
-    % 
+    % get original segment duration for post-warp normalization
+    seg_dur_0=sum(IPI0_seg);
+
+
     slow=1./IPI0_seg<f_center;
     fast=1./IPI0_seg>f_center;
     % median values don't change in either rule
@@ -321,8 +315,8 @@ for ss=1:n_segs
                     IPI1_seg(fast)=IPI0_seg(fast)./rate_shift(fast);
 
                     %NEW: correct intervals by duration-specific factor to
-                    %get 64s output
-                    IPI1_seg=IPI1_seg/corrective_factor;
+                    %get 64s output RE: we didn't like how this turned out
+                    % IPI1_seg=IPI1_seg/corrective_factor;
     
             end
             
@@ -414,7 +408,7 @@ for ss=1:n_segs
                 max_stretch_rate=2*f_center-min_stretch_rate; 
                 % leave overly fast intervals unchanged
                 IPI1_seg(too_fast)=IPI0_seg(too_fast);
-                IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate.*rand(sum(~too_fast),1)));
+                IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
         end
     
     end
@@ -427,14 +421,17 @@ for ss=1:n_segs
         %won't ISI just be zero for first segment....?
         start_t=Ifrom(seg(ss,1))+ISI;
     end
-    % enforce maximum interval/minimum freq allowed in
-    % output
-    IPI1_seg=min(IPI1_seg,interval_ceil_out);
-    %NOTE: (below) still work in progress... likely don't need separate
-    %sylrate limits for inout and output
-    % IPI1_seg=max(IPI1_seg,min(1./output_syll_rate_lims));
-    % IPI1_seg=min(IPI1_seg,max(1./output_syll_rate_lims));
     
+    seg_dur_1=sum(IPI1_seg);
+    IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
+    
+    % enforce maximum interval/minimum freq allowed in
+    % output (note: do after duration normalization to avoid overly-short
+    % intervals by accidente)
+    IPI1_seg=min(IPI1_seg,interval_ceil_out);
+    
+    
+
     %CUMSUM
     Ito(seg(ss,1):seg(ss,2),1)=[start_t; start_t+cumsum(IPI1_seg)];
     if any(isnan(Ito))
