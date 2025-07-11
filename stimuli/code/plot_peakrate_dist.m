@@ -6,16 +6,59 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule2_seg_bark_median_segment_normalized_durations';
+cond_nm='rule2_seg_bark_median_segmentNormalizedDurations';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
 w_thresh=2.026;
-%% plot peakRate hist
+% get warp rule and normalization info from fnm
+warp_info=split(cond_nm,'_');
+warp_rule=sscanf(warp_info{1},'rule%d');
+%% load peakRate data
+%TODO: repeat for og? they should match the s_intervals identically but
+%could be a good sanity check...
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
-peakRate_fnm='rule2_seg_bark_median_blanket_normalized_durations';
-peakRate_pth=fullfile(peakRate_dir,peakRate_fnm);
-% load(peakRate_pth);
+% peakRate_fnm_cond='rule2_seg_bark_median_segmentNormalizedDurations';
+peakRate_pth_cnd=fullfile(peakRate_dir,cond_nm);
+load(peakRate_pth_cnd);
+
+peakRate_fnm_og='og';
+peakRate_pth_og=fullfile(peakRate_dir,peakRate_fnm_og);
+temp_pr=load(peakRate_pth_og);
+peakRate_og=temp_pr.peakRate;
+
+
+% apply thresholds and stack
+alg_intervals_og=[];
+alg_intervals_warped=[];
+for ss=1:numel(peakRate)
+    temp_p_mask=peakRate(ss).prominence>p_thresh;
+    temp_w_mask=peakRate(ss).peakwidth>p_thresh;
+
+    % only care about the times
+    temp_times=peakRate(ss).times(temp_w_mask&temp_p_mask);
+    temp_intervals=diff(temp_times);
+    alg_intervals_warped=cat(1,alg_intervals_warped, ...
+        temp_intervals(temp_intervals<=max_interval));
+    
+    % rinse and repeat for og - probably bad practice but note recycling temp vars
+    
+    temp_p_mask=peakRate_og(ss).prominence>p_thresh;
+    temp_w_mask=peakRate_og(ss).peakwidth>p_thresh;
+
+    temp_times=peakRate_og(ss).times(temp_w_mask&temp_p_mask);
+    temp_intervals=diff(temp_times);
+    alg_intervals_og=cat(1,alg_intervals_og, ...
+        temp_intervals(temp_intervals<=max_interval));
+    
+    
+    clear temp_p_mask temp_w_mask temp_times temp_intervals
+
+
+
+end
+
+
 %% load s-mat intervals
 % "C:\Users\ninet\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_segment_normalized_durations"
 smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
@@ -35,13 +78,11 @@ end
 % filter out long pauses
 s_intervals_og(s_intervals_og>max_interval)=[];
 s_intervals_warped(s_intervals_warped>max_interval)=[];
-%% plot s-mat hist
-% get warp rule and normalization info from fnm
-warp_info=split(peakRate_fnm,'_');
-warp_rule=sscanf(warp_info{1},'rule%d');
+%% plot s-mat hists
+
 %TODO: fix names so normalization info can also be readily extracted this
 %way
-ylims=[0 .5]; % make emptyy for no fuk given
+ylims=[0 .25]; % make emptyy for no fuks given
 hist_config_sw.bin_scale='log';
 hist_config_sw.n_bins=100;
 hist_config_sw.xlims=[1 34];
@@ -49,17 +90,44 @@ hist_config_sw.logTicks=2.^(-1:16);
 hist_config_sw.title=sprintf('Anchorpoints - rule%d',warp_rule);
 hist_config_sw.bin_lims=[.5, 36];
 
-hist_config_og=hist_config_sw;
-hist_config_og.title=sprintf('Anchorpoints - og');
+hist_config_sog=hist_config_sw;
+hist_config_sog.title=sprintf('Anchorpoints - og');
 
 figure
-hist_wrapper(s_intervals_og,hist_config_og);
+hist_wrapper(s_intervals_og,hist_config_sog);
 if ~isempty(ylims)
     set(gca(),"YLim",ylims)
 end
 
 figure
 hist_wrapper(s_intervals_warped,hist_config_sw);
+if ~isempty(ylims)
+    set(gca(),"YLim",ylims)
+end
+
+%% plot algo hists
+
+
+ylims=[0 .25]; % make emptyy for no fux given
+hist_config_aw.bin_scale='log';
+hist_config_aw.n_bins=100;
+hist_config_aw.xlims=[1 34];
+hist_config_aw.logTicks=2.^(-1:16);
+hist_config_aw.title=sprintf('Acoustic Algorithm - rule%d',warp_rule);
+hist_config_aw.bin_lims=[.5, 36];
+
+
+hist_config_aog=hist_config_aw;
+hist_config_aog.title=sprintf('Acoustic Algorithm - og');
+
+figure
+hist_wrapper(alg_intervals_og,hist_config_aog);
+if ~isempty(ylims)
+    set(gca(),"YLim",ylims)
+end
+
+figure
+hist_wrapper(alg_intervals_warped,hist_config_aw);
 if ~isempty(ylims)
     set(gca(),"YLim",ylims)
 end
