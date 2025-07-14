@@ -22,8 +22,14 @@ overwrite=0;
 % script run
 get_smat=false;
 % "C:\Users\apalaci6.URMC-SH\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_blanket_normalized_durations"
-cond_nm='rule2_seg_bark_median_segment_normalized_durations';
-cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
+% cond_nm='rule7_seg_bark_median_unnormalized_durations';
+% cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
+% og in separate folder:
+cond_nm='og';
+% cc_source_dir=sprintf('%s/stimuli/wrinkle_wClicks/%s/',boxdir_mine,cond_nm);
+global boxdir_lab
+cc_source_dir=sprintf('%s/stimuli/wrinkle/%s/',boxdir_lab,cond_nm);
+
 
 out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);
 
@@ -60,81 +66,78 @@ clear out_flpth D peakRate cc_source_dir cond_nm
 
 %% Verify results NOTE: better do everything below on separate script "plot_peakrate_dist"
 %% quick and dirty time domain plot
-n_display_stim=40;
-scale_multiplier=1e4;
-for cc=1:numel(conditions)
-    cond=conditions(cc);
-    
-    [cc_source_dir,cond_nm]=get_source_dir_cond(cond);
-    fprintf('%s...\n',cond_nm)
-    D=dir([cc_source_dir '*.wav']);
-    sample_path=[cc_source_dir D(n_display_stim).name];
-    [sample_wf,fs]=audioread(sample_path);
-    sample_env=bark_env(sample_wf(:,soundchn),fs,fs);
-    [peakTs,peakVals]=get_peakRate(sample_env,fs);
-    figure, plot((0:(numel(sample_env)-1))./fs,sample_env), hold on
-    stem(peakTs,peakVals.*scale_multiplier)
-    title(sprintf('%s - stim # %d',cond_nm, n_display_stim))
-end
-%% histogram
-% include s_mat + peakRate - will need to filter the peakrate based on
-% width and prominence, as well as excessively long pauses; the s_mats
-% should already be filtered in terms of width and prominence, but not in
-% terms of long pauses
-
-%% old version of code that we might want to abandon tbh
-
-
-if get_smat
-% set threshold for peaks to ignore based on smoothed envelope value
-nwavs=120; % per condition
-nconditions=numel(conditions);
-%TODO: OOPS forgot to save the actual peakrate values.... re-run and save
-%those for analysis too
-% NOTE: actually this might be impossible since we didn't save them just
-% the s matrix hehehehe...
-% peakRate=cell(nconditions+1,nwavs);
-peakRateIntervals=cell(nconditions+1,nwavs);
-peakRateFreqs=cell(nconditions+1,nwavs);
-% peakR
-
-
-
-if ~exist(peakrateFileOut,'file')
-    for cc=1:nconditions
-        [wavspath,D]=getFilePaths(stimulifolder,conditions(cc));
-    
-        for windx=1:length(D)
-            fprintf('wav %d...\n',windx)
-            s_flpth=sprintf('%s/%s.mat',wavspath,D(windx).name(1:end-4));
-            load(s_flpth,'s_temp');
-            %TODO: get the og jsut on the first iteration (make a cell for
-            %it) then also for the two warp conditions (and calculate
-            %rates)
-            % assume all audio at same fs - just read first sample of first
-            if cc==1 && windx==1
-                aud_flpth=sprintf('%s/%s',wavspath,D(windx).name);
-                [~,fs]=audioread(aud_flpth, [1 2]);                
-            end
-            if cc==1
-                peakRateIntervals{cc,windx}=get_pr_intervals(s_temp(:,1),fs);
-                peakRateFreqs{cc,windx}=1./[peakRateIntervals{cc,windx}];
-            end
-            
-            peakRateIntervals{cc+1,windx}=get_pr_intervals(s_temp(:,2),fs);
-            peakRateFreqs{cc+1,windx}=1./[peakRateIntervals{cc+1,windx}];
-
-            
-            
-        end
-        clear D wavspath windx
+plot_time_domain=false;
+if plot_time_domain
+    n_display_stim=40;
+    scale_multiplier=1e4;
+    for cc=1:numel(conditions)
+        cond=conditions(cc);
+        
+        [cc_source_dir,cond_nm]=get_source_dir_cond(cond);
+        fprintf('%s...\n',cond_nm)
+        D=dir([cc_source_dir '*.wav']);
+        sample_path=[cc_source_dir D(n_display_stim).name];
+        [sample_wf,fs]=audioread(sample_path);
+        sample_env=bark_env(sample_wf(:,soundchn),fs,fs);
+        [peakTs,peakVals]=get_peakRate(sample_env,fs);
+        figure, plot((0:(numel(sample_env)-1))./fs,sample_env), hold on
+        stem(peakTs,peakVals.*scale_multiplier)
+        title(sprintf('%s - stim # %d',cond_nm, n_display_stim))
     end
-    save(peakrateFileOut)
-else
-    load(peakrateFileOut)
 end
-disp('done')
-end
+
+
+% if get_smat
+% % set threshold for peaks to ignore based on smoothed envelope value
+% nwavs=120; % per condition
+% nconditions=numel(conditions);
+% %TODO: OOPS forgot to save the actual peakrate values.... re-run and save
+% %those for analysis too
+% % NOTE: actually this might be impossible since we didn't save them just
+% % the s matrix hehehehe...
+% % peakRate=cell(nconditions+1,nwavs);
+% peakRateIntervals=cell(nconditions+1,nwavs);
+% peakRateFreqs=cell(nconditions+1,nwavs);
+% % peakR
+% 
+% 
+% 
+% if ~exist(peakrateFileOut,'file')
+%     for cc=1:nconditions
+%         [wavspath,D]=getFilePaths(stimulifolder,conditions(cc));
+% 
+%         for windx=1:length(D)
+%             fprintf('wav %d...\n',windx)
+%             s_flpth=sprintf('%s/%s.mat',wavspath,D(windx).name(1:end-4));
+%             load(s_flpth,'s_temp');
+%             %TODO: get the og jsut on the first iteration (make a cell for
+%             %it) then also for the two warp conditions (and calculate
+%             %rates)
+%             % assume all audio at same fs - just read first sample of first
+%             if cc==1 && windx==1
+%                 aud_flpth=sprintf('%s/%s',wavspath,D(windx).name);
+%                 [~,fs]=audioread(aud_flpth, [1 2]);                
+%             end
+%             if cc==1
+%                 peakRateIntervals{cc,windx}=get_pr_intervals(s_temp(:,1),fs);
+%                 peakRateFreqs{cc,windx}=1./[peakRateIntervals{cc,windx}];
+%             end
+% 
+%             peakRateIntervals{cc+1,windx}=get_pr_intervals(s_temp(:,2),fs);
+%             peakRateFreqs{cc+1,windx}=1./[peakRateIntervals{cc+1,windx}];
+% 
+% 
+% 
+%         end
+%         clear D wavspath windx
+%     end
+%     save(peakrateFileOut)
+% else
+%     load(peakrateFileOut)
+% end
+% disp('done')
+% end
+%% helpers
 function [cc_source_dir,cond_nm]=get_source_dir_cond(cond)
 global boxdir_mine
 stimset='wrinkle';

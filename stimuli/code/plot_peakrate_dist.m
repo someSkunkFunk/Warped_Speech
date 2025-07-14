@@ -33,23 +33,29 @@ alg_intervals_og=[];
 alg_intervals_warped=[];
 for ss=1:numel(peakRate)
     temp_p_mask=peakRate(ss).prominence>p_thresh;
-    temp_w_mask=peakRate(ss).peakwidth>p_thresh;
+    temp_w_mask=peakRate(ss).peakwidth>w_thresh;
 
     % only care about the times
     temp_times=peakRate(ss).times(temp_w_mask&temp_p_mask);
     temp_intervals=diff(temp_times);
+    % alg_intervals_warped=cat(1,alg_intervals_warped, ...
+    %     temp_intervals(temp_intervals<=max_interval));
+
     alg_intervals_warped=cat(1,alg_intervals_warped, ...
-        temp_intervals(temp_intervals<=max_interval));
+        temp_intervals);
     
     % rinse and repeat for og - probably bad practice but note recycling temp vars
     
     temp_p_mask=peakRate_og(ss).prominence>p_thresh;
-    temp_w_mask=peakRate_og(ss).peakwidth>p_thresh;
+    temp_w_mask=peakRate_og(ss).peakwidth>w_thresh;
 
     temp_times=peakRate_og(ss).times(temp_w_mask&temp_p_mask);
     temp_intervals=diff(temp_times);
+    % alg_intervals_og=cat(1,alg_intervals_og, ...
+    %     temp_intervals(temp_intervals<=max_interval));
+
     alg_intervals_og=cat(1,alg_intervals_og, ...
-        temp_intervals(temp_intervals<=max_interval));
+        temp_intervals);
     
     
     clear temp_p_mask temp_w_mask temp_times temp_intervals
@@ -57,7 +63,8 @@ for ss=1:numel(peakRate)
 
 
 end
-
+alg_intervals_og(alg_intervals_og>max_interval)=[];
+alg_intervals_warped(alg_intervals_warped>max_interval)=[];
 
 %% load s-mat intervals
 % "C:\Users\ninet\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_segment_normalized_durations"

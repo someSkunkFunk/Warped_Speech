@@ -140,73 +140,30 @@ rng(1);
 
 % Extract envelope
 
-%TODO: determine if bark_env function i took from "pushing the envelope"
-%used that specific gaussian filter implementation instead of what they
-%said they did in the paper (10 Hz lowpass) for some performance reason
-%that will cause our lowpass filter to give bad results....?
+%TODO: determine if gaussian filtering in bark_env function i took from 
+% "pushing the envelope" gives better timing results for peakrate events?
+
 switch env_method
     
     case 1 % use broadband envelope
         env = abs(hilbert(wf));
     case 2 % use bark scale filterbank
-        %TODO: saw something in their code about removing spurious peaks
-        %and rescaling to some common range (i think they used -1 to 1) -
-        %we should investigate if incorporating those steps improves the
-        %output (after comparing the syllable rate output distribution
-        %using this method vs the broadband and GC envelope
         env=bark_env(wf,fs,fs);
     case 3
-        %TODO: test this shit
         env=extractGCEnvelope(wf,fs);
 
 end
-%% STUFF MODED TO DEDICATED FUNCTION %
-% Hd = getLPFilt(fs,10); %% Maybe don't filter so harshly?
-% env = filtfilthd(Hd,env);
-% % Find onsets
-% env_onset = diff(env);
-% env_onset(env_onset<0) = 0;
-% 
-% [~,Ifrom,~,p] = findpeaks(env_onset,fs);
-% 
-% % normalize prominence
-% p = p./std(p);
-% Eliminate small peaks
-% Ifrom(p<peak_tol)=[];
-% p(p<peak_tol)=[];
+% note: get_peakrate lowpasses the envelope at 10 hz
 [Ifrom,~,p,w,~]=get_peakRate(env,fs,peak_tol);
-%% FILTER PEAKS HERE
 % set thresholds
 p_t=0.105;
 w_t=2.026;
 Ifrom=Ifrom(p>p_t&w>w_t);
-%%
-
-
-% eliminate stuff outside range where syllables happen 
-%TODO: that's not gonna work probably there's some filtering we wanna
-%modify in the peakfinding algo instead cuz just filtering based on the
-%diff doesn't guarantee not a syllable but i gotta think about this more
-%carefully
-% Ifrom(Ifrom>maxInt|Ifrom<minInt)=[];
-% p(Ifrom>maxInt|Ifrom<minInt)=[];
-%TODO: ask aaron why he had preallocated 3 different Ito...'s when one would suffice (only one used to warp ultimately?)
-% [ItoReg,ItoIrreg] = deal(zeros(size(Ifrom))); 
-% Ito=zeros(size(Ifrom));
-% get interpeak intervals
-% IPI0=diff(Ifrom);
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
 %inter-segment interval
 ISI=0;
 
-% invert to get articulation rates
-% IPF0=1./IPI0;
-% IPF1=zeros(size(IPF0));
-% slow=IPF0<f_center;
-% fast=IPF0>f_center;
-%NOTE: none should be exactly equal to the center f but maybe include a
-%thing just in case
-% IPF1(~(slow|fast))=IPF0(~(slow|fast));
+
 n_segs=size(seg,1);
 for ss=1:n_segs 
     % % get rates for current segment
@@ -217,31 +174,14 @@ for ss=1:n_segs
 
     slow=1./IPI0_seg<f_center;
     fast=1./IPI0_seg>f_center;
-    % median values don't change in either rule
-    % IPF1_seg(~(slow|fast))=IPF0_seg(~(slow|fast));
     IPI1_seg=nan(size(IPI0_seg));
+    % median vals will stay median
     IPI1_seg(~(slow|fast))=IPI0_seg(~(slow|fast));
     switch rule
         case 1
             % RULE 1
             % % multiply/divide by fixed ratio of input rate
-            % rate_shift=(1+abs(amt_shift));
-            % multiply/divide by distance-from-median dependent ratio of input rate
-            % TODO: this was a mid attempt at modulating the shift amount
-            % based on distance from center_f so that when center_f was
-            % median, the median would not change after warping. 
-            % IPI0_seg_clipped=IPI0_seg;
-            % IPI0_seg_clipped(IPI0_seg_clipped>1/minInt)=1/minInt;
-            % IPI0_seg_clipped(IPI0_seg_clipped<1/maxInt)=1/maxInt;
-            % dist_discount=abs(IPI0_seg_clipped-f_center);
-            % normalize range... TODO: is there a more intelligent way to
-            % do this?
-            %TODO: update this with range determined by distribution cutoff
-            %frequencies (or the peakrate detection cutoffs? not sure why
-            %they'd be different...)
-            %ERROR PROBABLY COMING FROM HERE            
-            % dist_discount=(dist_discount-1/maxInt)./syl_rate_dist_range;
-            % rate_shift=(1+dist_discount.*abs(amt_shift));
+            
             rate_shift=(1+abs(shift_rate));
 
             switch k
@@ -275,14 +215,6 @@ for ss=1:n_segs
             % RULE 2
             % % multiply/divide by fixed ratio of input rate scaled by
             % distance from median 
-            % distance_factor=nan(size(og_dist));
-            % distance_factor(fast)=1+(og_dist(fast)-max(dist_lims))./(max(dist_lims)-center_f);
-            % distance_factor(slow)=1+(og_dist(slow)-min(dist_lims))./(min(dist_lims)-center_f);
-            % distance_factor(~(slow|fast))=0;
-            % rate_shift=1+distance_factor.*max_shift;
-            % NOTE: converting to freqs even though working in time domain
-            % because i figured out the rule in freq domain while drunk at
-            % a bar and don't feel like doing that extra step
             mod_lims=[1/min_mod_interval 1/max_mod_interval];
             dist_factor=nan(size(IPI0_seg));
             dist_factor(fast)=1+(1./IPI0_seg(fast)-max(mod_lims))./(max(mod_lims)-f_center);
@@ -290,8 +222,6 @@ for ss=1:n_segs
             dist_factor(~(slow|fast))=0;
             % constrain modulation factor below 1
             dist_factor=min(dist_factor,1);
-
-
             
             if any(dist_factor<0)
                 error('this is fucked.')
@@ -319,8 +249,7 @@ for ss=1:n_segs
                     % IPI1_seg=IPI1_seg/corrective_factor;
     
             end
-            
-            
+              
         case 3
         % RULE 3
         % relfect about/collapse to median
@@ -354,7 +283,6 @@ for ss=1:n_segs
     case 4
     % RULE 4
     % all values cross median to tails of distribution
-    
         switch k
             case 1
                 % reg -> shift towards center f
@@ -450,14 +378,8 @@ end
 % convert to indices
 s = round([Ifrom Ito]*fs);
 % pad indices with correct start/end times
-%TODO: last index is manually being set to length of wf but audio clips on
-%output are definitely not the same duration as the original so wtf is
-%going on here dude???
-% NVM I think it's the following line where the last value of s in output
-% column gets re-written to be whatever the penultimate was plus the silent
-% bit at the end of original
 s = [ones(1,2); s; ones(1,2)*length(wf)];
-% fix last value to 
+% fix last to match length of silence in original recording's ending
 end_sil = diff(s(:,1)); end_sil = end_sil(end);
 s(end,2) = s(end-1,2)+end_sil;
 % warp

@@ -27,6 +27,7 @@ w = w./std(w);
 w2 = w2./std(w2);
 
 % Eliminate small peaks
+% (note that if peak_tol is zero, this will remove nothing since prominence is nonzero)
 peakTs(p<peak_tol)=[];
 peakVals(p<peak_tol)=[];
 w(p<peak_tol)=[];
