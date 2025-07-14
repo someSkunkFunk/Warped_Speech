@@ -11,6 +11,9 @@ fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
 w_thresh=2.026;
+% p_thresh=0;
+% w_thresh=0;
+
 % get warp rule and normalization info from fnm
 warp_info=split(cond_nm,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
@@ -89,7 +92,7 @@ s_intervals_warped(s_intervals_warped>max_interval)=[];
 
 %TODO: fix names so normalization info can also be readily extracted this
 %way
-ylims=[0 .25]; % make emptyy for no fuks given
+ylims=[0 .5]; % make emptyy for no fuks given
 hist_config_sw.bin_scale='log';
 hist_config_sw.n_bins=100;
 hist_config_sw.xlims=[1 34];
@@ -115,7 +118,7 @@ end
 %% plot algo hists
 
 
-ylims=[0 .25]; % make emptyy for no fux given
+ylims=[0 .5]; % make emptyy for no fux given
 hist_config_aw.bin_scale='log';
 hist_config_aw.n_bins=100;
 hist_config_aw.xlims=[1 34];
@@ -138,9 +141,21 @@ hist_wrapper(alg_intervals_warped,hist_config_aw);
 if ~isempty(ylims)
     set(gca(),"YLim",ylims)
 end
-%% calculate fano-factor
+%% calculate fano-factors
+fano_og_alg=get_fano_factor(alg_intervals_og);
+fprintf('og, acoustic algo intervals fano factor: %0.3f\n',fano_og_alg)
 
-% helpers
+fano_warped_smat=get_fano_factor(s_intervals_warped);
+fprintf('warped, anchorpoint intervals fano factor: %0.3f\n',fano_warped_smat)
+
+fano_warped_alg=get_fano_factor(alg_intervals_warped);
+fprintf('warped, acoustic algo intervals fano factor: %0.3f\n',fano_og_alg)
+
+%% helpers
+function fano=get_fano_factor(dist)
+    fano=var(dist)/mean(dist);
+end
+
 function hist_wrapper(intervals,config)
 bin_scale=config.bin_scale;
 n_bins=config.n_bins;
