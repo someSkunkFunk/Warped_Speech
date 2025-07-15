@@ -43,11 +43,8 @@ arguments
     wf double
     fs (1,1) double
     k (1,1) double = 1;
-    center (1,1) double = 0; %TODO: use empirical value 5.8644
+    center (1,1) double = 0; 
     rule (1,1) = 7;    
-    %TODO: figure out what happens when we make this smaller or larger
-    % shift_rate (1,1) double = 0.40; % percentage of original interval - NOTE: should consider spitting this variable out if we start varying it in future - i think once we get rid of long pauses in the estimation that won't really be necessary
-    % corrective_factor (1,1) double = 1; % rule and waveform spectific corrective factor for rules 2 and 7 to get same durations as original audio
     shift_rate (1,1) double = 1.00; 
     peak_tol (1,1) double = 0.0;
     %we checked that sil_tol=inf replicates original unsegmented results
@@ -338,6 +335,33 @@ for ss=1:n_segs
                 IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
         end
+    case 8
+        switch k
+            case 1
+                % reg
+                IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
+                IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
+                IPI1_seg(~(fast|slow))=1./f_center;
+            case -1
+                % using mean of entire peakrate distribution when
+                % thresholding by prominence and peakwidth is done
+                % mu=0.2624; %  note: mu is mean in exprnd... but in actual 
+                % % exponential distribution function the parameter is lambda, 
+                % % whose mean is one over lambda
+                lam=1./.2624;
+                min_exp_interval=0.0382; % about 26 Hz
+                max_exp_interval=sil_tol;
+                % IPI1_seg=exprand(mu,size(IPI0_seg));
+                % generate uniformly distributed samples
+                IPI1_seg=rand(size(IPI0_seg));
+                % use inverted, truncated exponential cdf to generate
+                % warped samples
+                Fmin=1-exp(-lam*min_exp_interval);
+                Fmax=1-exp(-lam*max_exp_interval);
+                IPI1_seg=-log(1-(Fmin+IPI1_seg.*(Fmax-Fmin)))./lam;
+
+        end
+
     
     end
     
