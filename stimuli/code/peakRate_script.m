@@ -22,13 +22,14 @@ overwrite=0;
 % script run
 get_smat=false;
 % "C:\Users\apalaci6.URMC-SH\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_blanket_normalized_durations"
-% cond_nm='rule7_seg_bark_median_unnormalized_durations';
-% cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
-% og in separate folder:
-cond_nm='og';
+cond_nm='rule8_seg_bark_median_segmentNormalizedDurations';
+cc_source_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
+% % og in separate folder: NOTE - I think we decided this was not the issue
+% and we ddin't need the shorter files necessarily?
+% cond_nm='og';
 % cc_source_dir=sprintf('%s/stimuli/wrinkle_wClicks/%s/',boxdir_mine,cond_nm);
-global boxdir_lab
-cc_source_dir=sprintf('%s/stimuli/wrinkle/%s/',boxdir_lab,cond_nm);
+% global boxdir_lab
+% cc_source_dir=sprintf('%s/stimuli/wrinkle/%s/',boxdir_lab,cond_nm);
 
 
 out_flpth=sprintf('%s%s.mat',out_dir,cond_nm);

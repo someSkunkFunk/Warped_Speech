@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule7_seg_bark_median_segmentNormalizedDurations';
+cond_nm='rule8_seg_bark_median_segmentNormalizedDurations';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
