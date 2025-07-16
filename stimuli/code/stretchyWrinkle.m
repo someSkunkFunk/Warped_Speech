@@ -349,7 +349,8 @@ for ss=1:n_segs
                 % % exponential distribution function the parameter is lambda, 
                 % % whose mean is one over lambda
                 lam=1./.2624;
-                min_exp_interval=0.0382; % about 26 Hz
+                % min_exp_interval=0.0382; % about 26 Hz
+                min_exp_interval=0.0382*2; % while not many samples near upper limit generated randomly, the duration normalization seemed to speed up a lot of intervals excessively
                 max_exp_interval=sil_tol;
                 % IPI1_seg=exprand(mu,size(IPI0_seg));
                 % generate uniformly distributed samples
@@ -375,7 +376,10 @@ for ss=1:n_segs
     end
     
     seg_dur_1=sum(IPI1_seg);
-    IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
+    normalize_segments=false;
+    if normalize_segments
+        IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
+    end
     
     % enforce maximum interval/minimum freq allowed in
     % output (note: do after duration normalization to avoid overly-short

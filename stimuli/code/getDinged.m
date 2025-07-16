@@ -7,50 +7,18 @@
 %COMPARATIVE PLOTTING IN OTHER SCRIPT
 clear
 clc
-dependencies_path=('../../dependencies/');
-addpath(genpath(dependencies_path));
-% note we're not using local box folder here which may cuase issues down
-% the line, but we're trusting the wav files on shared box folder not to
-% change except by my own decision (and for me to keep track of when that
-% happens)
-user_profile=getenv('USERPROFILE');
+% dependencies_path=('../../dependencies/');
+% addpath(genpath(dependencies_path));
 % note assuming stimuli without clicks held in shared box folder
-% stimuli_dir=sprintf('%s/Box/Lalor Lab Box/Research Projects/Aaron - Warped Speech/stimuli',user_profile);
-stimuli_dir='./';
+global boxdir_mine
+stimuli_dir=sprintf('%s/stimuli/',boxdir_mine);
 % stimset='median_stretchy_rule5_seg_bark/wrinkle';
-stimset='wrinkle/stretchy_compressy/';
-modSpectraDir="./modSpectra";
-% NOTE: MAKE SURE MODPSECTRA FILE NAME MATCHES STIMSET... TODO: FIX FILE
-% NAMING SO THAT IT AUTOMATICALLY HAS CORRECT CONDITION NAME
-modSpectraFile=sprintf('%s/DingMS_stretchy2_compressy5_final.mat',modSpectraDir);
-conditions={'stretchy_irreg/rule2_seg_bark_median','compressy_reg/rule5_seg_bark_median'};
-% conditions={'rule3_seg_bark_lquartile','rule3_seg_bark_median',...
-%     'rule3_seg_bark_uquartile'};
-% conditions={'rule2_seg_bark_lquartile','rule2_seg_bark_median',...
-    % 'rule2_seg_bark_uquartile'};
-% conditions={'rule1_seg_bark_lquartile','rule1_seg_bark_median',...
-%     'rule1_seg_bark_uquartile','rule2_seg_bark_lquartile','rule2_seg_bark_median',...
-%     'rule2_seg_bark_uquartile','rule3_seg_bark_lquartile','rule3_seg_bark_median',...
-%     'rule3_seg_bark_uquartile','rule4_seg_bark_lquartile','rule4_seg_bark_median',...
-%     'rule4_seg_bark_uquartile','rule5_seg_bark_lquartile','rule5_seg_bark_median',...
-%     'rule5_seg_bark_uquartile'};
-% conditions={'speechy_noise_lpf1e+03'};
-% conditions={'pure_noise','speechy_noise','speechy_noise_lpf8.5e+03'};
-% conditions={'stretchy_irreg','compressy_reg'};
-% conditions={'irreg_stretchy','reg_stretchy'};
-% conditions={'randSame2','randUnif'};
-% conditions={'randEyeball'};
-% conditions={'randSame'};
-% conditions={'rand'};
-% conditions={'og'};
-% conditions={'randSame'};
-% conditions={'randEyeball'};
-% conditions={'og','reg','rand'};
-% nfreqs=48000;%note not sure how to determine this value for all the conditions;
-% i think it depends on number of samples basically; but also i think we
-% truncated in get_avg_ms since higher frequencies not necessary
-% modSpectraFile="noSilWrinkleModspectra.mat";
-% modSpectraFile="regRandWrinkleModspectra.mat"
+stimset='wrinkle/stretchy_compressy_temp/stretchy_irreg/';
+modSpectraDir=sprintf('%s/stimuli/modSpectra/',boxdir_mine);
+conditions={'rule2_seg_bark_median_segmentNormalizedDurations',...
+    'rule2_seg_bark_median_unnormalizedDurations',...
+    'rule7_seg_bark_median_segmentNormalizezdDurations','rule7_seg_bark_median_unnormalizedDurations'};
+modSpectraFile=sprintf('%s/DingMS_stretchyRules2and7normalizedvsNot.mat',modSpectraDir);
 
 if ~exist(modSpectraFile,'file')
     for cc=1:numel(conditions)
@@ -125,23 +93,7 @@ xlabel('frequencies')
 legend()
 set(gca, 'Xscale','log','XTick',logTicks,'XLim',xlims)
 hold off
-% savefig('noSilWrinkleMS')
-        
-% add mean frequency lines for each stim category
-% THIS DOESNT DO SHIT
-% for cc=1:numel(conditions)
-%     cond=conditions{cc};
-%     tempMean=mean(modSpectra.(cond),1);
-%     condMeanFreq.(cond)=(tempMean*freqs)/nfreqs;
-%     [~, condMaxFreqIndx]=max(tempMean);
-%     condMaxFreq.(cond)=freqs(condMaxFreqIndx);
-%     fprintf('mean freq for %s: %0.2f Hz\n', cond,condMeanFreq.(cond))
-%     fprintf('max freq for %s: %0.2f Hz\n', cond,condMaxFreq.(cond))
-% 
-%     % plot([condMean condMean],[0 1]);
-%     % legend(sprintf('%s mean freq',cond))
-% end
-% 
+
 
 %% DING FUNCTIONS
 function [ms, f]=long_audio_ms(filename)
