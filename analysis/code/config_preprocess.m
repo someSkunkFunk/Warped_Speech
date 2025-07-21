@@ -72,7 +72,7 @@ end
 %file containing all of them and then 
 behfile = sprintf('%ss%0.2d_WarpedSpeech.mat',datafolder,subj);
 bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf',datafolder,subj);
-envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat',boxdir_mine,fs);
+envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat',boxdir_mine,fs);
 % for finding chanlocs file:
 % (note - probably should copy this into project for reliability)
 chanlocs_dir=sprintf('%s/Box/Lalor Lab Box/Code library/EEGpreprocessing/',user_profile);

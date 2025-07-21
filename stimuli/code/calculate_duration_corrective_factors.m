@@ -4,7 +4,7 @@ clear, close all
 %%
 % select which audio set to look at
 global boxdir_mine
-fldr=[boxdir_mine '\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_unnormalized_durations'];
+fldr=[boxdir_mine '\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule8_seg_bark_median_unnormalizedDurations'];
 % fldr=[boxdir_mine '\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule7_seg_bark_median_unnormalized_durations'];
 D=dir([fldr, '\*.wav']);
 durations=zeros(size(D));

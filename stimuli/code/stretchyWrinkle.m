@@ -336,6 +336,7 @@ for ss=1:n_segs
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
         end
     case 8
+        % RULE 8
         switch k
             case 1
                 % reg
@@ -348,9 +349,19 @@ for ss=1:n_segs
                 % mu=0.2624; %  note: mu is mean in exprnd... but in actual 
                 % % exponential distribution function the parameter is lambda, 
                 % % whose mean is one over lambda
-                lam=1./.2624;
+                % corrective factor based on ratio difference of durations
+                % from poisson with 12 Hz max, og mean for lambda (relative
+                % to og durations)
+                % mean_duration_correction_factor=1.0592;
+                %increased interval after noticing fast intervals are
+                %unintelligible -> lowered max to 10 Hz + outputs still too
+                %long (just educated guess)
+                mean_duration_correction_factor=1.65;
+                mean_interval=.2624;
+                lam=1./(mean_interval/mean_duration_correction_factor);
                 % min_exp_interval=0.0382; % about 26 Hz
-                min_exp_interval=0.0382*2; % while not many samples near upper limit generated randomly, the duration normalization seemed to speed up a lot of intervals excessively
+                % min_exp_interval=0.0382*2; % while not many samples near upper limit generated randomly, the duration normalization seemed to speed up a lot of intervals excessively
+                min_exp_interval=1/10; % fast intervals when max is 12 (above) are really hard to comprehend...
                 max_exp_interval=sil_tol;
                 % IPI1_seg=exprand(mu,size(IPI0_seg));
                 % generate uniformly distributed samples

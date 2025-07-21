@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule8_seg_bark_median_segmentNormalizedDurations';
+cond_nm='rule8_seg_bark_median';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -23,7 +23,12 @@ warp_rule=sscanf(warp_info{1},'rule%d');
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 % peakRate_fnm_cond='rule2_seg_bark_median_segmentNormalizedDurations';
 peakRate_pth_cnd=fullfile(peakRate_dir,cond_nm);
-load(peakRate_pth_cnd);
+if isfile([peakRate_pth_cnd '.mat'])
+    load(peakRate_pth_cnd);
+    warped_peakrate_available=true;
+else
+    warped_peakrate_available=false;
+end
 
 peakRate_fnm_og='og';
 peakRate_pth_og=fullfile(peakRate_dir,peakRate_fnm_og);
@@ -34,18 +39,20 @@ peakRate_og=temp_pr.peakRate;
 % apply thresholds and stack
 alg_intervals_og=[];
 alg_intervals_warped=[];
-for ss=1:numel(peakRate)
-    temp_p_mask=peakRate(ss).prominence>p_thresh;
-    temp_w_mask=peakRate(ss).peakwidth>w_thresh;
-
-    % only care about the times
-    temp_times=peakRate(ss).times(temp_w_mask&temp_p_mask);
-    temp_intervals=diff(temp_times);
-    % alg_intervals_warped=cat(1,alg_intervals_warped, ...
-    %     temp_intervals(temp_intervals<=max_interval));
-
-    alg_intervals_warped=cat(1,alg_intervals_warped, ...
-        temp_intervals);
+for ss=1:numel(peakRate_og)
+    if warped_peakrate_available
+        temp_p_mask=peakRate(ss).prominence>p_thresh;
+        temp_w_mask=peakRate(ss).peakwidth>w_thresh;
+    
+        % only care about the times
+        temp_times=peakRate(ss).times(temp_w_mask&temp_p_mask);
+        temp_intervals=diff(temp_times);
+        % alg_intervals_warped=cat(1,alg_intervals_warped, ...
+        %     temp_intervals(temp_intervals<=max_interval));
+    
+        alg_intervals_warped=cat(1,alg_intervals_warped, ...
+            temp_intervals);
+    end
     
     % rinse and repeat for og - probably bad practice but note recycling temp vars
     
@@ -67,8 +74,9 @@ for ss=1:numel(peakRate)
 
 end
 alg_intervals_og(alg_intervals_og>max_interval)=[];
-alg_intervals_warped(alg_intervals_warped>max_interval)=[];
-
+if warped_peakrate_available
+    alg_intervals_warped(alg_intervals_warped>max_interval)=[];
+end
 %% load s-mat intervals
 % "C:\Users\ninet\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_segment_normalized_durations"
 smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);

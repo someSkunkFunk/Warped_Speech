@@ -15,14 +15,14 @@ clc
 %that differentiates them from condition-specific TRFs
 %%
 % remember to skip subject 8
-for subj=15:17
+for subj=20:21
     clearvars -except user_profile boxdir_mine boxdir_lab subj
     close all
     % subj
 
 %%
 % subj = 15;
-do_lambda_optimization=false;
+do_lambda_optimization=true;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 %
