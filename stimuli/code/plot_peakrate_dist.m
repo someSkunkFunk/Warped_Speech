@@ -6,7 +6,11 @@
 
 clear, clc
 global boxdir_mine
+<<<<<<< Updated upstream
 cond_nm='rule8_seg_bark_median';
+=======
+cond_nm='rule8_seg_bark_median_speedNormalizedDurations';
+>>>>>>> Stashed changes
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -157,7 +161,7 @@ fano_warped_smat=get_fano_factor(s_intervals_warped);
 fprintf('warped, anchorpoint intervals fano factor: %0.3f\n',fano_warped_smat)
 
 fano_warped_alg=get_fano_factor(alg_intervals_warped);
-fprintf('warped, acoustic algo intervals fano factor: %0.3f\n',fano_og_alg)
+fprintf('warped, acoustic algo intervals fano factor: %0.3f\n',fano_warped_alg)
 
 %% helpers
 function fano=get_fano_factor(dist)
