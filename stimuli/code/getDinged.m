@@ -29,7 +29,7 @@ if ~exist(modSpectraFile,'file')
         for ss=1:numel(d)
             fnm=d(ss).name;
             flpth=fullfile(cond_dir,fnm);
-            [tempMS(ss,:),freqs]=long_audio_ms(flpth);
+            [tempMS(ss,:),freqs]=l  ong_audio_ms(flpth);
             % [x,fs]=audioread(flpth);
             % % downsamples to 16kHz by default
             % [ms, freqs]=get_avg_ms(flpth);
@@ -59,7 +59,7 @@ xlims=[logTicks(1), logTicks(end)+1];
 nfreqs=numel(freqs);
 figure, hold on
 if include_og
-    ogMSFile=sprintf('%s/ogWrinkleDingMS.mat',modSpectraDir);
+    ogMSFile=sprintf('%sogWrinkleDingMS.mat',modSpectraDir);
     ogMS=load(ogMSFile,'modSpectra');
     ogMS=ogMS.modSpectra;
     if normByArea

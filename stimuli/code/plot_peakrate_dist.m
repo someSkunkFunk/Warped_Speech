@@ -6,11 +6,7 @@
 
 clear, clc
 global boxdir_mine
-<<<<<<< Updated upstream
-cond_nm='rule8_seg_bark_median';
-=======
-cond_nm='rule8_seg_bark_median_speedNormalizedDurations';
->>>>>>> Stashed changes
+cond_nm='rule7_seg_bark_median_segmentNormalizedDurations';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -106,7 +102,7 @@ s_intervals_warped(s_intervals_warped>max_interval)=[];
 %way
 ylims=[0 .5]; % make emptyy for no fuks given
 hist_config_sw.bin_scale='log';
-hist_config_sw.n_bins=100;
+hist_config_sw.n_bins=20;
 hist_config_sw.xlims=[1 34];
 hist_config_sw.logTicks=2.^(-1:16);
 hist_config_sw.title=sprintf('Anchorpoints - rule%d',warp_rule);
