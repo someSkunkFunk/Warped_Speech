@@ -57,9 +57,10 @@ end
 
 subjs=[2:7,9:22];
 tbl=setup_glmm_data(subjs);
-
+% use mismatched conditions as baseline
+tbl.Match=reordercats(tbl.Match,["false","true"]);
 % fit GLMM
-formula='Rval ~ TrainCond + (1|Subject) + (1|Subject:Electrode) + (1|DataCond)';
+formula='Rval ~ TrainCond*Match+ (1|Subject) + (1|Subject:Electrode) + (1|DataCond)';
 glme=fitglme(tbl,formula);
 disp(glme)
 
@@ -85,6 +86,7 @@ function tbl=setup_glmm_data(subjs)
     Subject=categorical(repmat("",rows,1));
     DataCond=categorical(repmat("",rows,1));
     TrainCond=categorical(repmat("",rows,1));
+    Match=categorical(repmat("",rows,1));
     Electrode=zeros(rows,1);
     Rval=zeros(rows,1);
 
@@ -105,6 +107,7 @@ function tbl=setup_glmm_data(subjs)
                         Subject(row)=categorical(subj); % does it have to be a string?
                         DataCond(row)=categorical(ii);
                         TrainCond(row)=categorical(jj);
+                        Match(row)=categorical(DataCond(row)==TrainCond(row));
                         Electrode(row)=ee;
                         row=row+1;
                     end
@@ -113,7 +116,7 @@ function tbl=setup_glmm_data(subjs)
         end
     end
 
-    tbl=table(Subject,DataCond,TrainCond,Electrode,Rval);
+    tbl=table(Subject,DataCond,TrainCond,Match,Electrode,Rval);
 end
 
 
