@@ -15,14 +15,14 @@ clc
 %that differentiates them from condition-specific TRFs
 %%
 % remember to skip subject 8
-for subj=20:21
+for subj=22
     clearvars -except user_profile boxdir_mine boxdir_lab subj
     close all
     % subj
 
 %%
 % subj = 15;
-do_lambda_optimization=true;
+do_lambda_optimization=false;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
 %
@@ -121,11 +121,10 @@ if ~preload_stats_obs
     % crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
-    % why tf did we do this shit...??
-    % if exist(trf_config.model_metric_path,'file')&&trf_config.separate_conditions 
-    if exist(trf_config.model_metric_path,'file')
-        save_checkpoint(trf_config,stats_obs);
-    end
+%NOTE: removed exist check before running save checkpoint because that caused stats_obs
+% not to be saved, but there could be a problem with save_checkpoint
+% itself...
+    save_checkpoint(trf_config,stats_obs);
 end
 
 % NOTE: best-lambda stuff below might be pre-loadable?

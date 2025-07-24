@@ -1,7 +1,7 @@
 clear, clc
 % user_profile=getenv('USERPROFILE');
 % use these params since what we used on sfn poster and looked nicest
-subjs=16:19;
+subjs=[20:22];
 for subj=subjs
     fprintf('starting subj %d\n',subj)
     % load saved model
@@ -55,8 +55,8 @@ for subj=subjs
 end
 %% GLMM
 
-
-tbl=setup_glmm_data();
+subjs=[2:7,9:22];
+tbl=setup_glmm_data(subjs);
 
 % fit GLMM
 formula='Rval ~ TrainCond + (1|Subject) + (1|Subject:Electrode) + (1|DataCond)';
@@ -64,8 +64,8 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 
-function tbl=setup_glmm_data()
-    subjs=[2:7,9:19];
+function tbl=setup_glmm_data(subjs)
+    % subjs=[2:7,9:22];
     % preallocate
     n_subjs=numel(subjs);
     rows=0;
