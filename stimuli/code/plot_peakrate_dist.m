@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule7_seg_bark_median_segmentNormalizedDurations';
+cond_nm='rule8_seg_bark_median_speedNormalizedDurations';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -102,7 +102,7 @@ s_intervals_warped(s_intervals_warped>max_interval)=[];
 %way
 ylims=[0 .5]; % make emptyy for no fuks given
 hist_config_sw.bin_scale='log';
-hist_config_sw.n_bins=20;
+hist_config_sw.n_bins=100;
 hist_config_sw.xlims=[1 34];
 hist_config_sw.logTicks=2.^(-1:16);
 hist_config_sw.title=sprintf('Anchorpoints - rule%d',warp_rule);
@@ -158,6 +158,38 @@ fprintf('warped, anchorpoint intervals fano factor: %0.3f\n',fano_warped_smat)
 
 fano_warped_alg=get_fano_factor(alg_intervals_warped);
 fprintf('warped, acoustic algo intervals fano factor: %0.3f\n',fano_warped_alg)
+%% Plot truncated Poisson (relevant for rule 8 only)
+poisson_freqs=linspace(0,16,100);
+poisson_intervals=1./poisson_freqs; % note 1/0 should give Inf... maybe ok?
+% exponential distribution mean ~ should be 1/lambda
+% .2624 is mean of og distribution - 1.65 is corrective factor used to get
+% durations closer to og stimuli
+mu=.2624/1.65;
+exp_max_int=0.75;
+exp_min_int=1/10;
+Fmax_exp=expcdf(exp_max_int,mu);
+Fmin_exp=expcdf(exp_min_int,mu);
+% normalize pdf
+exp_trunc=exppdf(poisson_intervals,mu)./(Fmax_exp-Fmin_exp);
+exp_trunc(poisson_intervals>exp_max_int|poisson_intervals<exp_min_int)=0;
+
+% plot against intervals in our rule 8 output
+
+figure
+plot(poisson_intervals,exp_trunc)
+hold on
+histogram(s_intervals_warped,'Normalization','pdf');
+title('rule 8 interval distribution vs truncated poisson of same params')
+xlabel('seconds')
+
+xlims([0,1])
+
+% figure
+% plot(poisson_freqs,exp_trunc);
+% xlabel('freq (Hz)')
+% title(sprintf('Truncated Poisson with %0.4f s mean interval',mu))
+% set(gca(),'XTick',hist_config_sw.logTicks,'XLim',hist_config_sw.xlims, ...
+%     'XScale','log')
 
 %% helpers
 function fano=get_fano_factor(dist)

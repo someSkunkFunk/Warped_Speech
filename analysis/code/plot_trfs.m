@@ -1,8 +1,8 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
-%
+% TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-subjs=2:17;
+subjs=[2:7,9:22];
 plot_chns=85;
 separate_conditions=true; %NOTE: not operator required when 
     % initializing config_trf since technically it expects 
@@ -10,7 +10,8 @@ separate_conditions=true; %NOTE: not operator required when
     % ignoring the false case rn sincee buggy but not a priority but should
     % fix
 n_subjs=numel(subjs);
-plot_individual_weights=true;
+% NOTE: DON'T SET TO TRUE IF MULTIPLE SUBJECTS BECEAUSE IT WILL BUG OUT
+plot_individual_weights=false;
 plot_avg_weights=true;
 % plot_config
 %% Main script
@@ -54,6 +55,8 @@ for cc=1:3
      hold on
 end
 legend({'fast','og','slow'})
+xlabel('n subjects')
+ylabel('snr')
 %% Helpers
 function snr_plot(snr_per_subj)
     [n_subjs,n_conditions]=size(snr_per_subj);
@@ -90,7 +93,7 @@ function plot_model_weights(model,trf_config,chns)
         trf_config (1,1) struct
         chns = 'all'
     end
-    n_subjs=size(model,1);
+    n_subjs=size(model(1).w,1);
     if trf_config.separate_conditions
         n_conditions=size(model,2);
         fprintf('plotting condition-specific TRFs...\n ')
@@ -131,8 +134,8 @@ function plot_model_weights(model,trf_config,chns)
 end
 
 function avg_model=construct_avg_models(ind_models)
-    [n_subjs,n_weights,n_chans]=size(ind_models(1,1).w);
-    n_conditions=size(ind_models,2);
+    [n_subjs,n_conditions]=size(ind_models);
+    [~,n_weights,n_chans]=size(ind_models(1).w);
     W_stack=nan(n_subjs,n_weights,n_chans);
     avg_model=struct();
     model_fields=fieldnames(ind_models(1,1));
@@ -146,12 +149,15 @@ function avg_model=construct_avg_models(ind_models)
         for ff=1:numel(model_fields)
             ff_field=model_fields{ff};
             if strcmp(ff_field,'w')
-                avg_model(1,cc).(ff_field)=mean(W_stack,1);
+                avg_model(1,cc).(ff_field)=mean(W_stack,1) ;
+            elseif strcmp(ff_field,'b')
+                % safe to ignore bias... I think?
+                continue
             else
                 avg_model(1,cc).(ff_field)=ind_models(1,cc).(ff_field);
             end
         end
-    %TODO: better way to structure this?
+    %add dummy field to distinguish from native trf toolbox model
     avg_model(1,cc).avg=true;
     end
     
@@ -161,10 +167,16 @@ function model=load_individual_model(trf_config)
     disp(['TODO: fix bug - this function is return trf_config ...' ...
         ' also will be a problem in analysis script'])
     if exist(trf_config.trf_model_path,'file')
-        model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
-        if ismember('model',fieldnames(model_checkpoint))
+        % model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
+        % note: load_checkpoint is causing more pain than it's worth... if
+        % we fix it at some point later we can continue using it but right
+        % now just assuming only relevant differences in configs is wether
+        % lambda optimization was done (step 1) or not (step 2 - separate conditions)
+        data_idx=trf_config.separate_conditions+1;
+        temp=load(trf_config.trf_model_path);
+        if ismember('model',fieldnames(temp))
             fprintf('model found in %s\n',trf_config.trf_model_path)
-            model=model_checkpoint.model;
+            model=temp.model(data_idx,:);
         else
             fprintf('no model found in %s\n',trf_config.trf_model_path)
         end

@@ -1,6 +1,7 @@
 clear, clc
 % user_profile=getenv('USERPROFILE');
 % use these params since what we used on sfn poster and looked nicest
+%% compute stats_cross
 subjs=[20:22];
 for subj=subjs
     fprintf('starting subj %d\n',subj)
@@ -53,7 +54,7 @@ for subj=subjs
     fprintf('result saved.\n')
     % clear
 end
-%% GLMM
+%% GLMM analysis
 
 subjs=[2:7,9:22];
 tbl=setup_glmm_data(subjs);
