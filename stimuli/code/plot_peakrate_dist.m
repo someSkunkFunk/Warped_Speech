@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule8_seg_bark_median_speedNormalizedDurations';
+cond_nm='rule9_seg_bark_median_unnormalizedDurations';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -182,7 +182,7 @@ histogram(s_intervals_warped,'Normalization','pdf');
 title('rule 8 interval distribution vs truncated poisson of same params')
 xlabel('seconds')
 
-xlims([0,1])
+% xlims([0,1])
 
 % figure
 % plot(poisson_freqs,exp_trunc);

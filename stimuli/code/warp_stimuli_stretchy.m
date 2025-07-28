@@ -13,7 +13,7 @@ outputStimfolder=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/',boxdir_mi
 % addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
 % save output to my personal box location - avoid mixing files with shared
 % drive
-warp_rules=[8];
+warp_rules=[9];
 % make freqs -1, 0, or 1 to use mean median or mode
 % upper/lower quartiles: 6.358/3.940 Hz (estimated using truncated gamma
 % pdf fit to bark-derived peakRates)

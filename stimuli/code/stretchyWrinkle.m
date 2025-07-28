@@ -311,6 +311,7 @@ for ss=1:n_segs
         end
     % skipped 6 cuz it seemed stupid
     case 7
+        % RULE 7
         switch k
             case 1
                 % reg
@@ -330,6 +331,8 @@ for ss=1:n_segs
                 % min_stretch_rate=1/sil_tol;
                 min_stretch_rate=.5;
                 % mathematically symmetric distance above f_center 
+                % NOTE: not longer mathematically symmetric because this is
+                % not the TRUE f_center if we're ignoring stuff above 8 Hz
                 max_stretch_rate=2*f_center-min_stretch_rate; 
                 % leave overly fast intervals unchanged
                 IPI1_seg(too_fast)=IPI0_seg(too_fast);
@@ -373,6 +376,33 @@ for ss=1:n_segs
                 IPI1_seg=-log(1-(Fmin+IPI1_seg.*(Fmax-Fmin)))./lam;
 
         end
+        case 9
+        % RULE 9
+        % SAME as rule 7 but less stupid (ie don't worry about being
+        % symmetric about any bullshit median, just put shit in the range
+        % we want and examine the output
+        switch k
+            case 1
+                % reg
+                IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
+                IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
+                IPI1_seg(~(fast|slow))=1./f_center;
+            case -1
+                %irreg
+                % need output syllablerate range about median to be
+                % symmetric otherwise the mean will shift, but there's
+                % still too many "fast" syllables after p,w filtering...
+                % crude solution for now is to just leave those out of the
+                % "warp"
+                peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+
+                too_fast=(1./IPI0_seg)>peakRate_cutoff;
+                max_stretch_interval=sil_tol;
+                min_stretch_interval=1/peakRate_cutoff;
+                % leave overly fast intervals unchanged
+                IPI1_seg(too_fast)=IPI0_seg(too_fast);
+                IPI1_seg(~too_fast)=(min_stretch_interval+(max_stretch_interval-min_stretch_interval).*rand(sum(~too_fast),1));
+        end
 
     
     end
@@ -387,7 +417,7 @@ for ss=1:n_segs
     end
     
     seg_dur_1=sum(IPI1_seg);
-    normalize_segments=false;
+    normalize_segments=true;
     if normalize_segments
         IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
     end
