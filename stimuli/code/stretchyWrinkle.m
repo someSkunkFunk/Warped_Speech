@@ -403,6 +403,32 @@ for ss=1:n_segs
                 IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=(min_stretch_interval+(max_stretch_interval-min_stretch_interval).*rand(sum(~too_fast),1));
         end
+        case 10
+        % RULE 10
+        % SAME as rule 9 but we use uniform distribution in rates rather
+        % than intervals
+        switch k
+            case 1
+                % reg
+                IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
+                IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
+                IPI1_seg(~(fast|slow))=1./f_center;
+            case -1
+                %irreg
+                % need output syllablerate range about median to be
+                % symmetric otherwise the mean will shift, but there's
+                % still too many "fast" syllables after p,w filtering...
+                % crude solution for now is to just leave those out of the
+                % "warp"
+                peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+
+                too_fast=(1./IPI0_seg)>peakRate_cutoff;
+                min_stretch_rate=1./sil_tol;
+                max_stretch_rate=peakRate_cutoff;
+                % leave overly fast intervals unchanged
+                IPI1_seg(too_fast)=IPI0_seg(too_fast);
+                IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
+        end
 
     
     end
@@ -417,7 +443,7 @@ for ss=1:n_segs
     end
     
     seg_dur_1=sum(IPI1_seg);
-    normalize_segments=true;
+    normalize_segments=false;
     if normalize_segments
         IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
     end
