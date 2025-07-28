@@ -286,6 +286,8 @@ if use_cutoff_filter
         ' Width threshold'],p_t(nt_plot),w_t(nt_plot)));
     fprintf('Median with hard cutoff at %d hz (%0.3f, %0.3f p, w): %0.3f\n', ...
         syllable_cutoff_hz,p_t(nt_plot),w_t(nt_plot),median(rates_with_cutoff));
+    fprintf('Mean with hard cutoff at %d hz (%0.3f, %0.3f p, w): %0.3f\n', ...
+        syllable_cutoff_hz,p_t(nt_plot),w_t(nt_plot),mean(rates_with_cutoff));
     fprintf('Quantiles with hard cutoff at %d hz (%0.3f, %0.3f p, w): %0.3f, %0.3f\n', ...
         syllable_cutoff_hz,p_t(nt_plot),w_t(nt_plot),quantile(rates_with_cutoff,qtls));
     % threshold_plot_wrapper(n_syll_range,n_too_fast,p_t(1:n_thresholds),w_t(1:n_thresholds),thresh_opts,syllable_cutoff_hz)
@@ -339,7 +341,7 @@ n_thresholds=size(F,2);
 end
 function [envs_stitched,fs]=load_stitched_envs()
     global boxdir_mine
-    envs_dir=sprintf('%s/stimuli/',boxdir_mine);
+    envs_dir=sprintf('%s/stimuli/wrinkle/',boxdir_mine);
     envs_file=[envs_dir 'WrinkleEnvelopes64hz.mat'];
     envs_data=load(envs_file);
     %TODO: edit file so that it is self-evident which condition corresponds

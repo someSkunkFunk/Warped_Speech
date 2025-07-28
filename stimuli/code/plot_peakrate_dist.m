@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule9_seg_bark_median_segmentNormalizedDurations';
+cond_nm='rule10_seg_bark_median_segmentNormalizedDurations';
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -123,6 +123,18 @@ if ~isempty(ylims)
     set(gca(),"YLim",ylims)
 end
 
+ % plot the actual intervals 
+figure
+histogram(s_intervals_warped,NumBins=50)
+xlabel('time (s)')
+title(sprintf('interpeak intervals for rule %d',warp_rule))
+xlim([0 1]);
+
+figure
+histogram(s_intervals_og)
+xlabel('time (s)')
+title('og intervals distribution')
+xlim([0 1])
 %% plot algo hists
 
 
@@ -159,7 +171,7 @@ fprintf('warped, anchorpoint intervals fano factor: %0.3f\n',fano_warped_smat)
 fano_warped_alg=get_fano_factor(alg_intervals_warped);
 fprintf('warped, acoustic algo intervals fano factor: %0.3f\n',fano_warped_alg)
 %% Plot truncated Poisson (relevant for rule 8 only)
-show_poisson=falase;
+show_poisson=false;
 if show_poisson
     poisson_freqs=linspace(0,16,100);
     poisson_intervals=1./poisson_freqs; % note 1/0 should give Inf... maybe ok?
@@ -210,6 +222,7 @@ if show_uniform
     figure
     histogram(1./rand_intervals);
     xlabel('freq (Hz)')
+
 end
 %% helpers
 function fano=get_fano_factor(dist)
