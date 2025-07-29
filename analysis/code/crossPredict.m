@@ -1,8 +1,11 @@
 clear, clc
 % user_profile=getenv('USERPROFILE');
 % use these params since what we used on sfn poster and looked nicest
-%% compute stats_cross
-subjs=[20:22];
+%% compute stats_cross... or stats_cross_fair
+% false does the unfair comparison we originally devised which gives
+% stats_cross
+fair=true;
+subjs=[22];
 for subj=subjs
     fprintf('starting subj %d\n',subj)
     % load saved model
@@ -16,47 +19,61 @@ for subj=subjs
     % stats_data=load_checkpoint(trf_config.model_metric_path,trf_config);
     % TODO: replace trf_config w one that has best lam after checking that both
     % checkpoint-loaded configs are correct
+    if fair
+        % do this janky load procedure just to get best lambda
+        trf_config=load(trf_config.trf_model_path,"trf_config");
+        trf_config=trf_config.trf_config(1,1);
+        % do LOO CV with testing on all the cross-condition trials to
+        % generate cross-condition predictions
 
-    model_data=load(trf_config.trf_model_path,"model");
-    stats_data=load(trf_config.model_metric_path,"stats_obs");
-
-    stats_obs=stats_data.stats_obs(2,:); clear stats_data
-    model=model_data.model(2,:); clear model_data
+        % average across all trials in each fold to get a single r value
+        % per fold
+    else
     
-    preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-    %TODO: fix this dumb shit
-    preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
-    stim=load_stim_cell(trf_config.preprocess_config,preprocessed_eeg);
-    [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-        trf_config,preprocess_config);
-    cond=preprocessed_eeg.cond;
-    resp=preprocessed_eeg.resp;
-    %%
-    conditions=1:3;
-    % r_cross=zeros(3,3,size(r_obs,2));
-    stats_cross=cell2struct(cell(2,1),fieldnames(stats_obs));
+        model_data=load(trf_config.trf_model_path,"model");
+        stats_data=load(trf_config.model_metric_path,"stats_obs");
     
-    % train_condition, predict_condition, electrodes
-    for cc=conditions
-        % copy paste same-condition r values from nulldistribution file
-        % r_cross(cc,cc,:)=stats_obs.r(cc,:);
-        stats_cross(cc,cc)=stats_obs(cc); % assumes 1D struct array...
-        for icc=conditions(conditions~=cc)
-    
-            [~,stats_cross(cc,icc)]=mTRFpredict(stim(cond==cc),resp(cond==cc),model(icc));
-            % r_cross(cc,icc,:)=STATS.r;
-            % clear STATS
+        stats_obs=stats_data.stats_obs(2,:); clear stats_data
+        model=model_data.model(2,:); clear model_data
+        
+        preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
+        %TODO: fix this dumb shit
+        preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
+        stim=load_stim_cell(trf_config.preprocess_config,preprocessed_eeg);
+        [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
+            trf_config,preprocess_config);
+        cond=preprocessed_eeg.cond;
+        resp=preprocessed_eeg.resp;
+        %%
+        conditions=1:3;
+        % r_cross=zeros(3,3,size(r_obs,2));
+        stats_cross=cell2struct(cell(2,1),fieldnames(stats_obs));
+        
+        % train_condition, predict_condition, electrodes
+        for cc=conditions
+            % copy paste same-condition r values from nulldistribution file
+            % r_cross(cc,cc,:)=stats_obs.r(cc,:);
+            stats_cross(cc,cc)=stats_obs(cc); % assumes 1D struct array...
+            for icc=conditions(conditions~=cc)
+        
+                [~,stats_cross(cc,icc)]=mTRFpredict(stim(cond==cc),resp(cond==cc),model(icc));
+                % r_cross(cc,icc,:)=STATS.r;
+                % clear STATS
+            end
         end
+        clear cc 
+        fprintf('saving cross-prediction results for subj %d\n',subj)
+        save(trf_config.model_metric_path,"stats_cross","-append")
+        fprintf('result saved.\n')
     end
-    clear cc 
-    fprintf('saving cross-prediction results for subj %d\n',subj)
-    save(trf_config.model_metric_path,"stats_cross","-append")
-    fprintf('result saved.\n')
     % clear
 end
+
 %% GLMM analysis
 
 subjs=[2:7,9:22];
+
+disp('GLMM analysis start...')
 tbl=setup_glmm_data(subjs);
 % use mismatched conditions as baseline
 tbl.Match=reordercats(tbl.Match,["false","true"]);

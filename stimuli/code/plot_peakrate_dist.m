@@ -6,8 +6,8 @@
 
 clear, clc
 global boxdir_mine
-warp_nm='rule10_seg_bark_median_segmentNormalizedDurations';
-regularity=-1; %-1-> irreg 1-> reg
+warp_nm='rule11_seg_bark_median_unnormalizedDurations';
+regularity=1; %-1-> irreg 1-> reg
 switch regularity
     case -1
         cond='stretchy_irreg';
@@ -113,10 +113,10 @@ s_intervals_warped(s_intervals_warped>max_interval)=[];
 %way
 ylims=[0 .5]; % make emptyy for no fuks given
 hist_config_sw.bin_scale='log';
-hist_config_sw.n_bins=100;
+hist_config_sw.n_bins=50;
 hist_config_sw.xlims=[1 34];
 hist_config_sw.logTicks=2.^(-1:16);
-hist_config_sw.title=sprintf('Anchorpoints - rule%d',warp_rule);
+hist_config_sw.title=sprintf('Anchorpoints - rule%d - regularity: %d',warp_rule,regularity);
 hist_config_sw.bin_lims=[.5, 36];
 
 hist_config_sog=hist_config_sw;
@@ -216,9 +216,24 @@ if show_poisson
     % set(gca(),'XTick',hist_config_sw.logTicks,'XLim',hist_config_sw.xlims, ...
     %     'XScale','log')
 end
+%% simulate a uniform distribution with arbitrary number of
+% samples to compare warp results to
+
+sim_uniform_rates=true;
+if sim_uniform_rates
+    sim_config=hist_config_sw;
+    sim_config.bin_scale='lin';
+    n_sim=numel(s_intervals_warped);
+    min_rate=1/.75;
+    max_rate=8;
+    sim_intervals=1./(min_rate+(max_rate-min_rate).*rand(n_sim,1));
+    figure
+    rates_hist_wrapper(sim_intervals,sim_config)
+    title('simulated uniform rates')
+end
 %% show that uniform-distributed intervals are no longer uniformly distributed in rates (applies to rule 9)
-show_uniform=false;
-if show_uniform
+show_uniform_time=false;
+if show_uniform_time
     min_stretch_interval=1/8;
     max_stretch_interval=0.75;
     N=1000;
