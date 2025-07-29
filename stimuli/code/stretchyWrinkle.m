@@ -429,15 +429,44 @@ for ss=1:n_segs
                 IPI1_seg(~too_fast)=1./(min_compress_rate+(max_compress_rate-min_compress_rate).*rand(sum(~too_fast),1));
             case -1
                 %irreg
-                % need output syllablerate range about median to be
-                % symmetric otherwise the mean will shift, but there's
-                % still too many "fast" syllables after p,w filtering...
-                % crude solution for now is to just leave those out of the
-                % "warp"
-                % peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
-
-                % too_fast=(1./IPI0_seg)>peakRate_cutoff;
+                % generate random rates from uniform distribution across
+                % range of possible values 
                 min_stretch_rate=1./sil_tol;
+                max_stretch_rate=peakRate_cutoff;
+                % % leave overly fast intervals unchanged
+                % IPI1_seg(too_fast)=IPI0_seg(too_fast);
+                IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
+        end
+
+        case 11
+        % RULE 11
+        % SAME as rule 10 but we use logrnd distribution in reg case rather
+        % than uniform
+        % and maybe we normalize the irreg case by raising the minimum
+        % stretch rate rather than normalizing (once we figure out how long
+        % they come out to be)
+        switch k
+            
+            case 1
+                % reg
+                % generate random samples from log-normal distribution
+                % note the parameters of lognrnd are the mean and std of
+                % the associated normal distribution, rather than the
+                % lognormal distribution itself so we have to
+                % reverse-engineer mu and sigma from the desired lognormal 
+                % mean and
+                % variance
+                M=f_center;
+                V=0.5;
+                mu=log(M^2/sqrt(V+M^2));
+                sigma=sqrt(log(V/M^2+1));
+                IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
+            case -1
+                %irreg
+                % generate random rates from uniform distribution across
+                % range of possible values plus a slightly higher lower
+                % bound
+                min_stretch_rate=2./sil_tol;
                 max_stretch_rate=peakRate_cutoff;
                 % % leave overly fast intervals unchanged
                 % IPI1_seg(too_fast)=IPI0_seg(too_fast);

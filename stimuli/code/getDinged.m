@@ -15,9 +15,7 @@ stimuli_dir=sprintf('%s/stimuli/',boxdir_mine);
 % stimset='median_stretchy_rule5_seg_bark/wrinkle';
 stimset='wrinkle/stretchy_compressy_temp/compressy_reg/';
 modSpectraDir=sprintf('%s/stimuli/modSpectra/',boxdir_mine);
-conditions={'rule2_seg_bark_median_segmentNormalizedDurations',...
-    'rule2_seg_bark_median_unnormalizedDurations',...
-    'rule7_seg_bark_median_segmentNormalizezdDurations','rule7_seg_bark_median_unnormalizedDurations'};
+conditions={'rule10_seg_bark_median_segmentNormalizedDurations'};
 modSpectraFile=sprintf('%s/DingMS_compressyRule10.mat',modSpectraDir);
 
 if ~exist(modSpectraFile,'file')
@@ -29,7 +27,7 @@ if ~exist(modSpectraFile,'file')
         for ss=1:numel(d)
             fnm=d(ss).name;
             flpth=fullfile(cond_dir,fnm);
-            [tempMS(ss,:),freqs]=l  ong_audio_ms(flpth);
+            [tempMS(ss,:),freqs]=long_audio_ms(flpth);
             % [x,fs]=audioread(flpth);
             % % downsamples to 16kHz by default
             % [ms, freqs]=get_avg_ms(flpth);
