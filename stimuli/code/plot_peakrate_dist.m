@@ -6,7 +6,17 @@
 
 clear, clc
 global boxdir_mine
-cond_nm='rule10_seg_bark_median_segmentNormalizedDurations';
+warp_nm='rule10_seg_bark_median_segmentNormalizedDurations';
+regularity=-1; %-1-> irreg 1-> reg
+switch regularity
+    case -1
+        cond='stretchy_irreg';
+    case 1
+        cond='compressy_reg';
+    otherwise
+        error('regularity must be reg or irreg')
+end
+
 fs=44100;
 max_interval=0.75; % in s
 p_thresh=0.105;
@@ -14,15 +24,16 @@ w_thresh=2.026;
 % p_thresh=0;
 % w_thresh=0;
 
+
 % get warp rule and normalization info from fnm
-warp_info=split(cond_nm,'_');
+warp_info=split(warp_nm,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
 %% load peakRate data
 %TODO: repeat for og? they should match the s_intervals identically but
 %could be a good sanity check...
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 % peakRate_fnm_cond='rule2_seg_bark_median_segmentNormalizedDurations';
-peakRate_pth_cnd=fullfile(peakRate_dir,cond_nm);
+peakRate_pth_cnd=fullfile(peakRate_dir,warp_nm);
 if isfile([peakRate_pth_cnd '.mat'])
     load(peakRate_pth_cnd);
     warped_peakrate_available=true;
@@ -79,7 +90,7 @@ if warped_peakrate_available
 end
 %% load s-mat intervals
 % "C:\Users\ninet\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_segment_normalized_durations"
-smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/stretchy_irreg/%s/',boxdir_mine,cond_nm);
+smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/%s/%s/',boxdir_mine,cond,warp_nm);
 D=dir([smats_dir '*.mat']);
 % arrange into column vectors
 s_intervals_og=[];

@@ -13,12 +13,12 @@ clc
 global boxdir_mine
 stimuli_dir=sprintf('%s/stimuli/',boxdir_mine);
 % stimset='median_stretchy_rule5_seg_bark/wrinkle';
-stimset='wrinkle/stretchy_compressy_temp/stretchy_irreg/';
+stimset='wrinkle/stretchy_compressy_temp/compressy_reg/';
 modSpectraDir=sprintf('%s/stimuli/modSpectra/',boxdir_mine);
 conditions={'rule2_seg_bark_median_segmentNormalizedDurations',...
     'rule2_seg_bark_median_unnormalizedDurations',...
     'rule7_seg_bark_median_segmentNormalizezdDurations','rule7_seg_bark_median_unnormalizedDurations'};
-modSpectraFile=sprintf('%s/DingMS_stretchyRules2and7normalizedvsNot.mat',modSpectraDir);
+modSpectraFile=sprintf('%s/DingMS_compressyRule10.mat',modSpectraDir);
 
 if ~exist(modSpectraFile,'file')
     for cc=1:numel(conditions)

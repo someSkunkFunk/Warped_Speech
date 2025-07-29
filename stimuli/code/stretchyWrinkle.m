@@ -79,7 +79,7 @@ arguments
     max_mod_interval (1,1) double = 1/3.472;
     env_method (1,1) double = 2 % 1-> use broadband 2-> use bark filterbank 3-> use gammatone filterbank (TODO)
     % jitter=3.3225; % 1 std of ogPeakFreqs... must do rules 3 and up reg operation in freq domain then convert to time
-    jitter=[1.75, .25]; %in Hz - slow jitter, fast jitter - should add to 2 hz
+    jitter=[0.5, 0.5]; %in Hz - slow jitter, fast jitter - should add to 2 hz
     interval_ceil_out (1,1) double =0.75; %in s, maximum output interval
     % only treat as syllables if within syll_rate_limits - filters input
     % and output peakRate vals
@@ -167,13 +167,17 @@ for ss=1:n_segs
     IPI0_seg=diff(Ifrom(seg(ss,1):seg(ss,2)));
     % get original segment duration for post-warp normalization
     seg_dur_0=sum(IPI0_seg);
-
-
-    slow=1./IPI0_seg<f_center;
-    fast=1./IPI0_seg>f_center;
     IPI1_seg=nan(size(IPI0_seg));
+    peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+    too_fast=(1./IPI0_seg)>peakRate_cutoff;
+    % leave overly fast intervals unchanged
+    IPI1_seg(too_fast)=IPI0_seg(too_fast);
+    slow=1./IPI0_seg<f_center;
+    fast=(1./IPI0_seg>f_center)&~too_fast;
+    
     % median vals will stay median
-    IPI1_seg(~(slow|fast))=IPI0_seg(~(slow|fast));
+    % IPI1_seg(~(slow|fast))=IPI0_seg(~(slow|fast));
+    % 
     switch rule
         case 1
             % RULE 1
@@ -325,7 +329,7 @@ for ss=1:n_segs
                 % still too many "fast" syllables after p,w filtering...
                 % crude solution for now is to just leave those out of the
                 % "warp"
-                peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+                % peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
                 too_fast=(1./IPI0_seg)>peakRate_cutoff;
                 % min_stretch_rate=1/sil_tol;
@@ -394,7 +398,7 @@ for ss=1:n_segs
                 % still too many "fast" syllables after p,w filtering...
                 % crude solution for now is to just leave those out of the
                 % "warp"
-                peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+                % peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
                 too_fast=(1./IPI0_seg)>peakRate_cutoff;
                 max_stretch_interval=sil_tol;
@@ -408,11 +412,21 @@ for ss=1:n_segs
         % SAME as rule 9 but we use uniform distribution in rates rather
         % than intervals
         switch k
+            
             case 1
                 % reg
-                IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
-                IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
-                IPI1_seg(~(fast|slow))=1./f_center;
+                % IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
+                % IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
+                % IPI1_seg(~(fast|slow))=1./f_center;
+                % i think keeping fast stuff slightly faster and slow stuff
+                % slightly slower might benefit overall quality in terms of
+                % minimizing warp artefacts, but we aren't concerned with
+                % this in the irreg case and we also don't want to retain
+                % stress-syllable timing cues so better to just assing
+                % intervals randomly across entire range
+                min_compress_rate=f_center-abs(jitter(1));
+                max_compress_rate=f_center+abs(jitter(2));
+                IPI1_seg(~too_fast)=1./(min_compress_rate+(max_compress_rate-min_compress_rate).*rand(sum(~too_fast),1));
             case -1
                 %irreg
                 % need output syllablerate range about median to be
@@ -420,13 +434,13 @@ for ss=1:n_segs
                 % still too many "fast" syllables after p,w filtering...
                 % crude solution for now is to just leave those out of the
                 % "warp"
-                peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+                % peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
-                too_fast=(1./IPI0_seg)>peakRate_cutoff;
+                % too_fast=(1./IPI0_seg)>peakRate_cutoff;
                 min_stretch_rate=1./sil_tol;
                 max_stretch_rate=peakRate_cutoff;
-                % leave overly fast intervals unchanged
-                IPI1_seg(too_fast)=IPI0_seg(too_fast);
+                % % leave overly fast intervals unchanged
+                % IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
         end
 
