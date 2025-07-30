@@ -5,13 +5,28 @@ clear, clc
 % false does the unfair comparison we originally devised which gives
 % stats_cross
 fair=true;
-subjs=[22];
+subjs=[2:7,9:22];
+% for reproducibility
+rng(1);
 for subj=subjs
     fprintf('starting subj %d\n',subj)
     % load saved model
     preprocess_config=config_preprocess(subj);
     do_lambda_optimization=false;
     trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+    % load preprocessed data/stimuli
+    preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
+    preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
+    stim=load_stim_cell(trf_config.preprocess_config,preprocessed_eeg);
+    [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
+        trf_config,preprocess_config);
+    cond=preprocessed_eeg.cond;
+    % note: idk why we didn't just save both resp and sim as col vectors to
+    % begin with..
+    resp=preprocessed_eeg.resp';
+
+    
+
     
     % TODO: load_checkpoint is buggy and fixing it will be a pain so
     % reverting to native matlab load
@@ -21,13 +36,51 @@ for subj=subjs
     % checkpoint-loaded configs are correct
     if fair
         % do this janky load procedure just to get best lambda
-        trf_config=load(trf_config.trf_model_path,"trf_config");
-        trf_config=trf_config.trf_config(1,1);
-        % do LOO CV with testing on all the cross-condition trials to
-        % generate cross-condition predictions
+        saved_trf_config=load(trf_config.trf_model_path,"trf_config");
+        saved_trf_config=saved_trf_config.trf_config(1,1);
+        best_lam=saved_trf_config.best_lam;
 
-        % average across all trials in each fold to get a single r value
-        % per fold
+        shuff=randperm(numel(cond));
+        cond=cond(shuff);
+        resp=resp(shuff);
+        stim=stim(shuff);
+        % NOTE: can undo the shuffling at the end if trial-level information is
+        % relevant for our statistical test by doing cond(shuff)=cond;
+        n_trials=numel(cond);
+        n_electrodes=size(resp{1},2);
+        %initialize variables
+        % each col means score from model trained on cond 1,2,3
+        % test condition determined by the actual condition of the trial
+        stats_cross_cv=struct('r',nan(n_trials,3,n_electrodes), ...
+            'err',nan(n_trials,3,n_electrodes));
+
+        for cc=1:3
+            fprintf('%d of 3 conditions...\n',cc);
+            % run LOOCV one condition at a time
+            % note: some subjects missing trials so we can't assume all
+            % conditions have equal number of folds
+            n_folds=sum(cond==cc);
+            cc_trials=find(cond==cc);
+            cross_trials=find(cond~=cc);
+            for k=1:n_folds
+                % split condition-specific trials into train,test
+                fprintf('%d of %d folds...\n',k,n_folds)
+                test_trial=cc_trials(k);
+                train_trials=cc_trials(cc_trials~=test_trial);
+                temp_model=mTRFtrain(stim(train_trials),resp(train_trials), ...
+                    preprocess_config.fs,1,trf_config.cv_tmin_ms, ...
+                    trf_config.cv_tmax_ms,best_lam);
+
+                [~,temp_stats]=mTRFpredict([stim(test_trial);stim(cross_trials)] ...
+                    ,[resp(test_trial);resp(cross_trials)],temp_model);
+                % TODO: check size of r works
+                stats_cross_cv.r([test_trial; cross_trials],cc,:)=temp_stats.r;
+                stats_cross_cv.err([test_trial; cross_trials],cc,:)=temp_stats.err;
+            end 
+        end
+        %save to file
+        save(trf_config.model_metric_path,'stats_cross_cv','-append')
+
     else
     
         model_data=load(trf_config.trf_model_path,"model");
@@ -36,14 +89,7 @@ for subj=subjs
         stats_obs=stats_data.stats_obs(2,:); clear stats_data
         model=model_data.model(2,:); clear model_data
         
-        preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-        %TODO: fix this dumb shit
-        preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
-        stim=load_stim_cell(trf_config.preprocess_config,preprocessed_eeg);
-        [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-            trf_config,preprocess_config);
-        cond=preprocessed_eeg.cond;
-        resp=preprocessed_eeg.resp;
+        
         %%
         conditions=1:3;
         % r_cross=zeros(3,3,size(r_obs,2));
