@@ -16,6 +16,10 @@ for ss=1:n_subjs
         M(:,ss,cc,:)=ind_models(ss,cc).w;
     end
 end
+X=reshape(M,ns,[]);
+[psds,freqs]=periodogram(X,rectwin(ns),ns,fs);
+% note: first dimension should be half the number of samples plus 1
+P=reshape(psds,[],n_subjs,n_cond,ne);
 
 % preallocate mem
 % columns should be time vectors
@@ -27,19 +31,18 @@ end
 %     X(:,=squeeze(ind_models(sc).w);
 % end
 % X=squeeze(ind_models(1).w);
-X=reshape(M,ns,[]);
-[psds,freqs]=periodogram(X,rectwin(ns),ns,fs);
 
 %%
 % plot them all together 
 xlims=[0,15];
+ylims=[0 0.02];
+
 figure
 plot(freqs,psds)
 title('trf psds for all subjects/electrodes')
 xlabel('frequency (Hz)')
-xlim(xlims)
-% note: first dimension should be half the number of samples plus 1
-P=reshape(psds,[],n_subjs,n_cond,ne);
+set(gca(),'XLim',xlims);
+
 % average out the subjects
 
 % plot subject-averaged, sorted by condition
@@ -49,7 +52,7 @@ for cc=1:n_cond
     plot(freqs,squeeze(P_mean(:,cc,:)))
     xlabel('frequency (Hz)')
     title(sprintf('PSD(subject-averaged TRFs) - condition: %d',cc))
-    xlim(xlims)
+    set(gca(),'XLim',xlims,'YLim',ylims)
 end
 
 
@@ -60,5 +63,5 @@ for cc=1:n_cond
     plot(freqs,squeeze(P_mean(:,cc,show_elec)))
     xlabel('frequency (Hz)')
     title(sprintf('PSD(subject-averaged TRFs) condition,electrode: %d,%d',cc,show_elec))
-    xlim(xlims)
+    set(gca(),'XLim',xlims,'YLim',ylims)
 end
