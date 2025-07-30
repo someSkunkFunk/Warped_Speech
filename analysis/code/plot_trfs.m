@@ -122,10 +122,11 @@ function plot_model_weights(model,trf_config,chns)
 
             % NOTE: repetitive code below could be consolidated across
             % single condition vs separate condition trf cases...
-            title_str=sprintf('avg TRF - chns: %s - condition: %s - n subjs: %d', ...
-                num2str(chns),conditions{cc},n_subjs);
+            title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
+                num2str(chns),conditions{cc});
             figure
             mTRFplot(avg_models(1,cc),'trf','all',chns);
+            ylim([-.4,.55])
             title(title_str)
             
         

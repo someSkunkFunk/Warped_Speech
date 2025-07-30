@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-warp_nm='rule11_seg_bark_median_unnormalizedDurations';
+warp_nm='rule11_seg_bark_median_unnormalizedDurations_varp25';
 regularity=1; %-1-> irreg 1-> reg
 switch regularity
     case -1
