@@ -48,6 +48,17 @@ for ss=1:n_subjs
     %TODO: need to transpose?
     snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
 end
+%% plot topos
+% THIS IS THE CORRECT CHANLOCS FILE
+loc_file="../128chanlocs.mat";
+load(loc_file);
+% chanlocs=load(loc_file);
+t_ii=80;
+cc_topo=2;
+figure
+topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
+title(sprintf('trf model weights %0.1f ms',avg_models(1,cc_topo).t(t_ii)));
+
 %% plot snr vs subject
 figure
 for cc=1:3
