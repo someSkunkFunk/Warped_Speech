@@ -2,18 +2,24 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-subjs=[2:7,9:22];
-plot_chns=85;
-separate_conditions=true; %NOTE: not operator required when 
+% subjs=[2:7,9:22];
+subjs=22;
+plot_chns='all';
+separate_conditions=false; %NOTE: not operator required when 
     % initializing config_trf since technically it expects 
     % "do_lambda_optimization" as argument 
     % ignoring the false case rn sincee buggy but not a priority but should
     % fix
 n_subjs=numel(subjs);
 % NOTE: DON'T SET TO TRUE IF MULTIPLE SUBJECTS BECEAUSE IT WILL BUG OUT
-plot_individual_weights=false;
-plot_avg_weights=true;
-% plot_config
+plot_individual_weights=true;
+plot_avg_weights=false;
+if separate_conditions
+    conditions={'fast','og','slow'};
+else
+    conditions={'all conditions'};
+end
+    % plot_config
 %% Main script
 for ss=1:n_subjs
     subj=subjs(ss);
@@ -26,48 +32,72 @@ for ss=1:n_subjs
     % (1,1) struct
     ind_models(ss,:)=load_individual_model(trf_config);
     if plot_individual_weights
-        plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
+        for cc=1:numel(conditions)
+            title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
+                    num2str(plot_chns),conditions{cc});
+            % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
+            figure
+            mTRFplot(ind_models(ss,cc),'trf','all',plot_chns);
+            title(title_str)
+        end
     end
 
 end
+
 %% Plot average weights
-if plot_avg_weights
+if plot_avg_weights && n_subjs>1
     avg_models=construct_avg_models(ind_models);
-    plot_model_weights(avg_models,trf_config,plot_chns)
+    for cc=1:numel(conditions)
+         title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
+                num2str(chns),conditions{cc});
+        figure
+        mTRFplot(avg_models(1,cc),'trf','all',chns);
+        title(title_str)
+    end
 end
 %% estimate snr overall
-snr=estimate_snr(avg_models);
-for cc=1:3
-    %TODO: take conditions cell out
-    fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
+if numel(subjs)>1
+    snr=estimate_snr(avg_models);
+    for cc=1:3
+        %TODO: take conditions cell out
+        fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
+    end
 end
 %% estimate snr per subject (simplified)
-snr_per_subj=nan(n_subjs,3);
-for ss=1:n_subjs
-    subset_avg_model=construct_avg_models(ind_models(1:ss,:));
-    %TODO: need to transpose?
-    snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
+if n_subjs>1
+    snr_per_subj=nan(n_subjs,3);
+    for ss=1:n_subjs
+        subset_avg_model=construct_avg_models(ind_models(1:ss,:));
+        %TODO: need to transpose?
+        snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
+    end
+    figure
+    for cc=1:3
+         plot(1:n_subjs,snr_per_subj(:,cc))
+         hold on
+    end
+    legend(conditions)
+    xlabel('n subjects')
+ylabel('snr')
 end
 %% plot topos
-% THIS IS THE CORRECT CHANLOCS FILE
-loc_file="../128chanlocs.mat";
-load(loc_file);
-% chanlocs=load(loc_file);
-t_ii=80;
-cc_topo=2;
-figure
-topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
-title(sprintf('trf model weights %0.1f ms',avg_models(1,cc_topo).t(t_ii)));
-
-%% plot snr vs subject
-figure
-for cc=1:3
-     plot(1:n_subjs,snr_per_subj(:,cc))
-     hold on
+plot_topos=false;
+if plot_topos
+    global boxdir_mine
+    loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
+    load(loc_file);
+    % chanlocs=load(loc_file);
+    if plot_avg_weights && n_subjs>1
+        t_ii=80;
+        for cc_topo=1:3
+            figure
+            topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
+            title(sprintf('subject-averaged trf model weights %0.1f ms, condition: %d' ...
+                ,avg_models(1,cc_topo).t(t_ii),cc_topo));
+        end
+    end
 end
-legend({'fast','og','slow'})
-xlabel('n subjects')
-ylabel('snr')
+
 %% Helpers
 function snr_plot(snr_per_subj)
     [n_subjs,n_conditions]=size(snr_per_subj);
@@ -95,55 +125,47 @@ end
 
 end
 
-function plot_model_weights(model,trf_config,chns)
-%TODO: use a switch-case to handle plotting a particular channel, the
-        %best channel, or all channels... needs to chance title string
-        %format indicator
-    arguments
-        model struct
-        trf_config (1,1) struct
-        chns = 'all'
-    end
-    n_subjs=size(model(1).w,1);
-    if trf_config.separate_conditions
-        n_conditions=size(model,2);
-        fprintf('plotting condition-specific TRFs...\n ')
-    else
-        n_conditions=1;
-        fprintf("NOTE: line above this will bypass bad config handling in " + ...
-            "separate_conditions=false case but that also means the issue " + ...
-            "will be hidden and still occur so needs to be fixed directly...\n")
-    end
-    conditions={'fast','og','slow'};
-    for cc=1:n_conditions
-        if ~isfield(model,'avg')
-            fprintf('plotting individual model weights...\n')
-            %plot individual subject weights            
-            title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
-                num2str(chns),conditions{cc});
-            figure
-            mTRFplot(model(1,cc),'trf','all',chns);
-            title(title_str)
-        else
-            % assume we want to average out the weights and plot them
-            % compile weights into single model struct for current
-            % condition
-            fprintf('plotting subject-averaged model weights...\n')
-            avg_models=construct_avg_models(model);
-
-            % NOTE: repetitive code below could be consolidated across
-            % single condition vs separate condition trf cases...
-            title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(chns),conditions{cc});
-            figure
-            mTRFplot(avg_models(1,cc),'trf','all',chns);
-            ylim([-.4,.55])
-            title(title_str)
-            
-        
-        end
-    end
-end
+% function plot_model_weights(model,trf_config,chns)
+% %TODO: use a switch-case to handle plotting a particular channel, the
+%         %best channel, or all channels... needs to chance title string
+%         %format indicator
+%     arguments
+%         model struct
+%         trf_config (1,1) struct
+%         chns = 'all'
+%     end
+%     n_subjs=size(model(1).w,1);
+%     if trf_config.separate_conditions
+%         n_conditions=size(model,2);
+%         fprintf('plotting condition-specific TRFs...\n ')
+%     else
+%         n_conditions=1;
+%         fprintf("NOTE: line above this will bypass bad config handling in " + ...
+%             "separate_conditions=false case but that also means the issue " + ...
+%             "will be hidden and still occur so needs to be fixed directly...\n")
+%     end
+% 
+%     for cc=1:n_conditions
+%         if ~isfield(model,'avg')
+%             fprintf('plotting individual model weights...\n')
+%             %plot individual subject weights            
+%             figure
+%             mTRFplot(model(1,cc),'trf','all',chns);
+% 
+%         else
+%             % assume we want to average out the weights and plot them
+%             % compile weights into single model struct for current
+%             % condition
+%             fprintf('plotting subject-averaged model weights...\n')
+%             avg_models=construct_avg_models(model);
+%             figure
+%             mTRFplot(avg_models(1,cc),'trf','all',chns);
+%             ylim([-.4,.55])
+% 
+% 
+%         end
+%     end
+% end
 
 function avg_model=construct_avg_models(ind_models)
     [n_subjs,n_conditions]=size(ind_models);

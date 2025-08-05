@@ -75,6 +75,9 @@ bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf',datafolder,subj);
 envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat',boxdir_mine,fs);
 % for finding chanlocs file:
 % (note - probably should copy this into project for reliability)
+%NOTE: this file seems to have coordinates rotated incorrectly - should use
+%128chanlocs.mat that is copied into analysis in my box folder for project 
+% instead
 chanlocs_dir=sprintf('%s/Box/Lalor Lab Box/Code library/EEGpreprocessing/',user_profile);
 chanlocs_path=sprintf('%schanlocs.xyz',chanlocs_dir);
         
