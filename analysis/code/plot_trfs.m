@@ -1,11 +1,13 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
+%note: plotting sep conditions gives errors when constructing avg models
+%AND ind models havve 3 cols even though should be 1...
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-% subjs=[2:7,9:22];
-subjs=22;
+subjs=[2:7,9:22];
+% subjs=22;
 plot_chns='all';
-separate_conditions=false; %NOTE: not operator required when 
+separate_conditions=true; %NOTE: not operator required when 
     % initializing config_trf since technically it expects 
     % "do_lambda_optimization" as argument 
     % ignoring the false case rn sincee buggy but not a priority but should
@@ -13,7 +15,7 @@ separate_conditions=false; %NOTE: not operator required when
 n_subjs=numel(subjs);
 % NOTE: DON'T SET TO TRUE IF MULTIPLE SUBJECTS BECEAUSE IT WILL BUG OUT
 plot_individual_weights=true;
-plot_avg_weights=false;
+plot_avg_weights=true;
 if separate_conditions
     conditions={'fast','og','slow'};
 else
@@ -49,9 +51,9 @@ if plot_avg_weights && n_subjs>1
     avg_models=construct_avg_models(ind_models);
     for cc=1:numel(conditions)
          title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(chns),conditions{cc});
+                num2str(plot_chns),conditions{cc});
         figure
-        mTRFplot(avg_models(1,cc),'trf','all',chns);
+        mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
         title(title_str)
     end
 end

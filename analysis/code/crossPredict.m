@@ -135,6 +135,38 @@ if compute_stats_cross
         % clear
     end
 end
+%% scatterplot of r-values
+%NOTES: I think it will be good to break it down by subject but also to
+%aggregate the data across subjects
+%also, 
+show_scatter=true;
+avg_cross_trials_scat=true;
+% is there a good way to show data from multiple electrodes?
+plot_electrode=85; 
+if show_scatter 
+    % subjs=[2:7,9:22];
+    subjs=2;
+    for subj=subjs
+        % load saved model
+        fprintf('subj %d scatter...\n',subj);
+        preprocess_config=config_preprocess(subj);
+        do_lambda_optimization=false;
+        trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+        
+        % load preprocessed data/stimuli
+        preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
+        preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
+        cond=preprocessed_eeg.cond;
+        clear preprocessed_eeg
+        stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
+        stats_cross_cv=stats_cross_cv.stats_cross_cv;
+        [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials_scat);
+        
+
+    end
+    
+end
+%%
 %% Welch t-test
 % unshuffle conditions - Note: will just have to re-load them when
 % iterating over all subjects
@@ -144,7 +176,7 @@ overwrite_welch=false;
 % are tested 25 times on the same trial for each train condition, so aren't
 % really independent... averaging out might be the best way to deal with
 % that
-avg_cross_trials=true;
+avg_cross_trials_scat=true;
 if run_welchtest 
     subjs=[2:7,9:22];
     for subj=subjs
@@ -162,7 +194,7 @@ if run_welchtest
             stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
             stats_cross_cv=stats_cross_cv.stats_cross_cv;
             fprintf('running Welch ttest...\n');
-            [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials);
+            [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials_scat);
             fprintf('saving Welch ttest result...\n')
             save(trf_config.model_metric_path,"wttf","wtts","-append")
         end
@@ -173,14 +205,24 @@ end
 
 %% plot topos of t-statistic
 %NOTE: not sure if git will copy this file in which case relative paths
-loc_file="../128chanlocs.mat";
 load(loc_file)
 subjs=[2:7,9:22];
-clims=[0,1];
 % subjs=2;
-plotx='h';
+plotx='tstat';
 
-% subjs=2;
+switch plotx
+    case 'h'
+        colorlabel='hypothesis test result';
+        clims=[0,1];
+    case 'p'
+        colorlabel='p-value';
+        clims='auto';
+    case 'tstat'
+        colorlabel='t-statistic';
+        clims=[-2 2];
+    otherwise
+        error('not a name.')
+end
 for subj=subjs
     % load welch ttest results
     preprocess_config=config_preprocess(subj);
@@ -189,16 +231,24 @@ for subj=subjs
     load(trf_config.model_metric_path,"wttf","wtts")
 
     figure
-    topoplot(wttf.(plotx),chanlocs)
+    if strcmp(plotx,'tstat')
+        topoplot(wttf.stats.(plotx),chanlocs)
+    else
+        topoplot(wttf.(plotx),chanlocs)
+    end
     h=colorbar;
     clim(clims)
-    ylabel(h,'t-statistic');
+    ylabel(h,colorlabel);
     title(sprintf('Welch test train on fast subj %d',subj));
     
     figure
-    topoplot(wtts.(plotx),chanlocs)
+    if strcmp(plotx,'tstat')
+        topoplot(wtts.stats.(plotx),chanlocs)
+    else
+        topoplot(wtts.(plotx),chanlocs)
+    end
     h=colorbar;
-    ylabel(h,'t-statistic');
+    ylabel(h,colorlabel);
     clim(clims)
     title(sprintf('Welch test train on slow subj %d',subj));
 
@@ -227,8 +277,7 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 %% helpers
-function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
-% [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
+function [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     n_electrodes=size(stats_cross_cv.r,3);
     fast_trials=find(cond==1);
     slow_trials=find(cond==3);
@@ -239,13 +288,13 @@ function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
     for ii=1:numel(fast_trials)
         R_ff(ii,:)=R_ff_(ii,ii,:);
     end
-    clear R_ff_
+    % clear R_ff_
     R_ss_=stats_cross_cv.r(slow_trials,slow_trials,:);
     R_ss=nan(numel(slow_trials),n_electrodes);
     for ii=1:numel(slow_trials)
         R_ss(ii,:)=R_ss_(ii,ii,:);
     end
-    clear R_ss_
+    % clear R_ss_
     % load cross-trial rs
     R_fs=stats_cross_cv.r(fast_trials,slow_trials,:);
     R_sf=stats_cross_cv.r(slow_trials,fast_trials,:);
@@ -254,6 +303,12 @@ function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
         R_fs=mean(R_fs,1);
         R_sf=mean(R_sf,1);
     end
+end
+
+function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
+% [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
+    n_electrodes=size(stats_cross_cv.r,3);
+    [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials);
     % compute t-test for train fast -> test slow vs train fast -> test fast
     [wttf.h,wttf.p,wttf.ci,wttf.stats]=ttest2(R_ff, ...
         reshape(R_fs,[],n_electrodes),"Vartype","unequal");
