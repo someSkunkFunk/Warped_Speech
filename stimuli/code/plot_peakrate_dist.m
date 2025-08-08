@@ -6,7 +6,7 @@
 
 clear, clc
 global boxdir_mine
-warp_nm='rule11_seg_bark_median_unnormalizedDurations_varp25';
+warp_nm='rule10_seg_bark_median';
 regularity=-1; %-1-> irreg 1-> reg
 switch regularity
     case -1
@@ -29,8 +29,6 @@ w_thresh=2.026;
 warp_info=split(warp_nm,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
 %% load peakRate data
-%TODO: repeat for og? they should match the s_intervals identically but
-%could be a good sanity check...
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 % peakRate_fnm_cond='rule2_seg_bark_median_segmentNormalizedDurations';
 peakRate_pth_cnd=fullfile(peakRate_dir,warp_nm);
@@ -84,6 +82,8 @@ for ss=1:numel(peakRate_og)
 
 
 end
+% save a copy including the long pauses
+og_intervals_including_lps=alg_intervals_og;
 alg_intervals_og(alg_intervals_og>max_interval)=[];
 if warped_peakrate_available
     alg_intervals_warped(alg_intervals_warped>max_interval)=[];
@@ -222,14 +222,52 @@ end
 sim_uniform_rates=true;
 if sim_uniform_rates
     sim_config=hist_config_sw;
-    sim_config.bin_scale='lin';
+    sim_config.bin_scale='log';
     n_sim=numel(s_intervals_warped);
-    min_rate=1/.75;
-    max_rate=8;
-    sim_intervals=1./(min_rate+(max_rate-min_rate).*rand(n_sim,1));
+    min_sim_rate=1/.75;
+    max_sim_rate=8;
+    sim_intervals=1./(min_sim_rate+(max_sim_rate-min_sim_rate).*rand(n_sim,1));
     figure
     rates_hist_wrapper(sim_intervals,sim_config)
-    title('simulated uniform rates')
+    title('simulated uniform rates - single sample')
+    ylim([0 0.5])
+
+
+    % draw repeated random samples with each having size corresponding to
+    % distinct continuous speech segments to asses distribution distortion
+    long_pauses=find(og_intervals_including_lps>max_interval);
+    % pre-allocate since we know the number of intervals should ultimately
+    % be the same 
+    %NOTE: it's super unclear to me how to filter out the too fast
+    %intervalswhile using the same counting method for intervals between
+    %long pausees but that might be the reason for the distortion... just
+    %gonna plot the resulting distribution when we don't force fast
+    %intervals to remain unchanged, hope it looks uniform, AND that it
+    %still sounds intelligble while the durations remain good to compare
+    %with reg
+    sim_intervals_lps=nan(n_sim,1);
+    too_fast=(1./og_intervals_including_lps)>max_sim_rate;
+    sim_intervals_lps(too_fast)=og_intervals_including_lps(too_fast);
+    curr_seg_start=1;
+    for ss=1:numel(long_pauses)
+        if ss<numel(long_pauses)
+            % get number of intervals between long pauses
+            n_sim_seg=long_pauses(ss+1)-long_pauses(ss)-1;
+            if ss==1 && long_pauses(ss)~=1
+                n_sim_seg=long_pauses(ss)-1+n_sim_seg;
+            end
+        else
+            % get number of intervals between final long pause and
+            % remaining intervals
+            n_sim_seg=numel(og_intervals_including_lps)-long_pauses(ss);
+        end
+        sim_intervals_lps(curr_seg_start:n_sim_seg+curr_seg_start-1)=1./(min_sim_rate+(max_sim_rate-min_sim_rate).*rand(n_sim_seg,1));
+        curr_seg_start=n_sim_seg+curr_seg_start;
+    end
+    figure
+    rates_hist_wrapper(sim_intervals_lps,sim_config)
+    title('simulated uniform rates - multi sample')
+    ylim([0 0.5])
 end
 %% show that uniform-distributed intervals are no longer uniformly distributed in rates (applies to rule 9)
 show_uniform_time=false;

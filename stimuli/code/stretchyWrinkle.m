@@ -151,7 +151,7 @@ switch env_method
 
 end
 % note: get_peakrate lowpasses the envelope at 10 hz
-[Ifrom,~,p,w,~]=get_peakRate(env,fs,peak_tol);
+[Ifrom,~,p,w]=get_peakRate(env,fs,peak_tol);
 % set thresholds
 p_t=0.105;
 w_t=2.026;
@@ -169,7 +169,12 @@ for ss=1:n_segs
     seg_dur_0=sum(IPI0_seg);
     IPI1_seg=nan(size(IPI0_seg));
     peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
-    too_fast=(1./IPI0_seg)>peakRate_cutoff;
+    filter_fast_intervals=true;
+    if filter_fast_intervals
+        too_fast=(1./IPI0_seg)>peakRate_cutoff;
+    else
+        too_fast=(1./IPI0_seg)>inf;
+    end
     % leave overly fast intervals unchanged
     IPI1_seg(too_fast)=IPI0_seg(too_fast);
     slow=1./IPI0_seg<f_center;
@@ -331,7 +336,7 @@ for ss=1:n_segs
                 % "warp"
                 % peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
-                too_fast=(1./IPI0_seg)>peakRate_cutoff;
+                % too_fast=(1./IPI0_seg)>peakRate_cutoff;
                 % min_stretch_rate=1/sil_tol;
                 min_stretch_rate=.5;
                 % mathematically symmetric distance above f_center 
@@ -400,7 +405,7 @@ for ss=1:n_segs
                 % "warp"
                 % peakRate_cutoff=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
-                too_fast=(1./IPI0_seg)>peakRate_cutoff;
+                % too_fast=(1./IPI0_seg)>peakRate_cutoff;
                 max_stretch_interval=sil_tol;
                 min_stretch_interval=1/peakRate_cutoff;
                 % leave overly fast intervals unchanged
@@ -508,11 +513,7 @@ for ss=1:n_segs
     % IPI1_seg=1./IPF1_seg;
     
 end
-% % invert back to time
-% IPI1=1./IPF1;
-%MAYBE THIS IS THE ERROR?
-%Ifrom(1) is time of first peak...
-% Ito=[Ifrom(1);Ifrom(1)+cumsum(IPI1)];
+
 % convert to indices
 s = round([Ifrom Ito]*fs);
 % pad indices with correct start/end times
@@ -524,11 +525,6 @@ s(end,2) = s(end-1,2)+end_sil;
 param.tolerance = 256;
 param.synHop = 256;
 param.win = win(1024,2); % hann window
-% try
-%     wf_warp = wsolaTSM(wf,s,param);
-% catch
-%     ;
-% end
 wf_warp = wsolaTSM(wf,s,param);
 end
 function y=reflect_about(x,xr)
