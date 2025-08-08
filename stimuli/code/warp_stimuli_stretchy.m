@@ -13,7 +13,7 @@ outputStimfolder=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/',boxdir_mi
 % addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
 % save output to my personal box location - avoid mixing files with shared
 % drive
-warp_rules=[11];
+warp_rules=[10];
 % make freqs -1, 0, or 1 to use mean median or mode
 % upper/lower quartiles: 6.358/3.940 Hz (estimated using truncated gamma
 % pdf fit to bark-derived peakRates)
@@ -26,9 +26,9 @@ warp_rules=[11];
 center_freqs=0;
 % center_freqs=[6.358,3.940, 0]; %NOTE: we assuming only 3 values given at a time MAXIMUM (one of which is median...)
 % and all values greater than 1 since 1 means mode....
-conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
+conditions=[1]; % 1-> irreg (stretchy) 2-> reg (compessy)
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 0;
+overwrite = 1;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];

@@ -16,21 +16,21 @@ env_onset = diff(env);
 env_onset(env_onset<0) = 0;
 
 [peakVals,peakTs,w,p] = findpeaks(env_onset,fs);
-fprintf('note: calculating peakwidth using both references... remove this feature before running on final warp script')
-[~,~,w2,~] = findpeaks(env_onset,fs,'WidthReference','halfheight');
+% fprintf('note: calculating peakwidth using both references... remove this feature before running on final warp script')
+% [~,~,w2,~] = findpeaks(env_onset,fs,'WidthReference','halfheight');
 % normalize prominence
 % NOTE: 'normalizing' will still leave values above 1
 % NOTE: maybe not necessary...?
 
 p = p./std(p);
 w = w./std(w);
-w2 = w2./std(w2);
+% w2 = w2./std(w2);
 
 % Eliminate small peaks
 % (note that if peak_tol is zero, this will remove nothing since prominence is nonzero)
 peakTs(p<peak_tol)=[];
 peakVals(p<peak_tol)=[];
 w(p<peak_tol)=[];
-w2(p<peak_tol)=[];
+% w2(p<peak_tol)=[];
 p(p<peak_tol)=[];
 end
