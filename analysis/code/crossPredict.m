@@ -1,6 +1,8 @@
 clear, clc
 % user_profile=getenv('USERPROFILE');
 % use these params since what we used on sfn poster and looked nicest
+%NOTE: code currently ignores fact that at least one subject has a missing
+%trial
 %% compute stats_cross... or stats_cross_fair
 % false does the unfair comparison we originally devised which gives
 % stats_cross - true crossvalidates so that all scores are based on unseen
@@ -280,28 +282,67 @@ disp(glme)
 function [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     n_electrodes=size(stats_cross_cv.r,3);
     fast_trials=find(cond==1);
+    og_trials=find(cond==2);
     slow_trials=find(cond==3);
+    % flag subjects with missing trials for errors
+    if ~((numel(fast_trials)==numel(og_trials))&&(numel(og_trials)==numel(slow_trials)))
+        disp('subject has uneven number of trials per condition, handle with care....')
+    end
+
+
     % extract within-condition predictions
     R_ff_=stats_cross_cv.r(fast_trials,fast_trials,:);
-    % remove off-diagonals (nans)
-    R_ff=nan(numel(fast_trials),n_electrodes);
-    for ii=1:numel(fast_trials)
-        R_ff(ii,:)=R_ff_(ii,ii,:);
-    end
-    % clear R_ff_
+    R_oo_=stats_cross_cv.r(og_trials,og_trials,:);
     R_ss_=stats_cross_cv.r(slow_trials,slow_trials,:);
-    R_ss=nan(numel(slow_trials),n_electrodes);
-    for ii=1:numel(slow_trials)
-        R_ss(ii,:)=R_ss_(ii,ii,:);
+
+    % remove off-diagonals (nans)
+    
+    m_ff=logical(repmat(eye(numel(fast_trials)),1,1,n_electrodes));
+    m_oo=logical(repmat(eye(numel(og_trials)),1,1,n_electrodes));
+    m_ss=logical(repmat(eye(numel(slow_trials)),1,1,n_electrodes));
+
+    R_ff=R_ff_(m_ff);
+    R_oo=R_oo(m_oo);
+    R_ss=R_ss_(m_ss);
+    %note: I think this square indexing will cause a problem when there is
+    %missing trials, so check that nan values at least line up the way we
+    %expect first - although presumably the corresponding R_xx_ matrix will
+    %be short one row in that case and logical indexing with eye will
+    %fail...
+    % in case it does not, still check that only nans will be removed:
+    if any(isnan(R_ff_(m_ff)))||any(isnan(R_ff_(m_ss)))||any(isnan(R_oo_(m_oo)))
+        error('some nans remain')
     end
-    % clear R_ss_
+    if ~(all(isnan(R_ff_(~mff))))||~(all(isnan(R_ss_(~m_ss))))||all(isnan(R_oo_(m_oo)))
+        error('some non-nans are missing')
+    end
+    % average the values
+    R_ff=mean(R_ff,1);
+    R_oo=mean(R_oo,1);
+    R_ss=mean(R_ss,1);
+    
+
     % load cross-trial rs
     R_fs=stats_cross_cv.r(fast_trials,slow_trials,:);
+    R_fo=stats_cross_cv.r(fast_trials,og_trials,:);
+
     R_sf=stats_cross_cv.r(slow_trials,fast_trials,:);
+    R_so=stats_cross_cv.r(slow_trials,og_trials,:);
+
+    R_of=stats_cross_cv.r(og_trials,fast_trials,:);
+    R_os=stats_cross_cv.r(og_trials,slow_trials,:);
+    
     if avg_cross_trials
         % average across all training folds
         R_fs=mean(R_fs,1);
+        R_fo=mean(R_fo,1);
+
         R_sf=mean(R_sf,1);
+        R_so=mean(R_so,1);
+        
+        R_of=mean(R_of,1);
+        R_os=mean(R_os,1);
+
     end
 end
 
