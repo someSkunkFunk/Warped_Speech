@@ -162,7 +162,11 @@ if show_scatter
         clear preprocessed_eeg
         stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
         stats_cross_cv=stats_cross_cv.stats_cross_cv;
-        [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials_scat);
+        %%
+        % [R_ff,R_fo,R_fs,...
+        % R_of, R_oo, R_os,...
+        % R_sf,R_so,R_ss]
+        R=compile_rvals(stats_cross_cv,cond,avg_cross_trials_scat);
         
 
     end
@@ -279,78 +283,150 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 %% helpers
-function [R_ff,R_fo,R_fs, 
-    R_ss,R_sf,,]=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
+function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     n_electrodes=size(stats_cross_cv.r,3);
-    fast_trials=find(cond==1);
-    og_trials=find(cond==2);
-    slow_trials=find(cond==3);
+    n_cond=numel(unique(cond));
+    Rs=cell(n_cond);
+    % fast_trials=find(cond==1);
+    % og_trials=find(cond==2);
+    % slow_trials=find(cond==3);
     % flag subjects with missing trials for errors
-    if ~((numel(fast_trials)==numel(og_trials))&&(numel(og_trials)==numel(slow_trials)))
-        disp('subject has uneven number of trials per condition, handle with care....')
+    cond_ids={find(cond==1),find(cond==2),find(cond==3)};
+
+    % if ~((numel(fast_trials)==numel(og_trials))&&(numel(og_trials)==numel(slow_trials)))
+    %     disp('subject has uneven number of trials per condition, handle with care....')
+    % end
+    if numel(unique((cellfun(@numel, cond_ids))))>1
+        disp('subject has uneven number of trials per condition, handle with care.')
     end
 
-
-    % extract within-condition predictions
-    R_ff_=stats_cross_cv.r(fast_trials,fast_trials,:);
-    R_oo_=stats_cross_cv.r(og_trials,og_trials,:);
-    R_ss_=stats_cross_cv.r(slow_trials,slow_trials,:);
-
-    % remove off-diagonals (nans)
-    
-    m_ff=logical(repmat(eye(numel(fast_trials)),1,1,n_electrodes));
-    m_oo=logical(repmat(eye(numel(og_trials)),1,1,n_electrodes));
-    m_ss=logical(repmat(eye(numel(slow_trials)),1,1,n_electrodes));
-
-    R_ff=R_ff_(m_ff);
-    R_oo=R_oo(m_oo);
-    R_ss=R_ss_(m_ss);
+    % % extract within-condition predictions
+    % R_ff_=stats_cross_cv.r(fast_trials,fast_trials,:);
+    % R_oo_=stats_cross_cv.r(og_trials,og_trials,:);
+    % R_ss_=stats_cross_cv.r(slow_trials,slow_trials,:);
+    % 
+    % % remove off-diagonals (nans)
+    % 
+    % m_ff=logical(repmat(eye(numel(fast_trials)),1,1,n_electrodes));
+    % m_oo=logical(repmat(eye(numel(og_trials)),1,1,n_electrodes));
+    % m_ss=logical(repmat(eye(numel(slow_trials)),1,1,n_electrodes));
+    % 
+    % R_ff=R_ff_(m_ff);
+    % R_oo=R_oo_(m_oo);
+    % R_ss=R_ss_(m_ss);
     %note: I think this square indexing will cause a problem when there is
     %missing trials, so check that nan values at least line up the way we
     %expect first - although presumably the corresponding R_xx_ matrix will
     %be short one row in that case and logical indexing with eye will
     %fail...
     % in case it does not, still check that only nans will be removed:
-    if any(isnan(R_ff_(m_ff)))||any(isnan(R_ff_(m_ss)))||any(isnan(R_oo_(m_oo)))
-        error('some nans remain')
-    end
-    if ~(all(isnan(R_ff_(~mff))))||~(all(isnan(R_ss_(~m_ss))))||all(isnan(R_oo_(m_oo)))
-        error('some non-nans are missing')
-    end
-    % average the values
-    R_ff=mean(R_ff,1);
-    R_oo=mean(R_oo,1);
-    R_ss=mean(R_ss,1);
+    % if any(isnan(R_ff_(m_ff)))||any(isnan(R_ff_(m_ss)))||any(isnan(R_oo_(m_oo)))
+    %     error('some nans remain')
+    % end
+    % if ~(all(isnan(R_ff_(~m_ff))))||~(all(isnan(R_ss_(~m_ss))))||all(isnan(R_oo_(m_oo)))
+    %     error('some non-nans are missing')
+    % end
+    % R_ff=reshape(R_ff,[],n_electrodes);
+    % R_oo=reshape(R_oo,[],n_electrodes);
+    % R_ss=reshape(R_ss,[],n_electrodes);
+    % % average the values
+    % R_ff=mean(R_ff,1);
+    % R_oo=mean(R_oo,1);
+    % R_ss=mean(R_ss,1);
+    function R_within=get_within(idx)
+        R_=stats_cross_cv.r(idx,idx,:);
+        m=logical(repmat(eye(numel(idx)),1,1,n_electrodes));
     
-
-    % load cross-trial rs
-    R_fs=stats_cross_cv.r(fast_trials,slow_trials,:);
-    R_fo=stats_cross_cv.r(fast_trials,og_trials,:);
-
-    R_sf=stats_cross_cv.r(slow_trials,fast_trials,:);
-    R_so=stats_cross_cv.r(slow_trials,og_trials,:);
-
-    R_of=stats_cross_cv.r(og_trials,fast_trials,:);
-    R_os=stats_cross_cv.r(og_trials,slow_trials,:);
-    
-    if avg_cross_trials
-        % average across all training folds
-        R_fs=mean(R_fs,1);
-        R_fo=mean(R_fo,1);
-
-        R_sf=mean(R_sf,1);
-        R_so=mean(R_so,1);
-
-        R_of=mean(R_of,1);
-        R_os=mean(R_os,1);
-
+        vals=R_(m);
+        if any(isnan(vals))
+            errors('some nans remain')
+        end
+        if ~all(isnan(R_(~m)))
+            error('some non-nans where nans should be.')
+        end
+        R_within=mean(reshape(vals,[],n_electrodes),1);
+        clear R_
     end
+%note: can also replace this loop easily
+    % R_ff=get_within(cond_ids{1});
+    % R_oo=get_within(cond_ids{2});
+    % R_ss=get_within(cond_ids{3});
+
+    for ww=1:n_cond
+        Rs{ww,ww}=get_within(cond_ids{ww});
+    end
+
+    % % load cross-trial rs
+    % R_fs=stats_cross_cv.r(fast_trials,slow_trials,:);
+    % R_fo=stats_cross_cv.r(fast_trials,og_trials,:);
+    % 
+    % R_sf=stats_cross_cv.r(slow_trials,fast_trials,:);
+    % R_so=stats_cross_cv.r(slow_trials,og_trials,:);
+    % 
+    % R_of=stats_cross_cv.r(og_trials,fast_trials,:);
+    % R_os=stats_cross_cv.r(og_trials,slow_trials,:);
+    % 
+    % if avg_cross_trials
+    %     % average across all training folds
+    %     R_fs=mean(R_fs,1);
+    %     R_fo=mean(R_fo,1);
+    % 
+    %     R_sf=mean(R_sf,1);
+    %     R_so=mean(R_so,1);
+    % 
+    %     R_of=mean(R_of,1);
+    %     R_os=mean(R_os,1);
+    % 
+    %     % avg across testing folds
+    %     R_fs=mean(R_fs,2);
+    %     R_fo=mean(R_fo,2);
+    % 
+    %     R_sf=mean(R_sf,2);
+    %     R_so=mean(R_so,2);
+    % 
+    %     R_of=mean(R_of,2);
+    %     R_os=mean(R_os,2);
+    % 
+    % end
+    % R={R_ff,R_fo,R_fs;...
+    % R_of, R_oo, R_os;...
+    % R_sf,R_so,R_ss};
+    % % R=R';
+    
+    % extract cross-condition scores
+
+    % (tain indx, test indx)
+    % pairs={...
+    %     {1,3},{1,2},... %fs,fo
+    %     {2,1},{2,3},... %of,os
+    %     {3,1},{3,2},... %sf,so
+    %     };
+    % names={'R_fs','R_fo','R_of','R_os','R_sf','R_so'};
+    [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
+    pairs=[ptrain(:),ptest(:)];
+    % remove diagonals
+    pairs(pairs(:,1)==pairs(:,2),:)=[];
+    for kk=1:size(pairs,1)
+        train_idx=cond_ids{pairs(kk,1)};
+        test_idx=cond_ids{pairs(kk,2)};
+        Rs{pairs(kk,1),pairs(kk,2)}=stats_cross_cv.r(train_idx,test_idx,:);
+        if avg_cross_trials
+            Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},1); %avg over train folds
+            Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},2); %avg over test folds
+        end
+        % assignin('base',names{kk},R);
+    end
+    % Rs={R_ff,R_fo,R_fs,...
+    %     R_of, R_oo, R_os,...
+    %     R_sf,R_so,R_ss};
 end
 
 function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
 % [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
     n_electrodes=size(stats_cross_cv.r,3);
-    [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials);
+    [R_ff,~,R_fs,...
+    ~, ~, ~,...
+    R_sf,~,R_ss]=compile_rvals(stats_cross_cv,cond,avg_cross_trials);
     % compute t-test for train fast -> test slow vs train fast -> test fast
     [wttf.h,wttf.p,wttf.ci,wttf.stats]=ttest2(R_ff, ...
         reshape(R_fs,[],n_electrodes),"Vartype","unequal");
