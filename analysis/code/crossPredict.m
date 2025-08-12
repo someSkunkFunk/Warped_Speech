@@ -279,7 +279,8 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 %% helpers
-function [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
+function [R_ff,R_fo,R_fs, 
+    R_ss,R_sf,,]=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     n_electrodes=size(stats_cross_cv.r,3);
     fast_trials=find(cond==1);
     og_trials=find(cond==2);
@@ -339,7 +340,7 @@ function [R_ss,R_sf,R_ff,R_fs]=compile_rvals(stats_cross_cv,cond,avg_cross_trial
 
         R_sf=mean(R_sf,1);
         R_so=mean(R_so,1);
-        
+
         R_of=mean(R_of,1);
         R_os=mean(R_os,1);
 
