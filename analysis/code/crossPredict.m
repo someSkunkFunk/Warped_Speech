@@ -137,41 +137,192 @@ if compute_stats_cross
         % clear
     end
 end
-%% scatterplot of r-values
+%% setup for scatterplot of r-values
 %NOTES: I think it will be good to break it down by subject but also to
 %aggregate the data across subjects
 %also, 
 show_scatter=true;
 avg_cross_trials_scat=true;
+% note: not sure how to interpret non-averaged results so code really just
+% assumes this is true...
+overwrite_Rcs=false;
 % is there a good way to show data from multiple electrodes?
 plot_electrode=85; 
-if show_scatter 
-    % subjs=[2:7,9:22];
-    subjs=2;
-    for subj=subjs
-        % load saved model
-        fprintf('subj %d scatter...\n',subj);
-        preprocess_config=config_preprocess(subj);
-        do_lambda_optimization=false;
-        trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
-        
-        % load preprocessed data/stimuli
-        preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-        preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
-        cond=preprocessed_eeg.cond;
-        clear preprocessed_eeg
-        stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
-        stats_cross_cv=stats_cross_cv.stats_cross_cv;
-        %%
-        % [R_ff,R_fo,R_fs,...
-        % R_of, R_oo, R_os,...
-        % R_sf,R_so,R_ss]
-        R=compile_rvals(stats_cross_cv,cond,avg_cross_trials_scat);
-        
 
+if show_scatter 
+    subjs=[2:7,9:22];
+    % note: can't figure out how to pre-a
+    n_electrodes=128; % how to avoid hardcoding? does it even matter?
+    n_cond=3;
+    all_subj_Rcs=nan(numel(subjs),n_cond,n_cond,n_electrodes);
+    % subjs=2;
+    do_lambda_optimization=false;
+    for ss=1:numel(subjs)
+        subj=subjs(ss);
+        % load saved model
+        fprintf('fetching subj %d Rcs...\n',subj);
+        preprocess_config=config_preprocess(subj);
+                trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+        clear preprocess_config
+        if ~ismember("Rcs",who("-file",trf_config.model_metric_path))||overwrite_Rcs
+            fprintf('compiling subj %d Rcs...\n',subj);
+            % load preprocessed data/stimuli
+            preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
+            preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
+            cond=preprocessed_eeg.cond;
+            clear preprocessed_eeg
+            stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
+            stats_cross_cv=stats_cross_cv.stats_cross_cv;
+            %%
+            % [R_ff,R_fo,R_fs,...
+            % R_of, R_oo, R_os,...
+            % R_sf,R_so,R_ss]
+            Rcs=compile_rvals(stats_cross_cv,cond,avg_cross_trials_scat);
+            fprintf('saving Rcs for subj %d...\n',subj);
+            save(trf_config.model_metric_path,"Rcs","-append")
+        else
+            fprintf('loading from saved file...\n')
+            load(trf_config.model_metric_path,"Rcs")
+        end
+        clear trf_config
+        all_subj_Rcs(ss,:,:,:)=Rcs;
+        
+        
     end
     
 end
+cond={'fast','og','slow'};
+% generate r_cross/r_within
+[R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
+% R_within=all_subj_Rcs(logical(repmat(eye(n_cond),20,1,1,n_electrodes)))
+%% generate statistics
+R_within_expanded_=permute(repmat(R_within,1,1,1,n_cond-1),[1,2,4,3]);
+R_cross_div_w=R_cross./R_within_expanded_;
+R_percent_change=100.*(R_within_expanded_-R_cross)./R_within_expanded_;
+clear R_within_expanded_
+
+n_subjs=size(R_cross_div_w,1);
+pairs_=get_off_diag_pairs(n_cond);
+%sort them by train condition
+[~,Ipairs]=sort(pairs_(:,1));
+pairs_=pairs_(Ipairs,:);
+
+comparison_ids=cell(size(pairs_,1),1);
+for pp=1:size(comparison_ids,1)
+    comparison_ids{pp}=sprintf('%s,%s',cond{pairs_(pp,1)},cond{pairs_(pp,2)});
+end
+%% plot r_cross/r_within scatters
+figure
+hold on
+loop_=0; % dummy counter
+for cc=1:n_cond
+    scatter((loop_+1)+zeros(n_subjs,1),R_cross_div_w(:,cc,1,plot_electrode))
+    scatter((loop_+2)+zeros(n_subjs,1),R_cross_div_w(:,cc,2,plot_electrode))
+    loop_=loop_+2;
+end
+clear loop_
+set(gca(),'XTick',1:size(comparison_ids,1),'XTickLabels',comparison_ids)
+ylabel('R_{cross}/R_{within}')
+xlabel('Train condition -> test condition')
+title(sprintf('electrode: %d',plot_electrode))
+hold off
+%% plot % change scatters
+figure
+hold on
+loop_=0; % dummy counter
+for cc=1:n_cond
+    scatter((loop_+1)+zeros(n_subjs,1),R_percent_change(:,cc,1,plot_electrode))
+    scatter((loop_+2)+zeros(n_subjs,1),R_percent_change(:,cc,2,plot_electrode))
+    loop_=loop_+2;
+end
+clear loop_
+set(gca(),'XTick',1:size(comparison_ids,1),'XTickLabels',comparison_ids)
+ylabel('%change(R_{cross},R_{within})')
+xlabel('Train condition -> test condition')
+title(sprintf('electrode: %d',plot_electrode))
+hold off
+%% histograms of r_cross/r_within
+figure
+loop_=1; % dummy counter
+for cc_tr=1:n_cond
+    for cc_te=1:n_cond-1
+        subplot(n_cond,n_cond-1,loop_)
+        loop_=loop_+1;
+        histogram(R_cross_div_w(:,cc_tr,cc_te,plot_electrode))
+        xlabel('R_{cross}/R_{within}')
+        title(sprintf('train -> test %s - electrode: %d', ...
+            comparison_ids{cc_tr*cc_te},plot_electrode))
+        % pause(.1)
+
+    end
+end
+clear loop_
+%% load chanlocs
+global boxdir_mine
+loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
+load(loc_file);
+%% plot individual subject topos of percent change
+clims=[-200,200];
+for ss=1:n_subjs
+    figure
+    p_=1;
+    for cc_tr=1:n_cond
+        for cc_te=1:n_cond-1
+            subplot(n_cond,n_cond-1,p_)
+            topoplot(R_percent_change(ss,cc_tr,cc_te,:),chanlocs);
+            title(sprintf('train,test: %s',comparison_ids{p_}))
+            clim(clims)
+            colorbar
+            p_=p_+1;
+        end
+    end
+    sgtitle(sprintf('Subj %d %%change(r_{cross},r_{within})',subjs(ss)))
+    clear p_
+end
+
+%% plot subj-averaged topos of percent change
+R_percent_change_mean=mean(R_percent_change,1);
+figure
+p_=1;
+for cc_tr=1:n_cond
+    for cc_te=1:n_cond-1
+        subplot(n_cond,n_cond-1,p_)
+        topoplot(R_percent_change_mean(:,cc_tr,cc_te,:),chanlocs);
+        title(sprintf('train,test: %s',comparison_ids{p_}))
+        clim(clims)
+        colorbar
+        p_=p_+1;
+    end
+end
+sgtitle('subj-avg  %change(r_{cross},r_{within})')
+clear p_
+
+%% histograms of percent change
+figure
+loop_=1; % dummy counter
+for cc_tr=1:n_cond
+    for cc_te=1:n_cond-1
+        subplot(n_cond,n_cond-1,loop_)
+        loop_=loop_+1;
+        histogram(R_percent_change(plot_electrode,:,cc_tr,cc_te))
+        xlabel('100*(R_{within}-R_{cross})/R_{within}')
+        % ylabel('')
+        % xlabel('Train condition -> test condition')
+        title(sprintf('train -> test %s - electrode: %d', ...
+            comparison_ids{cc_tr*cc_te},plot_electrode))
+        % pause(.1)
+
+    end
+end
+clear loop_
+
+%% individual subject topos...?
+%% bootstrap r_cross/r_within
+
+%% bootstrap rwithin-rcross
+
+%% statistical test on avg r values within vs without...? bootstrap?
+
 %%
 %% Welch t-test
 % unshuffle conditions - Note: will just have to re-load them when
@@ -283,10 +434,45 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 %% helpers
+function pairs=get_off_diag_pairs(n_cond)
+    [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
+    pairs=[ptrain(:),ptest(:)];
+    % remove diagonals
+    pairs(pairs(:,1)==pairs(:,2),:)=[];
+end
+function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
+% assumes all_subj_Rcs has size [subjs,cond,cond,electrodes]
+% returns R_within as [subjs,cond,electrodes]
+    [n_subjs,n_cond,~,n_electrodes]=size(all_subj_Rcs);
+    % m_w=logical(repmat(eye(n_cond),n_subj,1,1,n_electrodes));
+    % R_within=all_subj_Rcs()
+    % note: I'm pretty sure there's a way to do this without having to use
+    % loops but it's breaking my brain so just gonna say fuckit
+
+    %permute first so looping is more efficient across electrodes:
+    all_subj_Rcs=permute(all_subj_Rcs,[4,1,2,3]);
+    %preallocate outputs
+    R_within=nan(n_electrodes,n_subjs,n_cond);
+    R_cross=nan(n_electrodes,n_subjs,n_cond,n_cond-1);
+    for ee=1:n_electrodes
+        for ss=1:n_subjs
+            R_=squeeze(all_subj_Rcs(ee,ss,:,:));
+            R_within(ee,ss,:)=diag(R_);
+            R_cross(ee,ss,:,:)=reshape(R_(~logical(eye(n_cond))),n_cond,n_cond-1);
+            
+            % R_cross(ee,ss,:,:)=
+        end
+    end
+    % permute back so subjs is first dim and electrodes last since not
+    % really looping through electrodes later
+    R_within=permute(R_within,[2 3 1]);
+    R_cross=permute(R_cross,[2 3 4 1]);
+end
 function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     n_electrodes=size(stats_cross_cv.r,3);
     n_cond=numel(unique(cond));
-    Rs=cell(n_cond);
+    % Rs=cell(n_cond);
+    Rs=nan(n_cond,n_cond,n_electrodes);
     % fast_trials=find(cond==1);
     % og_trials=find(cond==2);
     % slow_trials=find(cond==3);
@@ -353,7 +539,8 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     % R_ss=get_within(cond_ids{3});
 
     for ww=1:n_cond
-        Rs{ww,ww}=get_within(cond_ids{ww});
+        % Rs{ww,ww}=get_within(cond_ids{ww});
+        Rs(ww,ww,:)=get_within(cond_ids{ww});
     end
 
     % % load cross-trial rs
@@ -402,17 +589,22 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     %     {3,1},{3,2},... %sf,so
     %     };
     % names={'R_fs','R_fo','R_of','R_os','R_sf','R_so'};
-    [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
-    pairs=[ptrain(:),ptest(:)];
-    % remove diagonals
-    pairs(pairs(:,1)==pairs(:,2),:)=[];
+    % [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
+    % pairs=[ptrain(:),ptest(:)];
+    % % remove diagonals
+    % pairs(pairs(:,1)==pairs(:,2),:)=[];
+    pairs=get_off_diag_pairs(n_cond);
     for kk=1:size(pairs,1)
         train_idx=cond_ids{pairs(kk,1)};
         test_idx=cond_ids{pairs(kk,2)};
-        Rs{pairs(kk,1),pairs(kk,2)}=stats_cross_cv.r(train_idx,test_idx,:);
+        % Rs{pairs(kk,1),pairs(kk,2)}=stats_cross_cv.r(train_idx,test_idx,:);
+        R_cross_=stats_cross_cv.r(train_idx,test_idx,:);
         if avg_cross_trials
-            Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},1); %avg over train folds
-            Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},2); %avg over test folds
+            % Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},1); %avg over train folds
+            % Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},2); %avg over test folds
+            R_cross_=mean(R_cross_,1); %avg over train folds
+            R_cross_=mean(R_cross_,2); % avg over test folds
+            Rs(pairs(kk,1),pairs(kk,2),:)=permute(squeeze(R_cross_),[2,1]);
         end
         % assignin('base',names{kk},R);
     end
