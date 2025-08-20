@@ -137,7 +137,7 @@ if compute_stats_cross
         % clear
     end
 end
-%% setup for scatterplot of r-values
+%% setup r-values for stats
 %NOTES: I think it will be good to break it down by subject but also to
 %aggregate the data across subjects
 %also, 
@@ -191,14 +191,15 @@ if show_scatter
     end
     
 end
+%%
 cond={'fast','og','slow'};
-% generate r_cross/r_within
+% arrange r_cross/r_within
 [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
-% R_within=all_subj_Rcs(logical(repmat(eye(n_cond),20,1,1,n_electrodes)))
+% [subj X train cond X electrodes],[subj X train cond X test cond X electrodes]
 %% generate statistics
 R_within_expanded_=permute(repmat(R_within,1,1,1,n_cond-1),[1,2,4,3]);
 R_cross_div_w=R_cross./R_within_expanded_;
-R_percent_change=100.*(R_within_expanded_-R_cross)./R_within_expanded_;
+R_percent_change=100.*(R_cross-R_within_expanded_)./R_within_expanded_;
 clear R_within_expanded_
 
 n_subjs=size(R_cross_div_w,1);
@@ -247,22 +248,36 @@ loop_=1; % dummy counter
 for cc_tr=1:n_cond
     for cc_te=1:n_cond-1
         subplot(n_cond,n_cond-1,loop_)
-        loop_=loop_+1;
         histogram(R_cross_div_w(:,cc_tr,cc_te,plot_electrode))
         xlabel('R_{cross}/R_{within}')
         title(sprintf('train -> test %s - electrode: %d', ...
-            comparison_ids{cc_tr*cc_te},plot_electrode))
-        % pause(.1)
+            comparison_ids{loop_},plot_electrode))
+        loop_=loop_+1;
 
     end
 end
 clear loop_
+%% histograms of percent change
+figure
+loop_=1; % dummy counter
+for cc_tr=1:n_cond
+    for cc_te=1:n_cond-1
+        subplot(n_cond,n_cond-1,loop_)
+        histogram(R_percent_change(:,cc_tr,cc_te,plot_electrode))
+        xlabel('100*(R_{cross}-R_{within})/R_{within}')
+        title(sprintf('train -> test %s - electrode: %d', ...
+            comparison_ids{loop_},plot_electrode))
+        loop_=loop_+1;
+    end
+end
+clear loop_
+
 %% load chanlocs
 global boxdir_mine
 loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
 load(loc_file);
 %% plot individual subject topos of percent change
-clims=[-200,200];
+clims_=[-200,200];
 for ss=1:n_subjs
     figure
     p_=1;
@@ -271,58 +286,134 @@ for ss=1:n_subjs
             subplot(n_cond,n_cond-1,p_)
             topoplot(R_percent_change(ss,cc_tr,cc_te,:),chanlocs);
             title(sprintf('train,test: %s',comparison_ids{p_}))
-            clim(clims)
+            clim(clims_)
             colorbar
             p_=p_+1;
         end
     end
-    sgtitle(sprintf('Subj %d %%change(r_{cross},r_{within})',subjs(ss)))
-    clear p_
+    sgtitle(sprintf('Subj %d %%change(r_{within},r_{cross})',subjs(ss)))
+    clear p_ clims_
 end
 
 %% plot subj-averaged topos of percent change
 R_percent_change_mean=mean(R_percent_change,1);
 figure
 p_=1;
+clims_=[-200,200];
 for cc_tr=1:n_cond
     for cc_te=1:n_cond-1
         subplot(n_cond,n_cond-1,p_)
         topoplot(R_percent_change_mean(:,cc_tr,cc_te,:),chanlocs);
         title(sprintf('train,test: %s',comparison_ids{p_}))
-        clim(clims)
+        clim(clims_)
         colorbar
         p_=p_+1;
     end
 end
 sgtitle('subj-avg  %change(r_{cross},r_{within})')
-clear p_
+clear p_ clims_
 
-%% histograms of percent change
+%% bootstrap %-change
+%
+boot_N=1000; % number of bootstrap samples
+R_booted_percent_change=R_percent_change(randi(n_subjs,[boot_N,n_subjs]),:,:,:);
+R_booted_percent_change=reshape(R_booted_percent_change,n_subjs,boot_N,n_cond,n_cond-1,n_electrodes);
+% average across subjects in each sample
+R_booted_percent_change=squeeze(mean(R_booted_percent_change,1));
+%% get quantiles [2.5%,97.5%]
+qs=[.025,0.975];
+boot_qtls=quantile(R_booted_percent_change,qs);
+
+%% histogram bootstrap results
 figure
 loop_=1; % dummy counter
+ylims_=[0 0.2];
 for cc_tr=1:n_cond
     for cc_te=1:n_cond-1
         subplot(n_cond,n_cond-1,loop_)
-        loop_=loop_+1;
-        histogram(R_percent_change(plot_electrode,:,cc_tr,cc_te))
-        xlabel('100*(R_{within}-R_{cross})/R_{within}')
-        % ylabel('')
-        % xlabel('Train condition -> test condition')
+        histogram(R_booted_percent_change(:,cc_tr,cc_te,plot_electrode), ...
+            'Normalization','probability')
+        hold on
+        % add line at 95% CIs
+        xci_=boot_qtls(:,cc_tr,cc_te,plot_electrode);
+        yci_=repmat(ylims_',1,numel(xci_));
+        xci_=[xci_,xci_];
+        plot(xci_',yci_,'r--')
+        xlabel('mean(100*(R_{cross}-R_{within})/R_{within})')
         title(sprintf('train -> test %s - electrode: %d', ...
-            comparison_ids{cc_tr*cc_te},plot_electrode))
-        % pause(.1)
-
+            comparison_ids{loop_},plot_electrode))
+        ylim(ylims_)
+        loop_=loop_+1;
     end
 end
-clear loop_
+sgtitle('Bootstrap % change')
+clear loop_ ylims_ xci_ yci_
+%% topoplot of CI results
+% plot which electrodes have improved/impoverished prediction accuracy as
+% determined by 0 being contained within the 95% CI
+figure
+p_=1;
+clims_=[-1 1];
+for cc_tr=1:n_cond
+    for cc_te=1:n_cond-1
+        boot_ci_topo_=sign(squeeze(boot_qtls(:,cc_tr,cc_te,:)));
+        boot_ci_topo_=sign(sum(boot_ci_topo_));
+        subplot(n_cond,n_cond-1,p_)
+        topoplot(boot_ci_topo_,chanlocs);
+        title(sprintf('train,test: %s',comparison_ids{p_}))
+        clim(clims_)
+        colorbar
+        p_=p_+1;
+    end
+end
+sgtitle('bootstrapped subj-avg %change(r_{cross},r_{within})')
+clear p_ boot_ci_topo_ clims_
+%% permutation test of within vs cross prediction accuracies
 
-%% individual subject topos...?
-%% bootstrap r_cross/r_within
-
-%% bootstrap rwithin-rcross
-
-%% statistical test on avg r values within vs without...? bootstrap?
-
+%% generate permuted distribution of contrast maps
+D_obs=R_within-squeeze(mean(R_cross,3));
+n_perm=1000;
+[~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond,n_cond),4);
+% n_perm independent permutations per subject per condition
+D_perm=nan(n_perm,n_subjs,n_cond,n_electrodes);
+for nn=1:n_perm
+    for ss=1:n_subjs
+        for cc=1:n_cond
+            within_perm_idx=squeeze(perm_idx(nn,ss,cc,1));
+            cross_perm_idx=squeeze(perm_idx(nn,ss,cc,2:n_cond));
+            S_within_=squeeze(all_subj_Rcs(ss,within_perm_idx,cc,:));
+            S_cross_=squeeze(mean(all_subj_Rcs(ss,cross_perm_idx,cc,:),2));
+            D_perm(nn,ss,cc,:)=S_within_-S_cross_;
+            clear S_within_ S_cross_
+        end
+    end
+end
+%% compute group-level statistics + cluster analysis
+% note: alpha is 0.05 and since t-dist is symmetric about zero can just
+% calculate cdf^-1 up to alpha and abs it 
+t_thresh=abs(tinv(0.05,n_subjs-1));
+% get one-sample t-statistic of mean contrasts
+T_perm=squeeze(mean(D_perm,2)./(std(D_perm,0,2)/sqrt(n_subjs)));
+T_obs=squeeze(mean(D_obs,1))./(std(D_obs,0,1)/sqrt(n_subjs));
+% identify clusters above threshold
+%%
+% close all
+adj=get_adjacency_mat(chanlocs);
+% check adjacency matrix
+chn_=10;
+figure
+topoplot([],chanlocs,'electrodes','on','style','blank','headrad',.5);
+hold on
+topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
+    chn_,'emarker',{'o','r',10,1},'headrad',.5);
+% hold on
+topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
+    find(adj(chn_,:)),'emarker',{'o','b',10,1},'headrad',.5);
+title(sprintf('chn %d + neighbors',chn_))
+% topoplot([],chanlocs(chn_),'conv','off','numcontour',0);
+% plot(X_(chn_),Y_(chn_),chanlocs)
+% hold off
+% clear chn_ X_ Y_
 %%
 %% Welch t-test
 % unshuffle conditions - Note: will just have to re-load them when
@@ -370,13 +461,13 @@ plotx='tstat';
 switch plotx
     case 'h'
         colorlabel='hypothesis test result';
-        clims=[0,1];
+        clims_=[0,1];
     case 'p'
         colorlabel='p-value';
-        clims='auto';
+        clims_='auto';
     case 'tstat'
         colorlabel='t-statistic';
-        clims=[-2 2];
+        clims_=[-2 2];
     otherwise
         error('not a name.')
 end
@@ -394,7 +485,7 @@ for subj=subjs
         topoplot(wttf.(plotx),chanlocs)
     end
     h=colorbar;
-    clim(clims)
+    clim(clims_)
     ylabel(h,colorlabel);
     title(sprintf('Welch test train on fast subj %d',subj));
     
@@ -406,17 +497,11 @@ for subj=subjs
     end
     h=colorbar;
     ylabel(h,colorlabel);
-    clim(clims)
+    clim(clims_)
     title(sprintf('Welch test train on slow subj %d',subj));
 
 end
 
-
-
-
-% figure
-% topoplot(wtts.h,chanlocs)
-% title('welch test train on slow')
 %%
 
 
@@ -434,6 +519,16 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 %% helpers
+function adj=get_adjacency_mat(chanlocs)
+    coords=[[chanlocs.X]' [chanlocs.Y]' [chanlocs.Z]'];
+    D=squareform(pdist(coords));
+    dist_thresh=0.25; %TODO: figure out 'correct' value for this
+    
+    adj=D<dist_thresh&D>0;
+    figure, imagesc(adj), axis square; colorbar 
+    title('electrode ajacancy matrix')
+end
+
 function pairs=get_off_diag_pairs(n_cond)
     [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
     pairs=[ptrain(:),ptest(:)];
