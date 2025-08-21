@@ -3,28 +3,23 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 
-%TODO: remember which dependencies these were and if actually needed...
-% AND IF NEEDED FIX PATHS SPECIFIED... POSSIBLY BY RUNNING IN
-% BOXDIRS_STARTUP
-
-% dependencies_path=('../../dependencies/');
-% addpath(genpath(dependencies_path));
-%TODO: check if lambda optimization 'nulldistribution file exists already
-%before rerunning lambda_optimization
-%TODO: rename lambda_optimization 'nulldistribution_files' to something
-%that differentiates them from condition-specific TRFs
-%%
-% remember to skip subject 8
 for subj=22
-    clearvars -except user_profile boxdir_mine boxdir_lab subj
-    close all
-    % subj
+clearvars -except user_profile boxdir_mine boxdir_lab subj
+close all
+% uses separate configs that force bad chans interp to be done AND save in
+% separate directory as prior analases in order to preserve old results
+force_interpBadChans=true;
 
 %%
 % subj = 15;
 do_lambda_optimization=false;
-preprocess_config=config_preprocess(subj);
-trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+if force_interpBadChans
+    preprocess_config=config_preprocess2(subj);
+    trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
+else
+    preprocess_config=config_preprocess(subj);
+    trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+end
 %
 %NOTE: do_nulltest=false case may complicate config validation if we
 %suddenly choose to do a different analysis configuration... but maybe
