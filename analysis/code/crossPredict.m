@@ -394,27 +394,41 @@ end
 t_thresh=abs(tinv(0.05,n_subjs-1));
 % get one-sample t-statistic of mean contrasts
 T_perm=squeeze(mean(D_perm,2)./(std(D_perm,0,2)/sqrt(n_subjs)));
-T_obs=squeeze(mean(D_obs,1))./(std(D_obs,0,1)/sqrt(n_subjs));
+T_obs=squeeze(mean(D_obs,1)./(std(D_obs,0,1)/sqrt(n_subjs)));
 % identify clusters above threshold
 %%
 % close all
 adj=get_adjacency_mat(chanlocs);
-% check adjacency matrix
-chn_=10;
-figure
-topoplot([],chanlocs,'electrodes','on','style','blank','headrad',.5);
-hold on
-topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
-    chn_,'emarker',{'o','r',10,1},'headrad',.5);
-% hold on
-topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
-    find(adj(chn_,:)),'emarker',{'o','b',10,1},'headrad',.5);
-title(sprintf('chn %d + neighbors',chn_))
-% topoplot([],chanlocs(chn_),'conv','off','numcontour',0);
-% plot(X_(chn_),Y_(chn_),chanlocs)
-% hold off
-% clear chn_ X_ Y_
-%%
+vis_neighbors=false;
+% stuff below doesn't seem to work well because successive topoplot calls
+% use larger-radius heads... so setting this aside for now and assuming
+% adjacancy matrix is "close enough" 
+if vis_neighbors
+    % check adjacency matrix
+    chn_=10;
+    figure
+    topoplot([],chanlocs,'electrodes','on','style','blank','headrad',.5);
+    hold on
+    topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
+        chn_,'emarker',{'o','r',10,1},'headrad',.5);
+    % hold on
+    topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
+        find(adj(chn_,:)),'emarker',{'o','b',10,1},'headrad',.5);
+    title(sprintf('chn %d + neighbors',chn_))
+    % topoplot([],chanlocs(chn_),'conv','off','numcontour',0);
+    % plot(X_(chn_),Y_(chn_),chanlocs)
+    % hold off
+    clear chn_
+end
+%% test clustering analysis
+% work in progress... testing on T_obs
+obs_clusters=cell(3,1);obs_masses=cell(3,1);
+for cc=1:n_cond
+    [obs_clusters{cc}, obs_masses{cc}]=clusterize(T_obs(cc,:),t_thresh,adj);
+end
+% do cluster test on T_perm
+cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj);
+
 %% Welch t-test
 % unshuffle conditions - Note: will just have to re-load them when
 % iterating over all subjects
@@ -519,12 +533,124 @@ glme=fitglme(tbl,formula);
 disp(glme)
 
 %% helpers
+function cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj)
+% T_perm: permutations x conditions x electrodes
+% note: when testing on T_perm, need to iterate over each condition AND
+% permutation
+% will also need to remember to just keep the max cluster for each
+% permutation
+[n_perm,n_cond,~]=size(T_perm);
+cluster_nulldist=nan(n_perm,n_cond);
+for nn=1:n_perm
+    fprintf('clustering %d/%d...\n',nn,n_perm)
+    for cc=1:n_cond
+       [~,cluster_masses]=clusterize(squeeze(T_perm(nn,cc,:)),t_thresh,adj); 
+       % note: seems like cluster_masses should be a regular array... might
+       % need to double check that though
+       cluster_nulldist(nn,cc)=max(cluster_masses);
+    end
+end
+
+end
+function [clusters, cluster_masses]=clusterize(t_vals,t_thresh,adj)
+    % t_vals should be a col vector of size [n_electrodes X 1] 
+    tmask=t_vals>t_thresh;
+    %NOTE: if slow... can consider preallocating cell arrays for outputs
+    %with size n_electrodes (since there can't be more clusters than
+    %electrodes), then shrink the array at the end...?
+    clusters={};
+    if any(tvals(:))
+        % cluster_masses={};
+        n_electrodes=length(adj);
+        visited=false(n_electrodes,1);
+        % exclude below-threshold electrodes from search
+        visited(~tmask)=true;
+        % define clusters
+        while ~(all(visited))
+            % start at first above-threshold electrode not yet visited
+            ee=find(~visited,1,'first');
+            neighbors=find(adj(ee,:));
+            % keep only above-threshold neighbors
+            neighbors=neighbors(ismember(neighbors,find(tmask)))';
+            % check if current electrode (or it's neighbors) contained in an 
+            % existing cluster - 
+            % if so: add it and it's above-threshold neighbors to that cluster,
+            % if not: make a new cluster    
+            ee_clust=cellfun(@(x) any(ismember(neighbors,x)), clusters);
+            if isempty(ee_clust)||~any(ee_clust)
+                % not contained in an existing cluster, initiate a new one
+                clusters{end+1}=neighbors;
+            else
+                % check that ee is only contained within a single cluster
+                if sum(ee_clust)>1
+                    % if current neighborhood overlaps with multiple existing
+                    % clusters, combine them 
+                    ee_clust_idx=find(ee_clust);
+                    for rr=1:(sum(ee_clust)-1)
+                        clusters{ee_clust_idx(1)}=union(clusters{ee_clust_idx(1)},clusters{ee_clust_idx(rr+1)});
+                    end
+                    % remove excess clusters
+                    clusters(ee_clust_idx(2:end))=[];
+                    
+                end
+                ee_clust_idx=find(ee_clust,1,'first');
+                new_neighbors=setdiff(neighbors,clusters{ee_clust_idx});
+                clusters{ee_clust_idx}=[clusters{ee_clust_idx}; new_neighbors];
+            end
+    
+            % update visitation list
+            %todo: also mark rest of in-cluster as visited
+            % note: actually, we might want to leave them marked as unvisited,
+            % that way we can add their above-threshold neighbors to a cluster
+            visited(ee)=true;
+        end
+        % add up cluster masses
+        cluster_masses=cellfun(@(x) sum(t_vals(x)), clusters);
+    else
+        % no values above threshold-> cluster mass is zero
+        cluster_masses=0;
+    end
+
+    % check that no clusters have repeated elements
+    double_check_=false;
+    if double_check_
+        % note this is highly inefficient since it'll compute intersection
+        % twice for each pair... but figuring out how to fix that felt like
+        % a waste of time since the main thing we want to avoid is having
+        % overlapping clusters in the first place
+        disp(['double checking for fluke clusters... set ' ...
+            'to false if convinced this is unnecessary...'])
+        n_clusters=length(clusters);
+        cluster_intersections=cell(n_clusters,n_clusters);
+        [cx, cy]=ndgrid(1:n_clusters,1:n_clusters);
+        cx=cx(:);cy=cy(:);
+        for cc=1:length(cx)
+            cluster_intersections{cx(cc),cy(cc)}=intersect(clusters{cx(cc)},clusters{cy(cc)});
+        end
+        ok_clusters=cellfun(@isempty,cluster_intersections);
+        % diag comparisons will always be non-empty since each cluster will
+        % be its own intersection but we dont care about those
+        ok_clusters=ok_clusters+logical(eye(n_clusters));
+        if any(~ok_clusters(:))
+            disp('clusters overlap... pls fix...')
+        end
+        if isempty(cluster_masses)
+            fprintf(['double check that there are really no ' ...
+                't-vals above threshold: any(tmask(:)) = %d...\n'],any(tmask(:)))
+            % default to zero since no values above threshold
+            cluster_masses=0;
+        end
+    end
+
+end
+
 function adj=get_adjacency_mat(chanlocs)
     coords=[[chanlocs.X]' [chanlocs.Y]' [chanlocs.Z]'];
     D=squareform(pdist(coords));
     dist_thresh=0.25; %TODO: figure out 'correct' value for this
-    
-    adj=D<dist_thresh&D>0;
+    % it is useful later to consider each electrode a neighbor of itself
+    adj=D<dist_thresh;
+    % adj=D<dist_thresh&D>0;
     figure, imagesc(adj), axis square; colorbar 
     title('electrode ajacancy matrix')
 end
