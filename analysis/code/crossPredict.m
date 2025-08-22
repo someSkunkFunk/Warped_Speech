@@ -221,6 +221,7 @@ for nn=1:n_perm
         end
     end
 end
+
 %% compute group-level statistics
 % note: alpha is 0.05 and since t-dist is symmetric about zero can just
 % calculate cdf^-1 up to alpha and abs it 
@@ -229,8 +230,134 @@ t_thresh=abs(tinv(crit_p,n_subjs-1));
 % get one-sample t-statistic of mean contrasts
 T_perm=squeeze(mean(D_perm,2)./(std(D_perm,0,2)/sqrt(n_subjs)));
 T_obs=squeeze(mean(D_obs,1)./(std(D_obs,0,1)/sqrt(n_subjs)));
-% identify clusters above threshold
+%% plot D_obs & T_obs topos
+for cc=1:n_cond
+    for ss=1:n_subjs
+        figure
+        topoplot(D_obs(ss,cc,:),chanlocs);
+        colorbar
+        title(sprintf('subj %d R_{within}-mean(R_{cross}) - %s',...
+            subjs(ss),cond{cc}))
+    end
+end
+
+for cc=1:n_cond
+    figure
+    topoplot(T_obs(cc,:),chanlocs);
+    colorbar
+    title(sprintf('t-statistic for %s',cond{cc}))
+end
+%% scatter plots D_obs & T_obs
+for ss=1:n_subjs
+    figure
+    for cc=1:n_cond
+        scatter(repmat(cc,n_electrodes,1),squeeze(D_obs(ss,cc,:)));
+        hold on
+    end
+    title(sprintf('subj %d - all electrodes',subjs(ss)))
+    xlabel('condition')
+    ylabel('R_{within}-mean(R_{cross})')
+    xticks(1:n_cond)
+    xticklabels(cond)
+    hold off
+end
+figure
+for cc=1:n_cond
+    scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(cc,:)));
+    hold on
+end
+title(sprintf('across-subjects t-statistic - all electrodes'))
+xlabel('condition')
+ylabel('tstat(R_{within}-mean(R_{cross}))')
+xticks(1:3)
+xticklabels(cond)
+hold off
+%% Scatterplot R_within and R_Cross
+
+
+%% across all subjects
+% rwithin
+figure
+for cc=1:n_cond
+    R_=squeeze(R_within(:,cc,:));
+    R_=R_(:);
+    scatter(repmat(cc,n_electrodes*n_subjs,1),R_);
+    hold on
+    clear R_
+end
+title('all subj & all electrodes')
+xlabel('condition')
+ylabel('R_{within}')
+xticks(1:n_cond)
+xticklabels(cond)
+hold off
+%rcross
+% get cross condition pairing labels
+pairs_=get_off_diag_pairs(n_cond);
+% sort them by test condition
+[~,Ipairs]=sort(pairs_(:,2));
+pairs_=pairs_(Ipairs,:);
+n_cross=length(pairs_);
+
+cross_ids=cell(size(pairs_,1),1);
+for pp=1:n_cross
+    cross_ids{pp}=sprintf('%s,%s',cond{pairs_(pp,1)},cond{pairs_(pp,2)});
+end
+figure
+for pp=1:n_cross
+    R_=squeeze(R_cross(:,pairs_(cc,1),pairs_(cc,2),:));
+    R_=R_(:);
+    scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
+    hold on
+end
+
+title('all subjs & all electrodes')
+xlabel('train->test')
+ylabel('R_{cross}')
+xticks(1:n_cross)
+xticklabels(cross_ids)
+hold off
+%% subject-level
+% rwithin
+figure
+for ss=1:n_subjs
+    for cc=1:n_cond
+        R_=squeeze(R_within(:,cc,:));
+        R_=R_(:);
+        scatter(repmat(cc,n_electrodes*n_subjs,1),R_);
+        hold on
+        clear R_
+    end
+    title(sprintf('subj %d & all electrodes',subjs(ss)))
+    xlabel('condition')
+    ylabel('R_{within}')
+    xticks(1:n_cond)
+    xticklabels(cond)
+    hold off
+end
+
+%rcross
+for ss=1:n_subjs
+    for pp=1:n_cross
+        cross_ids{pp}=sprintf('%s,%s',cond{pairs_(pp,1)},cond{pairs_(pp,2)});
+    end
+    figure
+    for pp=1:n_cross
+        R_=squeeze(R_cross(:,pairs_(cc,1),pairs_(cc,2),:));
+        R_=R_(:);
+        scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
+        hold on
+    end
+    
+    title(sprintf('subjs %d & all electrodes',subjs(ss)))
+    xlabel('train->test')
+    ylabel('R_{cross}')
+    xticks(1:n_cross)
+    xticklabels(cross_ids)
+    hold off
+end
 %% define electrode neighborhoods
+
 % not this will affect clustering results
 adj=get_adjacency_mat(chanlocs);
 vis_neighbors=true; % note this will generate 129 figures!
