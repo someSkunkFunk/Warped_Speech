@@ -63,7 +63,7 @@ preprocessed_eeg_dir=sprintf('%spreprocessed_eeg_interpBadChans/',datafolder);
 preprocessed_eeg_path=sprintf('%swarped_speech_s%0.2d.mat',preprocessed_eeg_dir,subj);
 if ~exist(preprocessed_eeg_dir,'dir')
     fprintf('%s DNE - making dir...\n',preprocessed_eeg_path)
-    mkdir(preprocessed_eeg_path)
+    mkdir(preprocessed_eeg_dir)
 end
 %TODO: new preprocessed file should contain the eeg but not the stims
 %except for perhaps the index values required to select them from the mat

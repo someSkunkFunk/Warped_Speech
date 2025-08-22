@@ -61,15 +61,16 @@ trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
     boxdir_mine,subj);
 
 model_metric_dir=fileparts(model_metric_path);
+
 if ~exist(model_metric_dir,'dir')
     fprintf('%s DNE - making dir ...\n',model_metric_dir)
-    mkdir(preprocess_config.preprocessed_eeg_path)
+    mkdir(model_metric_dir)
 end
 
 trf_model_dir=fileparts(trf_model_path);
 if ~exist(trf_model_dir,'dir')
     fprintf('%s DNE - making dir ...\n',trf_model_dir)
-    mkdir(preprocess_config.preprocessed_eeg_path)
+    mkdir(trf_model_dir)
 end
 
 
