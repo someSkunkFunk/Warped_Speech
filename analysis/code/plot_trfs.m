@@ -5,7 +5,6 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 subjs=[2:7,9:22];
-% subjs=22;
 plot_chns='all';
 separate_conditions=true; %NOTE: not operator required when 
     % initializing config_trf since technically it expects 
@@ -21,7 +20,7 @@ if separate_conditions
 else
     conditions={'all conditions'};
 end
-    % plot_config
+n_cond=numel(conditions);
 %% Main script
 for ss=1:n_subjs
     subj=subjs(ss);
@@ -34,7 +33,7 @@ for ss=1:n_subjs
     % (1,1) struct
     ind_models(ss,:)=load_individual_model(trf_config);
     if plot_individual_weights
-        for cc=1:numel(conditions)
+        for cc=1:n_cond
             title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
                     num2str(plot_chns),conditions{cc});
             % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
@@ -49,7 +48,7 @@ end
 %% Plot average weights
 if plot_avg_weights && n_subjs>1
     avg_models=construct_avg_models(ind_models);
-    for cc=1:numel(conditions)
+    for cc=1:n_cond
          title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
                 num2str(plot_chns),conditions{cc});
         figure
@@ -74,7 +73,7 @@ if n_subjs>1
         snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
     end
     figure
-    for cc=1:3
+    for cc=1:n_cond
          plot(1:n_subjs,snr_per_subj(:,cc))
          hold on
     end
@@ -83,27 +82,35 @@ if n_subjs>1
 ylabel('snr')
 end
 %% plot topos
-plot_topos=false;
+
+plot_topos=true;
+% note: we should perhaps generate a topo-movie across entire timeframe..
+
 if plot_topos
     global boxdir_mine
     loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
     load(loc_file);
-    % chanlocs=load(loc_file);
+    topo_latencies=[54 164]; % in ms
     if plot_avg_weights && n_subjs>1
-        t_ii=80;
-        for cc_topo=1:3
-            figure
-            topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
-            title(sprintf('subject-averaged trf model weights %0.1f ms, condition: %d' ...
-                ,avg_models(1,cc_topo).t(t_ii),cc_topo));
+        for tt=1:numel(topo_latencies)
+            for cc_topo=1:n_cond
+                % finding time closest to those latencies to plot
+                [~,t_ii]=min(abs(avg_models(cc_topo).t-topo_latencies(tt)));
+                figure
+                topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
+                title(sprintf(['subject-averaged trf model weights %0.1f ms, ' ...
+                    'condition: %s'] ...
+                    ,avg_models(1,cc_topo).t(t_ii),conditions{cc_topo}));
+                colorbar
+            end
         end
     end
 end
 
 %% Helpers
 function snr_plot(snr_per_subj)
-    [n_subjs,n_conditions]=size(snr_per_subj);
-    for cc=1:3
+    [n_subjs,n_cond]=size(snr_per_subj);
+    for cc=1:n_cond
         plot(1:n_subjs,snr_per_subj(ss,cc));
         
     end
