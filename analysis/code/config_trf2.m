@@ -69,7 +69,7 @@ end
 trf_model_dir=fileparts(trf_model_path);
 if ~exist(trf_model_dir,'dir')
     fprintf('%s DNE - making dir ...\n',trf_model_dir)
-    mkdir(preprocess_config.preprocessed_eeg_dir)
+    mkdir(trf_model_dir)
 end
 
 

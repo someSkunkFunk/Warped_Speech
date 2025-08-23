@@ -3,15 +3,13 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 
-for subj=22
+for subj=[2:7,9:22];
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 % uses separate configs that force bad chans interp to be done AND save in
 % separate directory as prior analases in order to preserve old results
 force_interpBadChans=true;
 
-%%
-% subj = 15;
 do_lambda_optimization=false;
 if force_interpBadChans
     preprocess_config=config_preprocess2(subj);
@@ -175,13 +173,8 @@ end
 function best_lam=fetch_optimized_lam(trf_config)
 % best_lam=fetch_optimized_lam(trf_config)
 % pull best_lam from trf_config associated with condition-agnostic trf
-    optim_config=config_trf(trf_config.preprocess_config.subj,true, ...
-        trf_config.preprocess_config);
-    disp(['NOTE: we didnt save optim lambda in trf_config during condition',...
-    'agnostic so will need to re-evaluate.... should just save it for',...
-    'future subjects so we dont have to keep calling this function'])
-    optim_checkpoint=load_checkpoint(optim_config.model_metric_path,optim_config,false);
-    [best_lam,~,~]=get_best_lam(optim_checkpoint.stats_obs(1,1),optim_checkpoint.trf_config);
+    load(trf_config.model_metric_path,'stats_obs');
+    [best_lam,~,~]=get_best_lam(stats_obs(1,1),trf_config);
 
 end
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
@@ -348,6 +341,7 @@ function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config
     r_max_electrodes=squeeze(max(r_avg_trials,[],2));
     % get indices of max r-value 
     if isfield(trf_config,'best_lam')&&size(stats_obs.r,2)==1
+        % no idea why we did this
         disp('TODO: fix this workaround...')
         best_lam_idx=nan;
         model_lam=trf_config.best_lam;
