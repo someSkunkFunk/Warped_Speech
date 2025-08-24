@@ -12,8 +12,7 @@ separate_conditions=true; %NOTE: not operator required when
     % ignoring the false case rn sincee buggy but not a priority but should
     % fix
 n_subjs=numel(subjs);
-% NOTE: DON'T SET TO TRUE IF MULTIPLE SUBJECTS BECEAUSE IT WILL BUG OUT
-plot_individual_weights=true;
+plot_individual_weights=false;
 plot_avg_weights=true;
 if separate_conditions
     conditions={'fast','og','slow'};
@@ -83,7 +82,7 @@ ylabel('snr')
 end
 %% plot topos
 
-plot_topos=true;
+plot_topos=false;
 % note: we should perhaps generate a topo-movie across entire timeframe..
 
 if plot_topos
@@ -106,8 +105,11 @@ if plot_topos
         end
     end
 end
+%% plot average TRF peak latencies across electrodes - use findpeaks 
+% within range of post onset latencies
 
 %% Helpers
+
 function snr_plot(snr_per_subj)
     [n_subjs,n_cond]=size(snr_per_subj);
     for cc=1:n_cond
