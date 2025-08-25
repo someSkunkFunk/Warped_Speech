@@ -157,10 +157,15 @@ if get_rcross
         subj=subjs(ss);
         % load saved model
         fprintf('fetching subj %d Rcs...\n',subj);
-        preprocess_config=config_preprocess(subj);
-                trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+        if force_interpBadChans
+            preprocess_config=config_preprocess2(subj);
+            trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
+        else
+            preprocess_config=config_preprocess(subj);
+            trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+        end
         clear preprocess_config
-        if ~ismember("Rcs",who("-file",trf_config.model_metric_path))||overwrite_Rcs
+        if ~ismember('Rcs',who("-file",trf_config.model_metric_path))||overwrite_Rcs
             fprintf('compiling subj %d Rcs...\n',subj);
             % load preprocessed data/stimuli
             preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
