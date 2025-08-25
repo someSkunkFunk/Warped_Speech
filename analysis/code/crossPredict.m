@@ -110,17 +110,17 @@ if compute_stats_cross
                 model=model_data.model(2,:); clear model_data
                 
                 
-                %%
-                conditions=1:3;
+                %
+                conditions_=1:3;
                 % r_cross=zeros(3,3,size(r_obs,2));
                 stats_cross=cell2struct(cell(2,1),fieldnames(stats_obs));
                 
                 % train_condition, predict_condition, electrodes
-                for cc=conditions
+                for cc=conditions_
                     % copy paste same-condition r values from nulldistribution file
                     % r_cross(cc,cc,:)=stats_obs.r(cc,:);
                     stats_cross(cc,cc)=stats_obs(cc); % assumes 1D struct array...
-                    for icc=conditions(conditions~=cc)
+                    for icc=conditions_(conditions_~=cc)
                 
                         [~,stats_cross(cc,icc)]=mTRFpredict(stim(cond==cc),resp(cond==cc),model(icc));
                         % r_cross(cc,icc,:)=STATS.r;
@@ -174,7 +174,7 @@ if get_rcross
             clear preprocessed_eeg
             stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
             stats_cross_cv=stats_cross_cv.stats_cross_cv;
-            %%
+            %
             % [R_ff,R_fo,R_fs,...
             % R_of, R_oo, R_os,...
             % R_sf,R_so,R_ss]
