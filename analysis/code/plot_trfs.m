@@ -80,7 +80,7 @@ if n_subjs>1
     xlabel('n subjects')
 ylabel('snr')
 end
-%% plot topos
+%% plot topos at particular latency
 
 plot_topos=false;
 % note: we should perhaps generate a topo-movie across entire timeframe..
@@ -107,6 +107,73 @@ if plot_topos
 end
 %% plot average TRF peak latencies across electrodes - use findpeaks 
 % within range of post onset latencies
+t_seek=[100 250]; %ms range within which to find peaks
+time_range_idx=find(avg_models(1).t>t_seek(1)&avg_models(1).t<t_seek(2));
+% filter peaks by prominence
+prom_thresh=0;
+% t_range=avg_models(1).t(time_range_idx);
+n_electrodes=size(avg_models(1).w,3);
+% time range considered "reliable" evoked response
+evoked_tlims=[0, 400];
+evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
+    avg_models(1).t<evoked_tlims(2));
+pk_locs=cell(n_cond,n_electrodes);
+for cc=1:n_cond
+    w_=squeeze(avg_models(cc).w(1,time_range_idx,:));
+    w_=w_';
+    % filter peaks by std of weights (in 0->400 ms time range)  
+    w_std_=squeeze(std(avg_models(cc).w(1,evoked_range_idx,:),[],2));
+    for ee=1:n_electrodes
+        [~, locs_]=findpeaks(w_(ee,:), ...
+            'MinPeakProminence',prom_thresh, ...
+            'MinPeakHeight',2*w_std_(ee));
+        % proms_=proms_/std(proms_);
+        % pk_locs{cc,ee}=locs_(proms_>prom_thresh);
+        if any(locs_)
+            pk_locs{cc,ee}=locs_;
+        end
+    end
+    clear w_ locs_ proms_ w_std_
+end
+conditions={'fast','og','slow'};
+
+for cc=1:n_cond
+    title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
+            num2str(plot_chns),conditions{cc});
+    figure
+    mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
+    hold on
+    for ee=1:n_electrodes
+        locs_=pk_locs{cc,ee};
+        % trim pre-onset stuff first, then index peaks
+        pks_t_=avg_models(1,cc).t(time_range_idx);
+        pks_t_=pks_t_(locs_);
+        pks_w_=squeeze(avg_models(1,cc).w(1,time_range_idx,ee));
+        pks_w_=pks_w_(locs_);
+        stem(pks_t_,pks_w_);
+        clear locs_
+    end
+    xlim(evoked_tlims)
+    title(title_str)
+end
+% check that there is one peak per electrode/condition
+peak_counts=cellfun(@numel, pk_locs);
+cond_peakcounts_match=all(peak_counts==peak_counts(1,:),1);
+fprintf('all electrodes have same num of peaks? ->%d\n',all(cond_peakcounts_match))
+single_peak_electrodes=cond_peakcounts_match&peak_counts(1,:)==1;
+fprintf('number of electrodes with single peak across conditions:%d\n',sum(single_peak_electrodes))
+% check that number of peaks matches across conditions for each electrode
+max_peakcount=max(peak_counts(:));
+fprintf('max peakcount: %d\n',max_peakcount)
+%% topo of electrodes with distinct peak
+global boxdir_mine
+loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
+load(loc_file);
+figure
+topoplot([],chanlocs,'electrodes','on','style','blank', ...
+    'plotchans',find(single_peak_electrodes),'emarker',{'o','r',5,1});
+title('electrodes with distinct peaks')
+
 
 %% Helpers
 
