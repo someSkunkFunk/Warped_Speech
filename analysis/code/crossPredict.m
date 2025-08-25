@@ -1,13 +1,12 @@
 clear, clc
-% user_profile=getenv('USERPROFILE');
-% use these params since what we used on sfn poster and looked nicest
-%NOTE: code currently ignores fact that at least one subject has a missing
-%trial
+% use results where we automatically selected bad channels and interpolated
+% them
+force_interpBadChans=true;
 %% compute stats_cross... or stats_cross_fair
 % false does the unfair comparison we originally devised which gives
 % stats_cross - true crossvalidates so that all scores are based on unseen
 % data
-compute_stats_cross=false;
+compute_stats_cross=true;
 overwrite_stats_cross=false;
 if compute_stats_cross
     fair=true;
@@ -20,10 +19,15 @@ if compute_stats_cross
     for subj=subjs
         fprintf('starting subj %d\n',subj)
         % load saved model
-        preprocess_config=config_preprocess(subj);
         do_lambda_optimization=false;
-        trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
-        if ~any(ismember({"stats_cross","stats_cross_cv"}, ...
+        if force_interpBadChans
+            preprocess_config=config_preprocess2(subj);
+            trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
+        else
+            preprocess_config=config_preprocess(subj);
+            trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+        end
+        if ~any(ismember({'stats_cross','stats_cross_cv'}, ...
                 who("-file",trf_config.model_metric_path)))||overwrite_stats_cross
             % load preprocessed data/stimuli
             preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
@@ -41,12 +45,6 @@ if compute_stats_cross
                 resp=cellfun(@(x) x(1:min_ns,:),resp,'UniformOutput',false);
             end
         
-            % TODO: load_checkpoint is buggy and fixing it will be a pain so
-            % reverting to native matlab load
-            % model_data=load_checkpoint(trf_config.trf_model_path,trf_config);
-            % stats_data=load_checkpoint(trf_config.model_metric_path,trf_config);
-            % TODO: replace trf_config w one that has best lam after checking that both
-            % checkpoint-loaded configs are correct
             if fair
                 % do this janky load procedure just to get best lambda
                 saved_trf_config=load(trf_config.trf_model_path,"trf_config");
@@ -94,12 +92,13 @@ if compute_stats_cross
                         stats_cross_cv.err(test_trial,cross_trials,:)=temp_stats.err(2:end,:);
                     end 
                 end
-                %NOTE: need to inverst shuffling before saving!
+                %NOTE: need to invert shuffling before saving!
                 % that way their indices correspond with the original order that's saved
                 % in preprocess_config
                 stats_cross_cv.r(shuff,shuff,:)=stats_cross_cv.r;
                 stats_cross_cv.err(shuff,shuff,:)=stats_cross_cv.err;
                 %save to file
+                fprintf('saving result to %s\n',trf_config.model_metric_path)
                 save(trf_config.model_metric_path,'stats_cross_cv','-append')
         
             else
