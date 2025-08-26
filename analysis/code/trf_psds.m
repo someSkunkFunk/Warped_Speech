@@ -1,7 +1,8 @@
 % analyze_trfs
 % run after plot_trfs to load them first
-clearvars -except ind_models avg_models trf_config subjs 
+clearvars -except ind_models avg_models trf_config subjs single_pk_electrodes
 clc
+conditions={'fast','og','slow'};
 %% Compute PSDS
 psd_method='pwelch';
 time_range=find(avg_models(1).t>0);
@@ -45,31 +46,32 @@ P_savg=reshape(psds_avg,[],n_cond,ne);
 %% plot all individual PSD(TRF) together 
 
 xlims=[0,15];
-ylims1=[0 0.01];
+ylims1=[0 0.015];
 
 figure
 plot(freqs,psds)
 title('trf psds for all subjects/electrodes')
 xlabel('frequency (Hz)')
 set(gca(),'XLim',xlims);
-%% plot avg(PSDs) 
+%% plot avg(PSDs(TRFs)) 
 % sorted by condition
 for cc=1:n_cond
     figure
     plot(freqs,squeeze(P_mean(:,cc,:)))
     xlabel('frequency (Hz)')
-    title(sprintf('avg(PSD(TRFs)) - condition: %d',cc))
+    title(sprintf('avg(PSD(TRFs)) - condition: %s',conditions{cc}))
     set(gca(),'XLim',xlims,'YLim',ylims1)
 end
 % plot subject-averaged, sorted by condition, for a particular electrode
-show_single_elec=false;
+show_single_elec=true;
 if show_single_elec
-    show_elec=85;
+    show_elec=find(single_pk_electrodes);
     for cc=1:n_cond
         figure
-        plot(freqs,squeeze(P_mean(:,cc,show_elec)))
+        plot(freqs,squeeze(P_mean(:,cc,single_pk_electrodes)))
         xlabel('frequency (Hz)')
-        title(sprintf('avg(PSD(TRFs)) condition,electrode: %d,%d',cc,show_elec))
+        ylabel('PSD (a.u.)')
+        title(sprintf('reliable electrodes avg(PSD(TRFs)) - condition,%s',conditions{cc}))
         set(gca(),'XLim',xlims,'YLim',ylims1)
     end
 end
@@ -81,18 +83,19 @@ for cc=1:n_cond
     figure
     plot(freqs,squeeze(P_savg(:,cc,:)))
     xlabel('frequency (Hz)')
-    title(sprintf('PSD(avg(TRFs)) - condition: %d',cc))
+    title(sprintf('PSD(avg(TRFs)) - condition: %s',conditions{cc}))
     set(gca(),'XLim',xlims,'YLim',ylims2)
 end
 % plot subject-averaged, sorted by condition, for a particular electrode
-show_single_elec=false;
+show_single_elec=true;
 if show_single_elec
-    show_elec=85;
+    % show_elec=find(single_pk_electrodes);
     for cc=1:n_cond
         figure
-        plot(freqs,squeeze(P_savg(:,cc,show_elec)))
+        plot(freqs,squeeze(P_savg(:,cc,single_pk_electrodes)))
         xlabel('frequency (Hz)')
-        title(sprintf('PSD(avg(TRFs)) condition,electrode: %d,%d',cc,show_elec))
+        ylabel('PSD (a.u.)')
+        title(sprintf('reliable electrodes - PSD(avg(TRFs)) - condition: %s',conditions{cc}))
         set(gca(),'XLim',xlims,'YLim',ylims2)
     end
 end

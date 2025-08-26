@@ -46,14 +46,20 @@ end
 
 %% Plot average weights
 if plot_avg_weights && n_subjs>1
+    t_lims_=[-400 600];
+    ylims_=[-.5 .7];
     avg_models=construct_avg_models(ind_models);
     for cc=1:n_cond
          title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
                 num2str(plot_chns),conditions{cc});
         figure
-        mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
-        title(title_str)
+        h=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
+        title(title_str,'FontSize',16)
+        set(h,'LineWidth',0.25)
+        xlim(t_lims_)
+        ylim(ylims_)
     end
+    clear t_lims_
 end
 %% estimate snr overall
 if numel(subjs)>1
@@ -82,7 +88,7 @@ ylabel('snr')
 end
 %% plot topos at particular latency
 
-plot_topos=false;
+plot_topos=true;
 % note: we should perhaps generate a topo-movie across entire timeframe..
 
 if plot_topos
@@ -184,7 +190,7 @@ for cc=1:n_cond
 end
 % add jitter to minimize overlapping lines
 rng(1);
-yjitter=(1000/fs)*repmat(rand([1,n_single_peak_electrodes]),n_cond,1);
+yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),n_cond,1);
 % sort them for pretty colors
 [~,sortI_]=sort(pk_latencies(1,:));
 figure
@@ -212,6 +218,8 @@ clear cc_
 figure
 boxplot(diff_pk_latency')
 xticklabels(diff_labels)
+ylabel('\Delta(latency) (ms)')
+title('difference in latency across reliable electrodes')
 
 %% Helpers
 
@@ -240,48 +248,6 @@ for cc=1:n_conditions
 end
 
 end
-
-% function plot_model_weights(model,trf_config,chns)
-% %TODO: use a switch-case to handle plotting a particular channel, the
-%         %best channel, or all channels... needs to chance title string
-%         %format indicator
-%     arguments
-%         model struct
-%         trf_config (1,1) struct
-%         chns = 'all'
-%     end
-%     n_subjs=size(model(1).w,1);
-%     if trf_config.separate_conditions
-%         n_conditions=size(model,2);
-%         fprintf('plotting condition-specific TRFs...\n ')
-%     else
-%         n_conditions=1;
-%         fprintf("NOTE: line above this will bypass bad config handling in " + ...
-%             "separate_conditions=false case but that also means the issue " + ...
-%             "will be hidden and still occur so needs to be fixed directly...\n")
-%     end
-% 
-%     for cc=1:n_conditions
-%         if ~isfield(model,'avg')
-%             fprintf('plotting individual model weights...\n')
-%             %plot individual subject weights            
-%             figure
-%             mTRFplot(model(1,cc),'trf','all',chns);
-% 
-%         else
-%             % assume we want to average out the weights and plot them
-%             % compile weights into single model struct for current
-%             % condition
-%             fprintf('plotting subject-averaged model weights...\n')
-%             avg_models=construct_avg_models(model);
-%             figure
-%             mTRFplot(avg_models(1,cc),'trf','all',chns);
-%             ylim([-.4,.55])
-% 
-% 
-%         end
-%     end
-% end
 
 function avg_model=construct_avg_models(ind_models)
     [n_subjs,n_conditions]=size(ind_models);
