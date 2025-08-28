@@ -141,19 +141,7 @@ fprintf('range of width vals: [%.02f, %.02f]\n',min(all_wvals),max(all_wvals))
 fprintf('range of width2 vals: [%.02f, %.02f]\n',min(all_w2vals),max(all_w2vals))
 % don't really need to plot, just need to see behavior of peaks that get
 % eliminated as we raise the threshold
-%% Set histogram params
-%TODO: use plot_config struct to accomplish goal stated below - use
-%visSylrateWarpingNew values
-% use same scale and bins for direct comparison - be sure to look at low
-% frequencies too since raising peakTol might fuck 
-hist_param.xlims=[1 34];
-hist_param.ylims=[0,.25]; % for visual comparison
-hist_param.xticks=2.^(-1:16); %log-spaced
-% hist_param.hist_buffer=0.5; % seconds to wait after plotting histogram so lines after it show up on top
-hist_param.bin_scale='lin';
-hist_param.bin_lims=[.5, 36];
-hist_param.n_bins=100;
-fprintf('histogram params set.\n')
+
 %% get baseline distribution
 %TODO: figure out why there's a weird bump below 8 Hz now...?
 % NOTE: maybe related to median_rates/quantile_rates being yoked to N
@@ -178,7 +166,7 @@ fprintf('baseline dist loaded.\n')
 %% set thresholds
 % thresh_opts.use_range='custom';
 all_peak_amps=vertcat(peakRate(:).amplitudes);
-skip_time_domain_plots=false;
+skip_time_domain_plots=true;
 % note: just make one variable equal to zero to view single-variable
 % threshold result
 max_width=4.0;
@@ -237,6 +225,19 @@ end
 %TODO: figure out how to map particular prominence/width vals to single
 %index
 % plot original distribution
+% Set histogram params
+%TODO: use plot_config struct to accomplish goal stated below - use
+%visSylrateWarpingNew values
+% use same scale and bins for direct comparison - be sure to look at low
+% frequencies too since raising peakTol might fuck 
+hist_param.xlims=[1 34];
+hist_param.ylims=[]; % for visual comparison
+hist_param.xticks=2.^(-1:16); %log-spaced
+% hist_param.hist_buffer=0.5; % seconds to wait after plotting histogram so lines after it show up on top
+hist_param.bin_scale='lin';
+hist_param.bin_lims=[.5, 36];
+hist_param.n_bins=100;
+fprintf('histogram params set.\n')
 
 rates_hist_wrapper(all_rates,hist_param)
 title('PeakRate without Threshold')
@@ -494,10 +495,10 @@ switch bin_scale
         bins=linspace(min(bin_lims),max(bin_lims),n_bins);
 end
 figure
-histogram(distribution,bins,'Normalization','pdf')
-ylabel('probability ')
+histogram(distribution,bins,'Normalization','count')
+ylabel('counts')
 xlabel('syllable rate (Hz)')
-set(gca(),'XTick',xticks,'XLim',xlims,'YLim',ylims)
+set(gca(),'XTick',xticks,'XLim',xlims)
 end
 
 

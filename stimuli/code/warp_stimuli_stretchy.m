@@ -28,7 +28,7 @@ center_freqs=0;
 % and all values greater than 1 since 1 means mode....
 conditions=[1]; % 1-> irreg (stretchy) 2-> reg (compessy)
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 1;
+overwrite = 0;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
