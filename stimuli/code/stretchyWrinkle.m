@@ -159,7 +159,10 @@ Ifrom=Ifrom(p>p_t&w>w_t);
 % recursively remove rates that are too fast - recalculate with filtered
 % times
 syllable_cutoff_hz=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
-Ifrom=Ifrom(recursive_cutoff_filter(Ifrom,syllable_cutoff_hz));
+% make a dummy mask to make recursive function compatible with how we used
+% it in optimize_peakRate_algo
+ff=true(length(Ifrom),1);
+Ifrom=Ifrom(recursive_cutoff_filter(ff,Ifrom,syllable_cutoff_hz));
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
 %inter-segment interval
 ISI=0;
@@ -446,7 +449,7 @@ for ss=1:n_segs
                 % generate random rates from uniform distribution across
                 % range of possible values 
                 min_stretch_rate=1./sil_tol;
-                max_stretch_rate=peakRate_cutoff;
+                max_stretch_rate=syllable_cutoff_hz;
                 % % leave overly fast intervals unchanged
                 % IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
@@ -540,13 +543,9 @@ function y=reflect_about(x,xr)
     y=x-2.*(x-xr);
 end
 
-function ff_cleaned=recursive_cutoff_filter(filtered_times,syllable_cutoff_hz)
-    % filtered_times: already filtered by prominence + width
+function ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz)
     
-    % initialize peaks mask
-    ff=true(length(filtered_times),1);
-    ff_rates=1./diff(filtered_times);
-    % mark peaks to remove since too fast
+    ff_rates=1./diff(all_times(ff));
     cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
     % apply hard cutoff:
     if isempty(cutoff_filter_idx)
@@ -557,7 +556,27 @@ function ff_cleaned=recursive_cutoff_filter(filtered_times,syllable_cutoff_hz)
     ff(ff_idx(cutoff_filter_idx))=false;
 
     % recursive step
-    ff_cleaned=recursive_cutoff_filter(filtered_times(ff),syllable_cutoff_hz);
+    ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz);
 end
+
+% function ff_cleaned=recursive_cutoff_filter(filtered_times,syllable_cutoff_hz)
+%     % filtered_times: already filtered by prominence + width
+% 
+%     % initialize peaks mask
+%     ff=true(length(filtered_times),1);
+%     ff_rates=diff(filtered_times);
+%     % mark peaks to remove since too fast
+%     cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
+%     % apply hard cutoff:
+%     if isempty(cutoff_filter_idx)
+%         ff_cleaned=ff;
+%         return;
+%     end
+%     ff_idx=find(ff);
+%     ff(ff_idx(cutoff_filter_idx))=false;
+% 
+%     % recursive step
+%     ff_cleaned=recursive_cutoff_filter(filtered_times(ff),syllable_cutoff_hz);
+% end
 
 
