@@ -1,12 +1,12 @@
 clear, clc
 % use results where we automatically selected bad channels and interpolated
 % them
-force_interpBadChans=true;
+force_interpBadChans=false;
 %% compute stats_cross... or stats_cross_fair
 % false does the unfair comparison we originally devised which gives
 % stats_cross - true crossvalidates so that all scores are based on unseen
 % data
-compute_stats_cross=true;
+compute_stats_cross=false;
 overwrite_stats_cross=false;
 if compute_stats_cross
     fair=true;
@@ -265,11 +265,16 @@ for ss=1:n_subjs
     xticklabels(cond)
     hold off
 end
+%
 figure
 for cc=1:n_cond
     scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(cc,:)));
     hold on
 end
+% there must be a way to do the same plot in one line - also we want to add
+% lines i think
+% figure
+% scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(cc,:)));
 title(sprintf('across-subjects t-statistic - all electrodes'))
 xlabel('condition')
 ylabel('tstat(R_{within}-mean(R_{cross}))')
@@ -362,7 +367,7 @@ for ss=1:n_subjs
 end
 %% define electrode neighborhoods
 
-% not this will affect clustering results
+% note this will affect clustering results
 adj=get_adjacency_mat(chanlocs);
 vis_neighbors=true; % note this will generate 129 figures!
 % having trouble keeping head size consistent when calling topoplot
@@ -845,7 +850,7 @@ end
 function adj=get_adjacency_mat(chanlocs)
     coords=[[chanlocs.X]' [chanlocs.Y]' [chanlocs.Z]'];
     D=squareform(pdist(coords));
-    dist_thresh=0.40; %TODO: figure out 'correct' value for this
+    dist_thresh=0.45; %TODO: figure out 'correct' value for this
     % it is useful later to consider each electrode a neighbor of itself
     adj=D<dist_thresh;
     % adj=D<dist_thresh&D>0;

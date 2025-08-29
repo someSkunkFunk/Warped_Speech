@@ -16,15 +16,38 @@ subj=2;
 preprocess_config=config_preprocess(subj);
 trf_config=config_trf(subj,~separate_conditions,preprocess_config);
 load(preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-resp=preprocessed_eeg.resp;
 stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-%% test to see if we can get tf representation of a single stimulus:
+resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
+n_electrodes=size(resp{1},2);
+n_trials=length(stim);
+%% compute coherence using mscohere
+
+%todo: group by trial condition + average across subjects?
+%preallocate mscac... note that I'm not sure how to determine the number of
+%frequencies but I think it depends on nfft and the signal lengths... below
+%is based on default settings of mscohere
+mscac=nan(n_trials,1025,n_electrodes);
+for tt=1:n_trials
+    [mscac(tt,:,:), freqs]=mscohere(stim{1},resp{1},[],[],[],fs);
+end
+%%
+%note: oganian & chang averaged across sensors... sensible to do here as
+%well?
+figure, plot(freqs, squeeze(mean(mscac,[1,3])));
+xlabel('frequency (hz)')
+ylabel('Magnitue-Squared Coherence')
+title(sprintf('subj %d Mean mscoh (across all trials/electrodes)',subj))
+
+% do we
+
+%% my custom routine which did not pan out:
+%% test to see if we can get tf representation of a single stimulus:
+
 %PROBLEM: getting a bunch of nans... not all of them, but enough that
 %result is not usable...
 [cfs,env_tf,eeg_tf]=get_tf(stim{1},resp{1},fs);
-
-%%
+%% compute cac based on oganian & chang's description
 cac=get_cac(env_tf,eeg_tf);
 % todo: iterate over all trials and save so we don't have to recompute each
 % time
@@ -35,10 +58,13 @@ function cac=get_cac(env_tf,eeg_tf)
     ph_env=angle(hilbert(env_tf));
 
     T=length(env_tf);
-    cac=(1/T).*abs(sum(exp(i*(ph_eeg-ph_env)),2));
+    cac=(1/T).*abs(sum(exp(1i*(ph_eeg-ph_env)),2));
 end
 
 function [cfs,env_tf,eeg_tf]=get_tf(env,eeg,fs)
+    % can't figure out how to design filters like oganian & chang...
+    % perhaps need to use something besides a butter...?
+
     % note: operates on a single trial at a time for the time being because
     % remembering how to stack everything across three different duration
     % trials was breaking my brain and I just want a plot already but I'm
@@ -86,9 +112,17 @@ function [cfs,env_tf,eeg_tf]=get_tf(env,eeg,fs)
         
         [n_ord,W_natural]=buttord(Wp,Ws,Rp,Rs);
         [b,a]=butter(n_ord,W_natural,'bandpass');
+        % [sos,g]=butter(n_ord,W_natural,'bandpass','sos');
+        %note: filtfilt is giving nans when using a,b - using sos is
+        %producing an error i dont understand... what if we tried
+        %filtfilthd?
+        % Hd=dfitl.df1(b,a);
+
+        env_tf(ff,:)=filtfilthd(b,a,env);
+        eeg_tf(ff,:,:)=filtfilthd(b,a,eeg);
         
-        env_tf(ff,:)=filtfilt(b,a,env);
-        eeg_tf(ff,:,:)=filtfilt(b,a,eeg);
+        % env_tf(ff,:)=filtfilt(sos,g,env);
+        % eeg_tf(ff,:,:)=filtfilt(sos,g,eeg);
     end
     
 

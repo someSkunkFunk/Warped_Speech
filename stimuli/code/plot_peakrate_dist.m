@@ -6,13 +6,15 @@
 
 clear, clc
 global boxdir_mine
-warp_nm='rule10_seg_bark_median';
-regularity=-1; %-1-> irreg 1-> reg
+warp_nm='rule10_seg_bark_median_unnormalizedDurations_varp5';
+regularity=1; %-1-> irreg 1-> reg
 switch regularity
     case -1
-        cond='stretchy_irreg';
+        cond_dir='stretchy_irreg';
+        cond_nm='Irregular';
     case 1
-        cond='compressy_reg';
+        cond_dir='compressy_reg';
+        cond_nm='Regular';
     otherwise
         error('regularity must be reg or irreg')
 end
@@ -90,7 +92,7 @@ if warped_peakrate_available
 end
 %% load s-mat intervals
 % "C:\Users\ninet\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_segment_normalized_durations"
-smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/%s/%s/',boxdir_mine,cond,warp_nm);
+smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/%s/%s/',boxdir_mine,cond_dir,warp_nm);
 D=dir([smats_dir '*.mat']);
 % arrange into column vectors
 s_intervals_og=[];
@@ -111,41 +113,46 @@ s_intervals_warped(s_intervals_warped>max_interval)=[];
 
 %TODO: fix names so normalization info can also be readily extracted this
 %way
-ylims=[0 .5]; % make emptyy for no fuks given
+ylims=[0 .2]; % make emptyy for no fuks given
 hist_config_sw.bin_scale='log';
 hist_config_sw.n_bins=50;
 hist_config_sw.xlims=[1 34];
 hist_config_sw.logTicks=2.^(-1:16);
-hist_config_sw.title=sprintf('Anchorpoints - rule%d - regularity: %d',warp_rule,regularity);
+% hist_config_sw.title=sprintf('Anchorpoints - rule%d - regularity: %d',warp_rule,regularity);
+hist_config_sw.title=sprintf('%s speech syllable rate distribution',cond_nm);
 hist_config_sw.bin_lims=[.5, 36];
 
 hist_config_sog=hist_config_sw;
-hist_config_sog.title=sprintf('Anchorpoints - og');
+% hist_config_sog.title=sprintf('Anchorpoints - og');
+hist_config_sog.title='original speech syllable rate distribution';
 
 figure
 rates_hist_wrapper(s_intervals_og,hist_config_sog);
 if ~isempty(ylims)
     set(gca(),"YLim",ylims)
 end
-
+ylabel('probability')
 figure
 rates_hist_wrapper(s_intervals_warped,hist_config_sw);
+ylabel('probability')
 if ~isempty(ylims)
     set(gca(),"YLim",ylims)
 end
-
- % plot the actual intervals 
-figure
-histogram(s_intervals_warped,NumBins=50)
-xlabel('time (s)')
-title(sprintf('interpeak intervals for rule %d',warp_rule))
-xlim([0 1]);
-
-figure
-histogram(s_intervals_og)
-xlabel('time (s)')
-title('og intervals distribution')
-xlim([0 1])
+include_intervals=false;
+if include_intervals
+     % plot the actual intervals 
+    figure
+    histogram(s_intervals_warped,NumBins=50)
+    xlabel('time (s)')
+    title(sprintf('interpeak intervals for rule %d',warp_rule))
+    xlim([0 1]);
+    
+    figure
+    histogram(s_intervals_og)
+    xlabel('time (s)')
+    title('og intervals distribution')
+    xlim([0 1])
+end
 %% plot algo hists
 
 
@@ -223,6 +230,7 @@ sim_uniform_rates=true;
 if sim_uniform_rates
     sim_config=hist_config_sw;
     sim_config.bin_scale='log';
+    %todo: check if accounting for "too fast" makes a difference?
     n_sim=numel(s_intervals_warped);
     min_sim_rate=1/.75;
     max_sim_rate=8;
@@ -230,7 +238,7 @@ if sim_uniform_rates
     figure
     rates_hist_wrapper(sim_intervals,sim_config)
     title('simulated uniform rates - single sample')
-    ylim([0 0.5])
+    ylim([0 0.2])
 
 
     % draw repeated random samples with each having size corresponding to
@@ -267,7 +275,7 @@ if sim_uniform_rates
     figure
     rates_hist_wrapper(sim_intervals_lps,sim_config)
     title('simulated uniform rates - multi sample')
-    ylim([0 0.5])
+    ylim([0 0.15])
 end
 %% show that uniform-distributed intervals are no longer uniformly distributed in rates (applies to rule 9)
 show_uniform_time=false;
@@ -308,7 +316,7 @@ end
 xlims=config.xlims;
 logTicks=config.logTicks;
 
-histogram(1./intervals,freq_bins,'Normalization','pdf')
+histogram(1./intervals,freq_bins,'Normalization','probability')
 xline(median(1./intervals),'r--','DisplayName',sprintf('median: %0.3f Hz',median(1./intervals)))
 xlabel('freq (Hz)')
 legend()

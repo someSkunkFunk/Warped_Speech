@@ -100,9 +100,6 @@ for n_stim=1:size(peakRate,2)
     s_intervals_warped=cat(1,s_intervals_warped,s_intervals(:,2));
 end
 
-
-
-
     
 
 % filter out long pauses
