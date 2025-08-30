@@ -1,19 +1,20 @@
 clear;
 clc;
-
+global boxdir_mine
 userprofile=getenv('USERPROFILE');
 stimfolder = sprintf('%s/Box/Lalor Lab Box/Research Projects/Aaron - Warped Speech/stimuli/',userprofile);
 overwrite = 0;
+%note - only gc option compatible here
 filterbanks={'gc','bark'};
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = 'wrinkle';
 ntrials = 120;
-% stimscale = [2/3 1 3/2];
-stimscale=[1];
-% fs = 128;
-fs=44100;
-outputFile=sprintf('WrinkleEnvelopes%dhz.mat',fs);
-[env,sgram]=deal(cell(numel(filterbankslength(stimscale),ntrials));
+stimscale = [2/3 1 3/2];
+% stimscale=[1];
+% fs = 128; for trfs
+fs=441; % for coherence analysis
+outputFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat',boxdir_mine,fs);
+[env,sgram]=deal(cell(length(stimscale),ntrials));
 for ss = 1:length(stimscale)
     for tt = 1:ntrials
         fprintf('**********************\n')
