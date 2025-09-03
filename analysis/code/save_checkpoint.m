@@ -45,7 +45,7 @@ if exist(output_path,"file")
 else
     output_stage=0;
 end
-if output_stage>0&&ismember(data_name,who("-file",output_path))
+if output_stage==1&&ismember(data_name,who("-file",output_path))
     % file contains output var, need to append current result to it
     output_stage=output_stage+1;
 % else

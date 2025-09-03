@@ -8,6 +8,8 @@ arguments
     expected_config (1,1) struct
     load_config_only (1,1) logical = false;
 end
+disp(['todo: we can replace this function with much simpler method used in ' ...
+    'configs_match... plus this function is buggy'])
 found_desired_config=false;
 overwrite_saved_config=false;
 % load_config_only=false;

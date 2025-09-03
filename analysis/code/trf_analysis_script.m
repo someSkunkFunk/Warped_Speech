@@ -3,14 +3,15 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 
-for subj=[2:7,9:22];
+% for subj=[2:7,9:22]
+for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 % uses separate configs that force bad chans interp to be done AND save in
 % separate directory as prior analases in order to preserve old results
-force_interpBadChans=true;
+force_interpBadChans=false;
 
-do_lambda_optimization=false;
+do_lambda_optimization=true;
 if force_interpBadChans
     preprocess_config=config_preprocess2(subj);
     trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
@@ -30,7 +31,8 @@ do_nulltest=true;
 
 %% check if preprocessed data exists...
 preload_preprocessed=false;
-if exist(preprocess_config.preprocessed_eeg_path,'file')
+if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
+    configs_match(preprocess_config.preprocessed_eeg_path,preprocess_config)
     fprintf(['existing new-fmt preprocessed mat file found, loading ' ...
         'from %s.\n'],preprocess_config.preprocessed_eeg_path)
     preprocess_checkpoint=...
