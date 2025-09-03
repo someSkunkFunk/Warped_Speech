@@ -12,8 +12,8 @@ global boxdir_mine
 
 bpfilter = [1 15];
 ref = 'mast';
-% fs = 128;
-fs=441;
+fs = 128;
+% fs=441;
 
 if ismember(subj, [5 8 10 12 13 14 15]) %NOTE: after 12, assuming some bad chans to see what the function detects
     interpBadChans=true;

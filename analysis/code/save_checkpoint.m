@@ -148,7 +148,8 @@ switch output_stage
         end
         
         
-        save(output_path,"-struct","output_struct","-append")
+        save(output_path,"-struct","output_struct","-append", ...
+            "-v7.3")
     otherwise
         fprintf('unaccounted checkpoint_save case %d... nothing saved\n', ...
             output_stage)

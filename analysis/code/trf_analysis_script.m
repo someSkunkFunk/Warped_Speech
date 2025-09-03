@@ -59,6 +59,7 @@ if ~preload_preprocessed
     preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.preprocessed_eeg_path)
     % save(preprocess_config.preprocessed_eeg_path,'preprocessed_eeg','preprocess_config');
+    %%
     save_checkpoint(preprocess_config,preprocessed_eeg);
 end
 

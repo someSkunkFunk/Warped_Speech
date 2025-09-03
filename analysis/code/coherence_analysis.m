@@ -27,6 +27,7 @@ if ~exist("all_envs",'var')
     all_envs=load(preprocess_config.envelopesFile);
     all_envs=all_envs.env;
 end
+%%
 conditions={'fast','og','slow'};
 cond_durs=64.*[2/3,1,3/2];
 seg_dur=10; % in s, segment duration for pwelch; gives 1/freq resolution
@@ -91,7 +92,7 @@ for cc=1:length(conditions)
         seg_len,[],nfft,fs);
     % average out trials/electrodes
     mscac(cc,:)=mean(cc_mscac_,2);
-    clear cc_mscac_
+    clear cc_mscac_ cc_stim_ cc_resp_ cc
 end
 
 %% plot mscohere result
@@ -106,58 +107,127 @@ title(sprintf('subj %d Mean mscoh (across all trials/electrodes)',subj))
 % seems to me like there is basically no coherence... how do we actually
 % determine what the noise level for mscoherence is though?
 
-%% my custom routine which did not pan out:
-%% test to see if we can get tf representation of a single stimulus:
+%% define filter cfs + check that all our filters a designed in a stable fasion
+inspect_filters=false;
+% note couldnt figure oout how to limit the frequanecy axis to zoom in on
+% the freqeuncies that matter but the good news is the filters looked
+% stable
+tf_config.fs=fs;
+tf_config.bw_octave=0.5; % half-octave bandwidth
+tf_config.cf_oct_spacing=0.1; % filters will overlap significantly... by design?
+tf_config.min_f=1; % min freq in our eeg data - subject to change
+tf_config.max_f=15; % max freq in eeg data
+tf_config.cfs=cut_octave_fbands(tf_config);
+% f_plot=logspace(min_f,max_f,100);
+n_cac_bands=numel(cfs);
+if inspect_filters
+    for ff=1:n_cac_bands
+        cf=cfs(ff);
+        [sos,g]=design_bandpass(cf,bw_octave,fs);
+        figure, freqz(sos,1000,fs)
+        sgtitle(sprintf('%0.2f Hz cf',cf)) 
+    end    
+end
+%% use oganian & chang coherence metric
+%preallocate
+cacs=nan(length(conditions),numel(cfs));
+for cc=1:length(conditions)
+    fprintf('getting %s cac...\n',conditions{cc})
+    cc_m_=preprocessed_eeg.cond==cc;
+    cc_stim_=cat(2,stim{cc_m_});
+    % expand stim mat to match eeg mat by repeating each stim for each
+    % electrode
+    cc_stim_=repelem(cc_stim_,1,n_electrodes);
+    cc_resp_=cat(2,resp{cc_m_});
+    % get tf representation using filters defined in oganian & chang
+    [env_tf,eeg_tf]=get_tf(cc_stim_,cc_resp_,tf_config);
+    % compute cac based on oganian & chang's description
+    cacs(cc,:)=get_cac(env_tf,eeg_tf);
+    % note that averaging across trials/electrodes is implicit in how we
+    % defined get_cac
+    clear cc_m_ cc_stim_ cc_resp_ cc
+end
+% todo: save result for each subject in analysis folder
+%% plot cac
+figure
+plot(repmat(cfs,length(conditions),1),cacs);
+legend(conditions);
+xlabel('frequency (hz)')
+title(sprintf('CAC subj %s',subj))
+% for cc=1:length(conditions)
+%     hold on
+%     clear cc
+% end
 
-%PROBLEM: getting a bunch of nans... not all of them, but enough that
-%result is not usable...
-[cfs,env_tf,eeg_tf]=get_tf(stim{1},resp{1},fs);
-%% compute cac based on oganian & chang's description
-cac=get_cac(env_tf,eeg_tf);
-% todo: iterate over all trials and save so we don't have to recompute each
-% time
-
+%% helpers
 function cac=get_cac(env_tf,eeg_tf)
-%note: I don't think this depends on the frequencies yet?
+% cac=get_cac(env_tf,eeg_tf)
+% env_tf/eeg_tf: [fbands x time*trials*electrodes]
+% cac: [fbands x1 ??]
+    
     ph_eeg=angle(hilbert(eeg_tf));
     ph_env=angle(hilbert(env_tf));
-
-    T=length(env_tf);
-    cac=(1/T).*abs(sum(exp(1i*(ph_eeg-ph_env)),2));
+    % get number of time samples
+    [n_bands,T]=size(env_tf);
+    %preallocate
+    cac=nan(n_bands,1);
+    % automatically averages across trials/channels
+    cac(:)=(1/T).*abs(sum(exp(1i*(ph_eeg-ph_env)),2));
 end
 
-function [cfs,env_tf,eeg_tf]=get_tf(env,eeg,fs)
-    % can't figure out how to design filters like oganian & chang...
-    % perhaps need to use something besides a butter...?
+function [env_tf,eeg_tf]=get_tf(env,eeg,tf_config)
+    % [env_tf,eeg_tf]=get_tf(env,eeg,tf_config)
+    %env: [time x trials*electrodes]
+    %eeg: [time x trials*electrodes]
+    %env_tf/eeg_tf: [fbands x time*trials*electrodes]
+    % note that second dimension is assumed to have a correspondence across
+    % the env and eeg samples but can be electrodes, or trials, or both
+    % wrapped into one - second dimension is averaged later in cac anyway
+    % (across both trials and electrodes) so it doesn't matter much here
+    %
+    % also note that we're assuming env has it's second dimension expanded
+    % to match that of eeg - so this will not work for a single envelope
+    % against multiple channels of a single trial
+    fs=tf_config.fs;
+    bw_octave=tf_config.bw_octave; % half-octave bandwidth
+    cf_oct_spacing=tf_config.cf_oct_spacing; % filters will overlap significantly... by design?
+    min_f=tf_config.min_f; % min freq in our eeg data - subject to change
+    max_f=tf_config.max_f; % max freq in eeg data
+    cfs=tf_config.cfs;
 
-    % note: operates on a single trial at a time for the time being because
-    % remembering how to stack everything across three different duration
-    % trials was breaking my brain and I just want a plot already but I'm
-    % sure this could be vectorized and run much faster
+    n_bands=numel(cfs);
+    [n_samples,n_waveforms]=size(eeg);
+    env_tf=nan(n_bands,n_samples*n_waveforms);
+    eeg_tf=nan(n_bands,n_samples*n_waveforms);
+    for ff=1:n_bands
+        cf=cfs(ff);
+        [sos,g]=design_bandpass(cf,bw_octave,fs);
 
+        ff_env_tf=filtfilt(sos,g,env);
+        ff_eeg_tf=filtfilt(sos,g,eeg);
+        % unwrap all fband tf representations into single vector
+        env_tf(ff,:)=ff_env_tf(:);
+        eeg_tf(ff,:)=ff_eeg_tf(:);
+    end    
+end
+function cfs=cut_octave_fbands(tf_config)
     % determine modulation filterbank center frequencies
     %oganian et al used 0.1-octave-spaced betwen 0.67-9 Hz, but our eeg is
     %bandpassed between 1 and 15 Hz and since bandwidths should be 
     % +-0.5 octaves, we used 1+.5 octaves to 15-0.5 octaves as our cf
     % range
-    bw_octave=0.5; % half-octave bandwidth
-    cf_oct_spacing=0.1; % filters will overlap significantly... by design?
-    min_f=1; % min freq in our eeg data - subject to change
-    max_f=15; % max freq in eeg data
-    oct_start=log2(min_f*2^.5);
-    oct_end=log2(max_f*2.-5);
+    min_f=tf_config.min_f;
+    max_f=tf_config.max_f;
+    bw_octave=tf_config.bw_octave;
+    cf_oct_spacing=tf_config.cf_oct_spacing;
+    oct_start=log2(min_f*2^bw_octave);
+    oct_end=log2(max_f*2^-bw_octave);
 
-    
     % end up with center freqs spaced 0.1 octave apart with .5 octave
     % padding within our min/max freqs
     cfs=2.^(oct_start:cf_oct_spacing:oct_end);
-
-    n_bands=numel(cfs);
-    [n_samples,n_electrodes]=size(eeg);
-    env_tf=nan(n_bands,n_samples);
-    eeg_tf=nan(n_bands,n_samples,n_electrodes);
-    for ff=1:n_bands
-        cf=cfs(ff);
+end
+function [sos,g]=design_bandpass(cf,bw_octave,fs)
         f_low=cf*2^(-bw_octave);
         f_high=cf*2^(bw_octave);
 
@@ -175,21 +245,11 @@ function [cfs,env_tf,eeg_tf]=get_tf(env,eeg,fs)
         % stopband attenuation in dB
         Rs=24;
         
-        [n_ord,W_natural]=buttord(Wp,Ws,Rp,Rs,'s');
-        [b,a]=butter(n_ord,W_natural,'bandpass');
-        % [sos,g]=butter(n_ord,W_natural,'bandpass','sos');
-        %note: filtfilt is giving nans when using a,b - using sos is
-        %producing an error i dont understand... what if we tried
-        %filtfilthd?
-        % Hd=dfitl.df1(b,a);
-
-        env_tf(ff,:)=filtfilthd(b,a,env);
-        eeg_tf(ff,:,:)=filtfilthd(b,a,eeg);
-        
-        % env_tf(ff,:)=filtfilt(sos,g,env);
-        % eeg_tf(ff,:,:)=filtfilt(sos,g,eeg);
-    end    
+        [n_ord,W_natural]=buttord(Wp,Ws,Rp,Rs);
+        [z,p,k]=butter(n_ord,W_natural,'bandpass');
+        [sos,g]=zp2sos(z,p,k);
 end
+
 function [psd,freqs]=get_psd(X,fs,method)
 % assumes X is 2D matrix that is [time, waveforms] shape
 
