@@ -30,7 +30,7 @@ w_thresh=2.026;
 % get warp rule and normalization info from fnm
 warp_info=split(warp_nm,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
-%% load peakRate data
+%% load precomputed peakRate data
 peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
 % peakRate_fnm_cond='rule2_seg_bark_median_segmentNormalizedDurations';
 peakRate_pth_cnd=fullfile(peakRate_dir,warp_nm);
