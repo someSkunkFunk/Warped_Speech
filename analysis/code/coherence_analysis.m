@@ -49,13 +49,13 @@ end
 P_eeg=nan(length(conditions),nfft/2+1);
 for cc=1:length(conditions)
     % trial_idx_=find(preprocessed_eeg.cond==cc);
-    cc_resp_=cat(2,resp{preprocessed_eeg.cond==cc});
+    resp_=cat(2,resp{preprocessed_eeg.cond==cc});
     % will give time X n_electrodes*n_trials_cc
     % but mean is linear and we averaging across trials/electrodes anyway
-    [cc_resp_,psd_freqs]=pwelch(cc_resp_,seg_len,[],nfft,fs);
-    P_eeg(cc,:)=squeeze(mean(cc_resp_,2));
+    [resp_,psd_freqs]=pwelch(resp_,seg_len,[],nfft,fs);
+    P_eeg(cc,:)=squeeze(mean(resp_,2));
     
-    clear cc_resp_
+    clear resp_
 end
 %% plot avg psds for stimuli
 %note: maybe adding a 1/f corrective factor (.*sqrt(repmat(psd_freqs',3,1)))
@@ -82,17 +82,17 @@ title(sprintf('subj %d eeg psds',subj))
 %is based on default settings of mscohere
 mscac=nan(length(conditions),nfft/2+1);
 for cc=1:length(conditions)
-    cc_m_=preprocessed_eeg.cond==cc;
-    cc_stim_=cat(2,stim{cc_m_});
+    m_=preprocessed_eeg.cond==cc;
+    stim_=cat(2,stim{m_});
     % expand stim mat to match eeg mat by repeating each stim for each
     % electrode
-    cc_stim_=repelem(cc_stim_,1,n_electrodes);
-    cc_resp_=cat(2,resp{cc_m_});
-    [cc_mscac_, msc_freqs]=mscohere(cc_stim_,cc_resp_, ...
+    stim_=repelem(stim_,1,n_electrodes);
+    resp_=cat(2,resp{m_});
+    [cc_mscac_, msc_freqs]=mscohere(stim_,resp_, ...
         seg_len,[],nfft,fs);
     % average out trials/electrodes
     mscac(cc,:)=mean(cc_mscac_,2);
-    clear cc_mscac_ cc_stim_ cc_resp_ cc
+    clear cc_mscac_ stim_ resp_ cc
 end
 
 %% plot mscohere result
@@ -128,24 +128,57 @@ if inspect_filters
         sgtitle(sprintf('%0.2f Hz cf',cf)) 
     end    
 end
+%%
+for cc=1:length(conditions)
+    fprintf('getting %s cac...\n',conditions{cc})
+    m_=preprocessed_eeg.cond==cc;
+    stim_=cat(2,stim{m_});
+    size(stim_)
+end
 %% use oganian & chang coherence metric
 %preallocate
 cacs=nan(length(conditions),numel(cfs));
 for cc=1:length(conditions)
     fprintf('getting %s cac...\n',conditions{cc})
-    cc_m_=preprocessed_eeg.cond==cc;
-    cc_stim_=cat(2,stim{cc_m_});
+    m_=preprocessed_eeg.cond==cc;
+    stim_=cat(2,stim{m_});
+    n_samples_=size(stim_,1);
     % expand stim mat to match eeg mat by repeating each stim for each
     % electrode
-    cc_stim_=repelem(cc_stim_,1,n_electrodes);
-    cc_resp_=cat(2,resp{cc_m_});
+    stim_=repelem(stim_,1,n_electrodes);
+    resp_=cat(2,resp{m_});
     % get tf representation using filters defined in oganian & chang
-    [env_tf,eeg_tf]=get_tf(cc_stim_,cc_resp_,tf_config);
+    % note: we probably want to save these for future reference but
+    % currently they're just overwritten on each loop iteration
+    [env_tf_,eeg_tf_]=get_tf(stim_,resp_,tf_config);
     % compute cac based on oganian & chang's description
-    cacs(cc,:)=get_cac(env_tf,eeg_tf);
+    % slow has too many samples to do in one go... split and average cac...
+    switch conditions{cc}
+        case 'slow'
+            n_splits_=3;
+            % untangle time-dimension for clarity
+            env_tf_=reshape(env_tf_,numel(cfs),n_samples_,[]);
+            eeg_tf_=reshape(eeg_tf_,numel(cfs),n_samples_,[]);
+            cacs_=nan(n_splits_,numel(cfs));
+            
+            idx_splits_=reshape(1:n_samples_,[],n_splits_)';
+            for nn=1:n_splits_
+                split_env_tf_=reshape(env_tf_(:,idx_splits_(nn,:),:),numel(cfs),[]);
+                split_eeg_tf_=reshape(eeg_tf_(:,idx_splits_(nn,:),:),numel(cfs),[]);
+                cacs_(nn,:)=get_cac(split_env_tf_,split_eeg_tf_);
+            end
+            % note: if we are keeping env_tf/eeg_tf for future reference we
+            % should re-flatten the third dimension out again here...
+            cacs(cc,:)=mean(cacs_,1)
+            clear n_splits_ nn
+        case {'fast','og'}   
+            cacs(cc,:)=get_cac(env_tf_,eeg_tf_);
+        otherwise
+            error('idk that condition bro')
+    end
     % note that averaging across trials/electrodes is implicit in how we
     % defined get_cac
-    clear cc_m_ cc_stim_ cc_resp_ cc
+    clear m_ stim_ resp_ cc env_tf_ eeg_tf_
 end
 % todo: save result for each subject in analysis folder
 %% plot cac
