@@ -21,89 +21,97 @@ resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
 n_electrodes=size(resp{1},2);
 n_trials=length(stim);
-%% compute avg psds for stimuli
-% load all the evelopes
-if ~exist("all_envs",'var')
-    all_envs=load(preprocess_config.envelopesFile);
-    all_envs=all_envs.env;
-end
-%%
 conditions={'fast','og','slow'};
 cond_durs=64.*[2/3,1,3/2];
-seg_dur=10; % in s, segment duration for pwelch; gives 1/freq resolution
-seg_len=round(seg_dur*fs)+1;
-% note: nfft depends on window length, so by using the same window length
-% across conditions we ensure the same bins despite different durations
-% hence we don't need to specify nfft in pwelch since helpful for
-% preallocating output psd
-nfft=2^nextpow2(seg_len);
-P_envs=nan(length(conditions),nfft/2+1);
-% nfft=seg_len
-for cc=1:length(conditions)
-    cc_envs_=cat(2,all_envs{cc,:});
-    [cc_envs_,psd_freqs]=pwelch(cc_envs_,seg_len,[],nfft,fs);
-    P_envs(cc,:)=mean(cc_envs_,2); % avg across trials
-    clear cc_envs_
-end
-%% compute avg psds for eeg
-P_eeg=nan(length(conditions),nfft/2+1);
-for cc=1:length(conditions)
-    % trial_idx_=find(preprocessed_eeg.cond==cc);
-    resp_=cat(2,resp{preprocessed_eeg.cond==cc});
-    % will give time X n_electrodes*n_trials_cc
-    % but mean is linear and we averaging across trials/electrodes anyway
-    [resp_,psd_freqs]=pwelch(resp_,seg_len,[],nfft,fs);
-    P_eeg(cc,:)=squeeze(mean(resp_,2));
+run_psd_code=false;
+
+%todo: package below vars into a config struct to feed into functionalized
+%versions of code below which depends on them
+fft_seg_dur=10; % in s, segment duration for pwelch; gives 1/freq resolution
+fft_seg_len=round(fft_seg_dur*fs)+1;
+    % note: nfft depends on window length, so by using the same window length
+    % across conditions we ensure the same bins despite different durations
+    % hence we don't need to specify nfft in pwelch since helpful for
+    % preallocating output psd
+nfft=2^nextpow2(fft_seg_len);
+if run_psd_code
+    %% compute avg psds for stimuli
+    % load all the evelopes
+    if ~exist("all_envs",'var')
+        all_envs=load(preprocess_config.envelopesFile);
+        all_envs=all_envs.env;
+    end
+    %% compute avg psds for stimuli
     
-    clear resp_
+    P_envs=nan(length(conditions),nfft/2+1);
+    % nfft=seg_len
+    for cc=1:length(conditions)
+        envs_=cat(2,all_envs{cc,:});
+        [envs_,psd_freqs]=pwelch(envs_,fft_seg_len,[],nfft,fs);
+        P_envs(cc,:)=mean(envs_,2); % avg across trials
+        clear envs_ cc
+    end
+    %% compute avg psds for eeg
+    P_eeg=nan(length(conditions),nfft/2+1);
+    for cc=1:length(conditions)
+        % trial_idx_=find(preprocessed_eeg.cond==cc);
+        resp_=cat(2,resp{preprocessed_eeg.cond==cc});
+        % will give time X n_electrodes*n_trials_cc
+        % but mean is linear and we averaging across trials/electrodes anyway
+        [resp_,psd_freqs]=pwelch(resp_,fft_seg_len,[],nfft,fs);
+        P_eeg(cc,:)=squeeze(mean(resp_,2));
+        
+        clear resp_
+    end
+    %% plot avg psds for stimuli
+    %note: maybe adding a 1/f corrective factor (.*sqrt(repmat(psd_freqs',3,1)))
+    % would accentuate the coherence pattern... but not sure how to factor that
+    % into the mscoherence calculation...
+    stim_psd_xlims=[0 10]; % 
+    figure
+    plot(psd_freqs,P_envs)
+    legend(conditions)
+    xlim(stim_psd_xlims)
+    title('envelope psds (aka true mod spectra)')
+    %% plot avg psds for eeg
+    stim_psd_xlims=[0 10]; % 
+    figure
+    plot(psd_freqs,P_eeg)
+    legend(conditions)
+    xlim(stim_psd_xlims)
+    title(sprintf('subj %d eeg psds',subj))
 end
-%% plot avg psds for stimuli
-%note: maybe adding a 1/f corrective factor (.*sqrt(repmat(psd_freqs',3,1)))
-% would accentuate the coherence pattern... but not sure how to factor that
-% into the mscoherence calculation...
-stim_psd_xlims=[0 10]; % 
-figure
-plot(psd_freqs,P_envs)
-legend(conditions)
-xlim(stim_psd_xlims)
-title('envelope psds (aka true mod spectra)')
-%% plot avg psds for eeg
-stim_psd_xlims=[0 10]; % 
-figure
-plot(psd_freqs,P_eeg)
-legend(conditions)
-xlim(stim_psd_xlims)
-title(sprintf('subj %d eeg psds',subj))
 %% compute coherence using mscohere
-
-%todo: group by trial condition + average across subjects?
-%preallocate mscac... note that I'm not sure how to determine the number of
-%frequencies but I think it depends on nfft and the signal lengths... below
-%is based on default settings of mscohere
-mscac=nan(length(conditions),nfft/2+1);
-for cc=1:length(conditions)
-    m_=preprocessed_eeg.cond==cc;
-    stim_=cat(2,stim{m_});
-    % expand stim mat to match eeg mat by repeating each stim for each
-    % electrode
-    stim_=repelem(stim_,1,n_electrodes);
-    resp_=cat(2,resp{m_});
-    [cc_mscac_, msc_freqs]=mscohere(stim_,resp_, ...
-        seg_len,[],nfft,fs);
-    % average out trials/electrodes
-    mscac(cc,:)=mean(cc_mscac_,2);
-    clear cc_mscac_ stim_ resp_ cc
+run_mscohere_code=false;
+if run_mscohere_code
+    %todo: group by trial condition + average across subjects?
+    %preallocate mscac... note that I'm not sure how to determine the number of
+    %frequencies but I think it depends on nfft and the signal lengths... below
+    %is based on default settings of mscohere
+    mscac=nan(length(conditions),nfft/2+1);
+    for cc=1:length(conditions)
+        m_=preprocessed_eeg.cond==cc;
+        stim_=cat(2,stim{m_});
+        % expand stim mat to match eeg mat by repeating each stim for each
+        % electrode
+        stim_=repelem(stim_,1,n_electrodes);
+        resp_=cat(2,resp{m_});
+        [mscac_, msc_freqs]=mscohere(stim_,resp_, ...
+            fft_seg_len,[],nfft,fs);
+        % average out trials/electrodes
+        mscac(cc,:)=mean(mscac_,2);
+        clear mscac_ stim_ resp_ cc
+    end
+    
+    %% plot mscohere result
+    %note: oganian & chang averaged across sensors... sensible to do here as
+    %well?
+    figure, plot(psd_freqs, mscac);
+    xlabel('frequency (hz)')
+    ylabel('Magnitue-Squared Coherence')
+    legend(conditions)
+    title(sprintf('subj %d Mean mscoh (across all trials/electrodes)',subj))
 end
-
-%% plot mscohere result
-%note: oganian & chang averaged across sensors... sensible to do here as
-%well?
-figure, plot(psd_freqs, mscac);
-xlabel('frequency (hz)')
-ylabel('Magnitue-Squared Coherence')
-legend(conditions)
-title(sprintf('subj %d Mean mscoh (across all trials/electrodes)',subj))
-
 % seems to me like there is basically no coherence... how do we actually
 % determine what the noise level for mscoherence is though?
 
@@ -169,7 +177,7 @@ for cc=1:length(conditions)
             end
             % note: if we are keeping env_tf/eeg_tf for future reference we
             % should re-flatten the third dimension out again here...
-            cacs(cc,:)=mean(cacs_,1)
+            cacs(cc,:)=mean(cacs_,1);
             clear n_splits_ nn
         case {'fast','og'}   
             cacs(cc,:)=get_cac(env_tf_,eeg_tf_);
