@@ -127,7 +127,7 @@ tf_config.min_f=1; % min freq in our eeg data - subject to change
 tf_config.max_f=15; % max freq in eeg data
 tf_config.cfs=cut_octave_fbands(tf_config);
 % f_plot=logspace(min_f,max_f,100);
-n_cac_bands=numel(cfs);
+n_cac_bands=numel(tf_config.cfs);
 if inspect_filters
     for ff=1:n_cac_bands
         cf=cfs(ff);
@@ -145,7 +145,7 @@ for cc=1:length(conditions)
 end
 %% use oganian & chang coherence metric
 %preallocate
-cacs=nan(length(conditions),numel(cfs));
+cacs=nan(length(conditions),numel(tf_config.cfs));
 for cc=1:length(conditions)
     fprintf('getting %s cac...\n',conditions{cc})
     m_=preprocessed_eeg.cond==cc;
@@ -191,7 +191,7 @@ end
 % todo: save result for each subject in analysis folder
 %% plot cac
 figure
-plot(repmat(cfs,length(conditions),1),cacs);
+plot(repmat(tf_config.cfs,length(conditions),1),cacs);
 legend(conditions);
 xlabel('frequency (hz)')
 title(sprintf('CAC subj %s',subj))
