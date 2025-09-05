@@ -1,16 +1,4 @@
-function [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
-    peak_tol,sil_tol,min_mod_interval,max_mod_interval,env_method,jitter, ...
-    interval_ceil_out)%,input_syll_rate_lims,output_syll_rate_lims)
-% [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
-    % peak_tol,sil_tol,minInt,maxInt,env_method,jitter,interval_ceil_out,),...
-    % syll_rate_lims)
-%RULE2 TODOS:
-%  make longest intervals/slowest freqs actually correspond with sil tol
-%  make fast freqs/ short intervals increase faster (perhaps by decreasing
-%       ramp-up maximum point)
-%  de-couple ramp-up factor from frequency past the extrema (should be 1
-%  for freqs beyond min/max)
-
+function [wf_warp,S] = stretchyWrinkle(wf,fs,warp_config)
 
 
 %[wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate,peak_tol,sil_tol,minInt,maxInt,env_method,jitter)
@@ -20,78 +8,54 @@ function [wf_warp,s] = stretchyWrinkle(wf,fs,k,center,rule,shift_rate, ...
 % 1 -> div/multiply freq to stretch/compress      
 % 2->add/subtract fixed amt from freq to stretch/compress
 % 3-> rerflect about/map to median to "stretch" compress
-% question: center can be measured on-line for current stimulus, or
-% hard-coded as mean/median/mode of pre-computed distribution - idk which
-% one is more valid
-% other considerations: can operate on the syllable intervals directly or
-% the syllable rate then invert the intervals - maybe worthwhile trying
-% both
-% first implementation will use central measure considering all the
-% intervals - including silent pauses ("raw syllable rate")
-% alternatively can calculate using only continuous speech segments
-% ("articulation rate")
-% TODO: MAKE SURE TO ENFORCE SIL_TOL > MAXiNT TO AVOID ERRORS
-% RE MIN/MAX INTS: FILTERING BASED ON INTERVAL LENGTH WON'T WORK THE WAY 
-% WE WANT - FOR NOW THINKING THAT I PROBABLY DOESN'T MATTER AS LONG AS THE
-% WARPING PARAMTERS ARE BASED ON MANIPULATING JUST THOSE INTERVALS WITHIN
-% THE SYLLABIC RANGE... MAYBE THAT'S ALSO FLAWED THINKING BUT IM PRAYING
-% IT'S NOT; THIS ALSO PROBABLY AFFECTS HOW WE CALCULATE THE DISTANCE FROM
-% MEDIAN DISCOUNT BUT FOR NOW I'M JUST GONNA CLIP IT AT 1 FOR VALUES
-% OUTSIDE THE SYLLABIC RANGE CUZ I DONT HAVE TIME TO THINK ABOUT WHAT THE
-% RIGHT THING TO DO IS
-arguments
-    wf double
-    fs (1,1) double
-    k (1,1) double = 1;
-    center (1,1) double = 0; 
-    rule (1,1) = 7;    
-    shift_rate (1,1) double = 1.00; 
-    peak_tol (1,1) double = 0.0;
-    %we checked that sil_tol=inf replicates original unsegmented results
-    %but now we also gotta remember that sil_tol needs to be larger than
-    %maxInt otherwise seg indexing won't match Ifrom
-    sil_tol (1,1) double = 0.75;
-    % for test to verify results match what we got without worrying about
-    % silent segments
-    % sil_tol (1,1) double = inf
-    % min_mod_interval (1,1) double = 0.0625; %16 hz
-    % min_mod_interval (1,1) double = 0.125; %8 hz
-    % min_mod_interval (1,1) double = 1/36;
-    % min_mod_interval (1,1) double = 1/7; %(1/ Hz) % where the "stretch" reaches max warp (shift_rate) for fast syllables
-    % config.mod_factor_lims=[3.93328576525152 6.371911573472042]; upper
-    % and lower quartiles ^
-    % min_mod_interval (1,1) double =1/6.371911573472042; %1/5.5;%
-    % max_mod_interval (1,1) double = 1/3.93328576525152; %1/2.5;
-    % max_mod_interval (1,1) double = 0.5; % 2 hz
-    % max_mod_interval (1,1) double = 1/2;
-    % max_mod_interval (1,1) double = 0.75; %1.33 Hz-> 
-    % max_mod_interval (1,1) double = 1/3;%1/hz where the "stretch" reaches max warp (shift_rate) for slow syllables
-    % max_mod_interval (1,1) double = 100000/1; %.000001 hz
-    % Quantiles (45%,55% in Hz): 4.320, 4.927 (prominence,width - 0.105, 1.842)
-    % min_mod_interval (1,1) double = 1/4.927;
-    % % max_mod_interval (1,1) double = 1/4.32;
-    % %trying something a bit slower (25% quantile) cuz too many slow syllables:
-    % % max_mod_interval (1,1) double = 1/3.186;
-    % % that wasn't low enough, trying some random number:
-    % max_mod_interval (1,1) double = 1/2.0;
-    % Quantiles (45%-55%) with hard cutoff at 8 hz (0.105, 2.026 p, w): 3.472, 3.949
-    min_mod_interval (1,1) double = 1/3.949;
-    max_mod_interval (1,1) double = 1/3.472;
-    env_method (1,1) double = 2 % 1-> use broadband 2-> use bark filterbank 3-> use gammatone filterbank (TODO)
-    % jitter=3.3225; % 1 std of ogPeakFreqs... must do rules 3 and up reg operation in freq domain then convert to time
-    jitter=[0.5, 0.5]; %in Hz - slow jitter, fast jitter - should add to 2 hz
-    interval_ceil_out (1,1) double =0.75; %in s, maximum output interval
-    % only treat as syllables if within syll_rate_limits - filters input
-    % and output peakRate vals
-
-    %NOTE: can probably use the same set of values for stuff below since
-    %theoretically represent intervals at extrema of possible syllable
-    %rates
-    % input_syll_rate_lims (1,2) double = [2, 8]; % in Hz
-    % output_syll_rate_lims (1,2) double = [2, 8]; % in Hz
-
-
+if nargin < 2
+    error('stretchyWrinkle requires at least wf and fs as inputs.');
 end
+
+if nargin < 3 || isempty(warp_config)
+    warp_config = struct();
+end
+
+if ~isstruct(warp_config)
+    error('warp_config must be a struct (or omitted).');
+end
+
+% defaults 
+defaults = struct( ...
+    'k', 1, ...
+    'center', 0, ...
+    'rule', 10, ...
+    'shift_rate', 1.00, ...
+    'peak_tol', 0.0, ...
+    'sil_tol', 0.75, ...
+    'min_mod_interval', 1/3.949, ...
+    'max_mod_interval', 1/3.472, ...
+    'env_method', 2, ...
+    'jitter', [0.5, 0.5], ...
+    'interval_ceil_out', 0.75 ...
+    );
+
+% copy missing fields from defaults into warp_config
+flds = fieldnames(defaults);
+for iF = 1:numel(flds)
+    f = flds{iF};
+    if ~isfield(warp_config,f) || isempty(warp_config.(f))
+        warp_config.(f) = defaults.(f);
+    end
+end
+% unpack warp_config into local vars for readability
+k               = warp_config.k;
+center          = warp_config.center;
+rule_num            = warp_config.rule_num;
+shift_rate      = warp_config.shift_rate;
+peak_tol        = warp_config.peak_tol;
+sil_tol         = warp_config.sil_tol;
+min_mod_interval= warp_config.min_mod_interval;
+max_mod_interval= warp_config.max_mod_interval;
+env_method      = warp_config.env_method;
+jitter          = warp_config.jitter;
+interval_ceil_out=warp_config.interval_ceil_out;
+
 switch center 
         case -1 
             % use lower quartile
@@ -142,19 +106,21 @@ rng(1);
 
 switch env_method
     
-    case 1 % use broadband envelope
+    case 'hilbert' % use broadband envelope
         env = abs(hilbert(wf));
-    case 2 % use bark scale filterbank
+    case 'bark' % use bark scale filterbank
         env=bark_env(wf,fs,fs);
-    case 3
+    case 'gammaChirp'
         env=extractGCEnvelope(wf,fs);
+    otherwise
+        error('need to specify which envelope to use.')
 
 end
 % note: get_peakrate lowpasses the envelope at 10 hz
 [Ifrom,~,p,w]=get_peakRate(env,fs,peak_tol);
 % set thresholds
-p_t=0.105;
-w_t=2.026;
+p_t=0.5;
+w_t=2.0;
 Ifrom=Ifrom(p>p_t&w>w_t);
 % recursively remove rates that are too fast - recalculate with filtered
 % times
@@ -195,7 +161,7 @@ for ss=1:n_segs
         error('there should be no too_fast rates now...')
     end
     
-    switch rule
+    switch rule_num
         case 1
             % RULE 1
             % % multiply/divide by fixed ratio of input rate
@@ -203,7 +169,7 @@ for ss=1:n_segs
             rate_shift=(1+abs(shift_rate));
 
             switch k
-                case 1
+                case -1
                     % reg -> shift towards center f
                     % IPF1_seg(slow)=IPF0_seg(slow).*rate_shift;
                     % IPF1_seg(fast)=IPF0_seg(fast)./rate_shift;
@@ -215,7 +181,7 @@ for ss=1:n_segs
 
                     % this keeps percent change constant but probably not what we want
                     % IPF1(fast)=IPF0(fast).*(1-amt_shift);
-                case -1
+                case 1
                     % irreg -> shift away from center f
                     % IPF1_seg(slow)=IPF0_seg(slow)./rate_shift;
                     % IPF1_seg(fast)=IPF0_seg(fast).*rate_shift;
@@ -249,13 +215,13 @@ for ss=1:n_segs
             
             switch k
                 % NOTE: working in time domain
-                case 1
+                case -1
                     % reg -> shift towards center f
                     % slow intervals get faster (shorter)
                     IPI1_seg(slow)=IPI0_seg(slow)./rate_shift(slow);
                     % fast intervals get slower (longer)
                     IPI1_seg(fast)=IPI0_seg(fast).*rate_shift(fast);
-                case -1
+                case 1
                     % irreg -> shift away from center f
                     % slow intervals get slower (longer)
                     IPI1_seg(slow)=IPI0_seg(slow).*rate_shift(slow);
@@ -272,11 +238,11 @@ for ss=1:n_segs
         % RULE 3
         % relfect about/collapse to median
         switch k
-            case 1
+            case -1
                 % reg -> shift towards center f
                 IPI1_seg(slow)=1./(f_center+jitter.*(2.*rand(size(IPI0_seg(slow)))-1));
                 IPI1_seg(fast)=1./(f_center+jitter.*(2.*rand(size(IPI0_seg(fast)))-1));
-            case -1
+            case 1
                 % irreg -> "invert" cadence by making fast stuff slow and
                 % vice verse via reflection about f_center
                 IPI1_seg=1./reflect_about((1./IPI0_seg),f_center);
@@ -302,11 +268,11 @@ for ss=1:n_segs
     % RULE 4
     % all values cross median to tails of distribution
         switch k
-            case 1
+            case -1
                 % reg -> shift towards center f
                 IPI1_seg(slow)=1./(f_center+jitter.*(2.*rand(size(IPI0_seg(slow)))-1));
                 IPI1_seg(fast)=1./(f_center+jitter.*(2.*rand(size(IPI0_seg(fast)))-1));
-            case -1
+            case 1
                 % irreg -> fast go to slow maximally and slow go to fast
                 % maximally
                 % note: 1 std of jitter here seems too broad.. also applies
@@ -319,12 +285,12 @@ for ss=1:n_segs
         % RULE 5 map fast stuff to fastest allowable rate and slow stuff to
         % slowest allowable rate
          switch k
-            case 1
+            case -1
                 % reg
                 IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
                 IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
                 IPI1_seg(~(fast|slow))=1./f_center;
-            case -1
+            case 1
                 % irreg -> fast go to fast maximally and slow go to slow
                 % maximally
                 IPI1_seg(slow)=1./(1/max_mod_interval+jitter.*(rand(size(IPI0_seg(slow)))));
@@ -334,12 +300,12 @@ for ss=1:n_segs
     case 7
         % RULE 7
         switch k
-            case 1
+            case -1
                 % reg
                 IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
                 IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
                 IPI1_seg(~(fast|slow))=1./f_center;
-            case -1
+            case 1
                 %irreg
                 % need output syllablerate range about median to be
                 % symmetric otherwise the mean will shift, but there's
@@ -362,12 +328,12 @@ for ss=1:n_segs
     case 8
         % RULE 8
         switch k
-            case 1
+            case -1
                 % reg
                 IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
                 IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
                 IPI1_seg(~(fast|slow))=1./f_center;
-            case -1
+            case 1
                 % using mean of entire peakrate distribution when
                 % thresholding by prominence and peakwidth is done
                 % mu=0.2624; %  note: mu is mean in exprnd... but in actual 
@@ -403,12 +369,12 @@ for ss=1:n_segs
         % symmetric about any bullshit median, just put shit in the range
         % we want and examine the output
         switch k
-            case 1
+            case -1
                 % reg
                 IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
                 IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
                 IPI1_seg(~(fast|slow))=1./f_center;
-            case -1
+            case 1
                 %irreg
                 % need output syllablerate range about median to be
                 % symmetric otherwise the mean will shift, but there's
@@ -430,7 +396,7 @@ for ss=1:n_segs
         % than intervals
         switch k
             
-            case 1
+            case -1
                 % reg
                 % IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
                 % IPI1_seg(fast)=1./(f_center+abs(jitter(2)).*rand(size(IPI0_seg(fast))));
@@ -444,7 +410,7 @@ for ss=1:n_segs
                 min_compress_rate=f_center-abs(jitter(1));
                 max_compress_rate=f_center+abs(jitter(2));
                 IPI1_seg(~too_fast)=1./(min_compress_rate+(max_compress_rate-min_compress_rate).*rand(sum(~too_fast),1));
-            case -1
+            case 1
                 %irreg
                 % generate random rates from uniform distribution across
                 % range of possible values 
@@ -464,7 +430,7 @@ for ss=1:n_segs
         % they come out to be)
         switch k
             
-            case 1
+            case -1
                 % reg
                 % generate random samples from log-normal distribution
                 % note the parameters of lognrnd are the mean and std of
@@ -478,7 +444,7 @@ for ss=1:n_segs
                 mu=log(M^2/sqrt(V+M^2));
                 sigma=sqrt(log(V/M^2+1));
                 IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
-            case -1
+            case 1
                 %irreg
                 % generate random rates from uniform distribution across
                 % range of possible values plus a slightly higher lower
@@ -534,10 +500,11 @@ s = [ones(1,2); s; ones(1,2)*length(wf)];
 end_sil = diff(s(:,1)); end_sil = end_sil(end);
 s(end,2) = s(end-1,2)+end_sil;
 % warp
-param.tolerance = 256;
-param.synHop = 256;
-param.win = win(1024,2); % hann window
-wf_warp = wsolaTSM(wf,s,param);
+wsola_param.tolerance = 256;
+wsola_param.synHop = 256;
+wsola_param.win = win(1024,2); % hann window
+wf_warp = wsolaTSM(wf,s,wsola_param);
+S=struct('s',s,'warp_config',warp_config,'wsola_param',wsola_param);
 end
 function y=reflect_about(x,xr)
     y=x-2.*(x-xr);

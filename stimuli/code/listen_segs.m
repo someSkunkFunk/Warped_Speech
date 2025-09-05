@@ -1,4 +1,5 @@
 function listen_segs(wf,fs,seg,Ifrom)
+% listen_segs(wf,fs,seg,Ifrom)
 n_segs=length(seg);
 buff=1;
 t_vec=0:1/fs:(length(wf)-1)/fs;

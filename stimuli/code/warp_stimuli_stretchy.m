@@ -26,6 +26,7 @@ center_freqs=0;
 % center_freqs=[6.358,3.940, 0]; %NOTE: we assuming only 3 values given at a time MAXIMUM (one of which is median...)
 % and all values greater than 1 since 1 means mode....
 conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
+cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
 overwrite = 0;
 % stimgroup = {'leagues','oldman','wrinkle'};
@@ -34,27 +35,9 @@ stimgroup = {'wrinkle'};
 % seems we can bypass speed warping by feeding empty array:
 stimspeed=[];
 
-param.tolerance = 256;
-param.synHop = 256;
-param.win = win(1024,2); % hann window
 
-
-
-
-% lowpass filter for get_peakrate:
-%TODO: verify this wav_fs matches what's going into audio read
-% wav_fs=44100;
-% Hd = getLPFilt(wav_fs,10);
-
-for warp_rule=warp_rules
-    fprintf('warp_rule: %d\n',warp_rule)
-    % import corrective factor for rule 2
-    % if warp_rule==2
-    %     global boxdir_mine
-    %     load(fullfile(boxdir_mine, 'stimuli', 'rule2_corrective_factor.mat'))
-    % else
-    %     error('will need to edit code to run normally in irreg case')
-    % end
+for warp_rule_num=warp_rules
+    fprintf('warp_rule_num: %d\n',warp_rule_num)
     for ff = 1:length(center_freqs)
         center_f=center_freqs(ff);
         switch center_f
@@ -62,18 +45,14 @@ for warp_rule=warp_rules
                 % center_str='mean';
                 center_str='lquartile';
             case 0
+                %TODO: redefine median based on correct value across
+                %stimuli....
                 center_str='median';
             case 1
                 % center_str='mode';
                 center_str='uquartile';
             otherwise
-                % % assuming exactly 3 different f centers in center_freqs
-                % if center_f==min(center_freqs(center_freqs>1))
-                %     center_str='lquartile';
-                % elseif center_f==max(center_freqs)
-                %     center_str='uquartile';
-                % end
-                % error('havent written this code')
+
                 center_str=sprintf('%0.3fHz',center_f);
         end
         
@@ -86,57 +65,39 @@ for warp_rule=warp_rules
             audiofile = sprintf('%s%s/og/%s',inputStimfolder,stimgroup{gg},d(dd).name);
             [audio,wav_fs]=audioread(audiofile);
             
-            % % Warp speech -> more reg
-            if ismember(2,conditions)
-                % reg is 2 bc we later on switched to "stretchy/compressy"
-                % nomenclature which confusingly puts reg as second
-                % conditioni
-                type='compressy_reg';
-                warp_gravity=1;
-                %TODO: consolidate file dir name
-                outputDirTemp=sprintf('%s%s/rule%d_seg_bark_%s/',outputStimfolder,type,warp_rule,center_str);
-                audioOutputFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name);
-                %TODO: it's probably more efficient to store these all in a single
-                %file but let's figure that out after we've debugged a bit
-                audioParamsFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name(1:end-4));
-    
-                if ~exist(audioOutputFileTemp,'file') || overwrite
-                    fprintf('%s - f: %0.3f\n',type,center_f)
-                    [audio_warp_temp,s_temp] = stretchyWrinkle(audio,wav_fs,warp_gravity,center_f,warp_rule); 
-    
-                    if ~exist(outputDirTemp,'dir')
-                        mkdir(outputDirTemp)
-                    end
-    
-                    audiowrite(audioOutputFileTemp,audio_warp_temp,wav_fs);
-                    save(audioParamsFileTemp,"s_temp");
-                    clear audioOutputFileTemp audioParamsFileTemp audio_warp_temp s_temp
+            for cc=conditions
+                cond_nm=cond_nms{cc};
+                warp_config=[];
+                warp_config.rule_num=warp_rule_num;
+                switch cc
+                    case 1 % irreg
+                        warp_config.k=1;
+                    case 2 % reg
+                        warp_config.k=-1;
                 end
-            end
+                warp_config.center=center_f;
+                warp_config.env_method='bark';
+                
 
-            % Warp speech -> more irreg
-            if ismember(1,conditions)
-                type='stretchy_irreg';
-                warp_gravity=-1;
-                outputDirTemp=sprintf('%s%s/rule%d_seg_bark_%s/',outputStimfolder,type,warp_rule,center_str);
-                
+                outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s/', ...
+                        outputStimfolder,cond_nm,warp_config.rule_num, ...
+                        warp_config.env_method,center_str);
                 audioOutputFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name);
-                %TODO: it's probably more efficient to store these all in a single
-                %file but let's figure that out after we've debugged a bit
                 audioParamsFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name(1:end-4));
-                
+    
                 if ~exist(audioOutputFileTemp,'file') || overwrite
-                    fprintf('%s- f: %0.3f\n',type,center_f)
-                    [audio_warp_temp,s_temp] = stretchyWrinkle(audio,wav_fs,warp_gravity,center_f,warp_rule); 
-        
+                    fprintf('%s - f: %0.3f\n',cond_nm,center_f)
+                    [warped_audio,S] = stretchyWrinkle(audio,wav_fs,warp_config); 
+    
                     if ~exist(outputDirTemp,'dir')
                         mkdir(outputDirTemp)
                     end
-        
-                    audiowrite(audioOutputFileTemp,audio_warp_temp,wav_fs);
-                    save(audioParamsFileTemp,"s_temp",'center_f','warp_rule');
+                    audiowrite(audioOutputFileTemp,warped_audio,wav_fs);
+                    save(audioParamsFileTemp,"S");
+                    clear audioOutputFileTemp audioParamsFileTemp warped_audio S
                 end
             end
+        
     
             fprintf('\n')
         end

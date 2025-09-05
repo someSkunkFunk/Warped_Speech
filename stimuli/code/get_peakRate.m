@@ -13,6 +13,7 @@ Hd = getLPFilt(fs,10); %% Maybe don't filter so harshly?
 env = filtfilthd(Hd,env);
 % Find onsets
 env_onset = diff(env);
+%rectify envelope
 env_onset(env_onset<0) = 0;
 
 [peakVals,peakTs,w,p] = findpeaks(env_onset,fs);
