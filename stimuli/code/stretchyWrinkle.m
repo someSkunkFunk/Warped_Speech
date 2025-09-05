@@ -32,7 +32,11 @@ defaults = struct( ...
     'max_mod_interval', 1/3.472, ...
     'env_method', 2, ...
     'jitter', [0.5, 0.5], ...
-    'interval_ceil_out', 0.75 ...
+    'interval_ceil_out', 0.75, ...
+    'normalize_segments',false,...
+    'prom_thresh',0, ... 
+    'width_thresh',0, ...
+    'env_thresh_std',0 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -48,6 +52,8 @@ k               = warp_config.k;
 center          = warp_config.center;
 rule_num            = warp_config.rule_num;
 shift_rate      = warp_config.shift_rate;
+% note: i think this was originally the prominence threshold and thus
+% redundant... but maybe still useful as an absolute peak theshold
 peak_tol        = warp_config.peak_tol;
 sil_tol         = warp_config.sil_tol;
 min_mod_interval= warp_config.min_mod_interval;
@@ -55,6 +61,12 @@ max_mod_interval= warp_config.max_mod_interval;
 env_method      = warp_config.env_method;
 jitter          = warp_config.jitter;
 interval_ceil_out=warp_config.interval_ceil_out;
+normalize_segments=warp_config.normalize_segments;
+p_t=warp_config.prom_thresh;
+w_t=warp_config.width_thresh;
+% how many std below which to zero-out envelope - note that zero is
+% equivalent with half-wave rectification
+env_thresh_std=warp_config.env_thresh_std; 
 
 switch center 
         case -1 
@@ -111,16 +123,20 @@ switch env_method
     case 'bark' % use bark scale filterbank
         env=bark_env(wf,fs,fs);
     case 'gammaChirp'
-        env=extractGCEnvelope(wf,fs);
+        env=extractGCEnvelope(struct('wf',wf,'fs',fs),fs);
     otherwise
         error('need to specify which envelope to use.')
 
 end
-% note: get_peakrate lowpasses the envelope at 10 hz
-[Ifrom,~,p,w]=get_peakRate(env,fs,peak_tol);
-% set thresholds
-p_t=0.5;
-w_t=2.0;
+
+% note: get_peakrate lowpasses the envelope at 10 hz 
+% - keeping to visualize
+% [peakRate,env,env_onsets,env_thresh]=get_peakRate(env,fs,env_thresh_std);
+%or dont when happy with stimuli output:
+[peakRate,~,~,env_thresh]=get_peakRate(env,fs,env_thresh_std);
+warp_config.env_thresh=env_thresh;
+Ifrom=peakRate.pkTimes;p=peakRate.p;w=peakRate.w;
+% threshold peaks
 Ifrom=Ifrom(p>p_t&w>w_t);
 % recursively remove rates that are too fast - recalculate with filtered
 % times
@@ -440,7 +456,7 @@ for ss=1:n_segs
                 % mean and
                 % variance
                 M=f_center;
-                V=0.0001;
+                V=jitter(1);
                 mu=log(M^2/sqrt(V+M^2));
                 sigma=sqrt(log(V/M^2+1));
                 IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
@@ -468,9 +484,9 @@ for ss=1:n_segs
         start_t=Ifrom(seg(ss,1))+ISI;
     end
     
-    seg_dur_1=sum(IPI1_seg);
-    normalize_segments=false;
+    
     if normalize_segments
+        seg_dur_1=sum(IPI1_seg);
         IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
     end
     
@@ -525,25 +541,4 @@ function ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz)
     % recursive step
     ff_cleaned=recursive_cutoff_filter(ff,all_times,syllable_cutoff_hz);
 end
-
-% function ff_cleaned=recursive_cutoff_filter(filtered_times,syllable_cutoff_hz)
-%     % filtered_times: already filtered by prominence + width
-% 
-%     % initialize peaks mask
-%     ff=true(length(filtered_times),1);
-%     ff_rates=diff(filtered_times);
-%     % mark peaks to remove since too fast
-%     cutoff_filter_idx=find(ff_rates>syllable_cutoff_hz)+1;
-%     % apply hard cutoff:
-%     if isempty(cutoff_filter_idx)
-%         ff_cleaned=ff;
-%         return;
-%     end
-%     ff_idx=find(ff);
-%     ff(ff_idx(cutoff_filter_idx))=false;
-% 
-%     % recursive step
-%     ff_cleaned=recursive_cutoff_filter(filtered_times(ff),syllable_cutoff_hz);
-% end
-
 

@@ -1,6 +1,6 @@
 % use this scriptf - implements stretchy/compressy rules
-%% TODOS: NEW IMPLEMENTATION
 
+%TODO: use-preloaded envelopes to speed up computation time
 clear;
 clc;
 global boxdir_lab
@@ -28,7 +28,7 @@ center_freqs=0;
 conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 0;
+overwrite = 1;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
@@ -76,7 +76,12 @@ for warp_rule_num=warp_rules
                         warp_config.k=-1;
                 end
                 warp_config.center=center_f;
-                warp_config.env_method='bark';
+                warp_config.env_method='gammaChirp';
+                warp_config.env_thresh_std=0.25;
+                warp_config.jitter=0.05;
+                warp_config.sil_tol=1;
+                % warp_config.prom_thresh=
+                % warp_config.width_thresh=
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s/', ...

@@ -1,4 +1,4 @@
-function inspect_segs(wf,fs,Ifrom,seg,env,p_t,w_t)
+function inspect_segs(wf,fs,Ifrom,seg,env,p_t,w_t,env_onsets)
 % inspect_segs(wf,fs,Ifrom,seg,env)
 % plot waveform with segments marked
 n_segs=size(seg,1);
@@ -11,19 +11,19 @@ pr_times=repmat(Ifrom,1,2)';
 %
 seg_ys=ones(2,n_segs);
 seg_ys(2,:)=-1;
-% seems times given by findpeaks have some rounding error...?
-% Ifrom_mask=logical(sum(round(t_vec,5)==round(Ifrom,5),1));
-% pr_ys=repmat(env(Ifrom_mask),1,2)';
-% pr_ys(2,:)=-1*pr_ys(2,:);
+% env derivative needs scaling to be visible - min should already be zero
+env_onsets=normalize(env_onsets,'range',[0 max(env)]);
 pr_ys=ones(2,length(pr_times));
 pr_ys(2,:)=-1;
 figure
 plot(t_vec,wf)
 hold on
+plot(t_vec,env,'Color','c')
 plot(pr_times,pr_ys,'Color','m')
+plot(t_vec(1:end-1),env_onsets,'Color','y')
 plot(seg_starts,seg_ys,'Color','g')
 plot(seg_ends,seg_ys,'Color','r')
-plot(t_vec,env,'Color','c')
+
 title(sprintf(['Peakrate (magenta) and ' ...
     'segment boundaries (green/red) p_t:%0.3f,w_t:%0.3f'],p_t,w_t))
 ylim([min(wf), max(wf)])

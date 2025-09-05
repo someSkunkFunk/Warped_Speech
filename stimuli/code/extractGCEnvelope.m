@@ -1,14 +1,28 @@
 function [env, sgram] = extractGCEnvelope(audiofile,fs,down_factor,NumCh,FRange)
-
+% [env, sgram] = extractGCEnvelope(audiofile,fs,down_factor,NumCh,FRange)
+% 9/5/2025 - extended functionality to accept already read file waveforms as input
 arguments
-    audiofile char
+    audiofile
     fs (1,1) double = 128
     down_factor (1,1) double = 5
     NumCh (1,1) double = 16
     FRange (2,1) double = [80 8020]
 end
 
-[audio,wav_fs]=audioread(audiofile);
+switch class(audiofile)
+    case 'char'
+        [audio,wav_fs]=audioread(audiofile);
+    case 'struct'
+        if isequal(sort(fieldnames(audiofile)),sort({'fs';'wf'}))
+            audio=audiofile.wf;
+            wav_fs=audiofile.fs;
+        else
+            disp(audiofile)
+            error('^^^audiofile struct incorrect^^^')
+        end
+    otherwise
+        error('audiofile should be either a struct containing wf and fs or file path.')
+end
 audio = audio(:,1);
 
 
