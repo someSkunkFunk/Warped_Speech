@@ -474,7 +474,7 @@ for ss=1:n_segs
                 % mean and
                 % variance
                 M=f_center;
-                V=0.01;
+                V=0.0001;
                 mu=log(M^2/sqrt(V+M^2));
                 sigma=sqrt(log(V/M^2+1));
                 IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);

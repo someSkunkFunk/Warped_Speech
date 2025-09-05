@@ -3,7 +3,6 @@
 
 clear;
 clc;
-% userProfile=getenv('USERPROFILE');
 global boxdir_lab
 global boxdir_mine
 inputStimfolder = sprintf('%s/stimuli/',boxdir_lab);
