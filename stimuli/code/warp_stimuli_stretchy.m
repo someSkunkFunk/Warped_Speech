@@ -76,12 +76,19 @@ for warp_rule_num=warp_rules
                         warp_config.k=-1;
                 end
                 warp_config.center=center_f;
-                warp_config.env_method='gammaChirp';
-                warp_config.env_thresh_std=0.25;
+                % warp_config.env_method='bark';
+                warp_config.env_method='oganian';
+                warp_config.env_thresh_std=1e-2;
                 warp_config.jitter=0.05;
                 warp_config.sil_tol=1;
-                % warp_config.prom_thresh=
-                % warp_config.width_thresh=
+                warp_config.hard_cutoff_hz=13; % in Hz, rate which is considered too fast to count as new syllable from input distribution
+                % warp_config.env_derivative_noise_tol=0;
+                % warp_config.min_pkrt_height=1e-5; % based on eyeballing env derivative 
+                % warp_config.prom_thresh=0.2;
+                % warp_config.width_thresh=0.07;
+                % warp_config.area_thresh=4e-7; % based on peak area distribution fo
+                warp_config.min_pkrt_height=3e-4; % to reduce spurious peaks from oganian method
+
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s/', ...

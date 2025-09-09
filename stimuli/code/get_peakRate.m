@@ -1,28 +1,34 @@
-function [peakRate, env, env_onsets,env_thresh]=get_peakRate(env,fs,env_thresh_std)
+function [peakRate, env, diff_env,env_thresh]=get_peakRate(env,fs,warp_config)
 % [peakTs,peakVals,p,w]=get_peakRate(env,fs,warp_config)
 
-
+env_thresh_std=warp_config.env_thresh_std;
+% denv_noise_tol=warp_config.env_derivative_noise_tol;
+min_pkrt_height=warp_config.min_pkrt_height;
 % [peakTs,peakVals]=peakRate(env,fs,peak_tol)
 % TODO: can we make Hd an input param conveniently? 
 Hd = getLPFilt(fs,10); %% Maybe don't filter so harshly?
 env = filtfilthd(Hd,env);
-% rectify + remove noisy envelope fluctuations to imrpove peakrate algo
+% rectify + remove noisy envelope fluctuations (from lowpass filtering)
 env_thresh=std(env)*env_thresh_std;
-env(env<env_thresh)=0;
+env_noise_mask=env<env_thresh;
+env(env_noise_mask)=0;
 % Find onsets
-env_onsets = diff(env);
-%only case about positive peaks
-env_onsets(env_onsets<0) = 0;
+diff_env = [diff(env) 0];
+%only care about positive peaks
+diff_env(diff_env<0) = 0;
+% remove spurious peaks envelope fluctuations that persist in quiet periods
+% due to filtering
+diff_env(env_noise_mask(1:end-1))=0;
 
-[pkVals,pkTimes,w,p] = findpeaks(env_onsets,fs);
+[pkVals,pkTimes,w,p] = findpeaks(diff_env,fs,'MinPeakHeight',min_pkrt_height);
 % fprintf('note: calculating peakwidth using both references... remove this feature before running on final warp script')
 % [~,~,w2,~] = findpeaks(env_onset,fs,'WidthReference','halfheight');
 % normalize prominence
 % NOTE: 'normalizing' will still leave values above 1
 % NOTE: maybe not necessary...?
 
-p = p./std(p);
-w = w./std(w);
+% p = p./std(p);
+% w = w./std(w);
 
 peakRate=struct('pkVals',pkVals,'pkTimes',pkTimes,'p',p,'w',w);
 % w2 = w2./std(w2);

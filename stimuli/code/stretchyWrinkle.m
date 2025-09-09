@@ -36,7 +36,11 @@ defaults = struct( ...
     'normalize_segments',false,...
     'prom_thresh',0, ... 
     'width_thresh',0, ...
-    'env_thresh_std',0 ...
+    'env_thresh_std',0, ...
+    'hard_cutoff_hz',8, ...,
+    'env_derivative_noise_tol',0, ...,
+    'min_pkrt_height',0, ...,
+    'area_thresh',0 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -64,10 +68,12 @@ interval_ceil_out=warp_config.interval_ceil_out;
 normalize_segments=warp_config.normalize_segments;
 p_t=warp_config.prom_thresh;
 w_t=warp_config.width_thresh;
+area_t=warp_config.area_thresh;
 % how many std below which to zero-out envelope - note that zero is
 % equivalent with half-wave rectification
-env_thresh_std=warp_config.env_thresh_std; 
-
+env_thresh_std=warp_config.env_thresh_std;
+hard_cutoff_hz=warp_config.hard_cutoff_hz;
+env_derivative_noise_tol=warp_config.env_derivative_noise_tol;
 switch center 
         case -1 
             % use lower quartile
@@ -120,31 +126,42 @@ switch env_method
     
     case 'hilbert' % use broadband envelope
         env = abs(hilbert(wf));
-    case 'bark' % use bark scale filterbank
+    case 'bark' % use bark scale filterbank - scraped from oganian peakrate function
         env=bark_env(wf,fs,fs);
     case 'gammaChirp'
         env=extractGCEnvelope(struct('wf',wf,'fs',fs),fs);
+    case 'oganian'
+        % fully rely on all the peakrate algorithm steps in oganian method
+        [env, peakRate_, ~,diff_env]=find_peakRate_oganian(wf, fs, [], 'loudness', fs);
     otherwise
         error('need to specify which envelope to use.')
 
 end
-
-% note: get_peakrate lowpasses the envelope at 10 hz 
-% - keeping to visualize
-% [peakRate,env,env_onsets,env_thresh]=get_peakRate(env,fs,env_thresh_std);
-%or dont when happy with stimuli output:
-[peakRate,~,~,env_thresh]=get_peakRate(env,fs,env_thresh_std);
-warp_config.env_thresh=env_thresh;
+if strcmp(env_method,'oganian')
+    %todo: define env_thresh (if needed?)
+    % peakrate -> Ifrom & peakRate struct we're familiar with
+    [pkVals,pkTimes,w,p] = findpeaks(diff_env',fs,'MinPeakHeight',warp_config.min_pkrt_height);
+    peakRate=struct('pkVals',pkVals,'pkTimes',pkTimes,'p',p,'w',w);
+else
+    % note: get_peakrate lowpasses the envelope at 10 hz 
+    % - keeping to visualize
+    [peakRate,env,diff_env,env_thresh]=get_peakRate(env,fs,warp_config);
+    %or dont when happy with stimuli output:
+    % [peakRate,~,~,env_thresh]=get_peakRate(env,fs,env_thresh_std);
+    warp_config.env_thresh=env_thresh;
+end
 Ifrom=peakRate.pkTimes;p=peakRate.p;w=peakRate.w;
 % threshold peaks
-Ifrom=Ifrom(p>p_t&w>w_t);
+Ifrom=Ifrom(p>p_t&w>w_t&(p.*w)>area_t);
 % recursively remove rates that are too fast - recalculate with filtered
 % times
-syllable_cutoff_hz=8; % in Hz, rate which is considered too fast to count as new syllable from input distribution
-% make a dummy mask to make recursive function compatible with how we used
-% it in optimize_peakRate_algo
-ff=true(length(Ifrom),1);
-Ifrom=Ifrom(recursive_cutoff_filter(ff,Ifrom,syllable_cutoff_hz));
+if any(diff(Ifrom<hard_cutoff_hz))
+    % make a dummy mask to make recursive function compatible with how we used
+    % it in optimize_peakRate_algo
+    fprintf('applying recursive cutoff at %0.3f Hz...\n', hard_cutoff_hz)
+    ff=true(length(Ifrom),1);
+    Ifrom=Ifrom(recursive_cutoff_filter(ff,Ifrom,hard_cutoff_hz));
+end
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
 %inter-segment interval
 ISI=0;
@@ -172,7 +189,7 @@ for ss=1:n_segs
     fast=(1./IPI0_seg>f_center);
     % sanity-check + workaround for backwards compatability of rules that
     % affect fast vs slow rates differently:
-    too_fast=(1./IPI0_seg)>syllable_cutoff_hz;
+    too_fast=(1./IPI0_seg)>hard_cutoff_hz;
     if any(too_fast)
         error('there should be no too_fast rates now...')
     end
@@ -431,7 +448,7 @@ for ss=1:n_segs
                 % generate random rates from uniform distribution across
                 % range of possible values 
                 min_stretch_rate=1./sil_tol;
-                max_stretch_rate=syllable_cutoff_hz;
+                max_stretch_rate=hard_cutoff_hz;
                 % % leave overly fast intervals unchanged
                 % IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
@@ -520,7 +537,12 @@ wsola_param.tolerance = 256;
 wsola_param.synHop = 256;
 wsola_param.win = win(1024,2); % hann window
 wf_warp = wsolaTSM(wf,s,wsola_param);
-S=struct('s',s,'warp_config',warp_config,'wsola_param',wsola_param);
+S=struct('s',s,'warp_config',warp_config,'wsola_param', ...
+    wsola_param,'peakRate',peakRate);
+% run these in debug mode:
+% inspect_segs(wf,fs,Ifrom,seg,env,p_t,w_t,env_onsets)
+% inspect_envelope_derivative(env_onsets,peakRate,fs,warp_config)
+% inspect_anchorpoints(wf,wf_warp,fs,s)
 end
 function y=reflect_about(x,xr)
     y=x-2.*(x-xr);
