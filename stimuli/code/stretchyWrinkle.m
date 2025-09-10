@@ -488,8 +488,13 @@ for ss=1:n_segs
                 % generate random rates from uniform distribution across
                 % range of possible values plus a slightly higher lower
                 % bound
+
+                % min stretch rate mostly drove the duration discrepancies,
+                % so tuned it such that the durations are not too far from
+                % original
                 min_stretch_rate=1/0.55;
-                % added some wiggle room because distinct syllables get 
+                % added some wiggle room to max rate 
+                % because distinct syllables get 
                 % grouped together due to imperpfect peakrate
                 % correspondence
                 max_stretch_rate=8;
