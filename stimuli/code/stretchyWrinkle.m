@@ -32,7 +32,7 @@ defaults = struct( ...
     'max_mod_interval', 1/3.472, ...
     'env_method', 2, ...
     'jitter', [0.5, 0.5], ...
-    'interval_ceil_out', 0.75, ...
+    'interval_ceil_out', inf, ...
     'normalize_segments',false,...
     'prom_thresh',0, ... 
     'width_thresh',0, ...
@@ -488,8 +488,11 @@ for ss=1:n_segs
                 % generate random rates from uniform distribution across
                 % range of possible values plus a slightly higher lower
                 % bound
-                min_stretch_rate=1./sil_tol;
-                max_stretch_rate=hard_cutoff_hz;
+                min_stretch_rate=1/0.55;
+                % added some wiggle room because distinct syllables get 
+                % grouped together due to imperpfect peakrate
+                % correspondence
+                max_stretch_rate=8;
                 % % leave overly fast intervals unchanged
                 % IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
@@ -543,6 +546,11 @@ wsola_param.tolerance = 256;
 wsola_param.synHop = 256;
 wsola_param.win = win(1024,2); % hann window
 wf_warp = wsolaTSM(wf,s,wsola_param);
+if rule_num==11
+    % janky fix to add this parameter for recordkeeping only once to
+    % warp_config
+    warp_config.stretch_rate_lims=[min_stretch_rate max_stretch_rate];
+end
 S=struct('s',s,'warp_config',warp_config,'wsola_param', ...
     wsola_param,'peakRate',peakRate);
 % run these in debug mode:
