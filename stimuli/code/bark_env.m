@@ -1,9 +1,5 @@
 function envelopeOut = bark_env(signalIn,Fs,FsOut)
-%NOTE: it seems to me they lied in the paper about applying a 10 Hz lowpass
-% and instead used a "gaussian" filtfilt with slightly higher cutoff
-% (should check the math but it depends on output and given fsOUt=1000 was
-% about 31 Hz)
-% i'm just gonna mute that bit 
+
 if exist('FsOut','var')
     if isempty(FsOut)
         FsOut = 1000;
@@ -64,18 +60,31 @@ Nv = max(0,Nv); %in case negative values, set to 0
 % Nm is the total modified loudness, Nm(t). This is LPFed by a 3-point
 % triangular filter, n=26 times (I do 13 fwd and 13 backwd for zero-phase),
 % which results in ~Gaussian smoothing.
-gv = ones([nczs 1],'double'); %weights
-gv(czs<3) = 0; gv(czs>19) = -1;
-%ANDRE: i think this is a weighted average across frequency bands... TODO:
-%investigate why the lower 3 are zeroed and those above 19 (whatever those
-%cutoffs mean) become -1...?
+gv = ones([nczs 1],'double'); 
+%andre note: weights specified 1984 Schotola such that fricatives are penalized so weak
+%vowels can be emphasized in envelope..
+% gv(czs<3) = 0; gv(czs>19) = -1;
+% andre note: I increased the penalty because wrinkle in time reader really
+% puts a strong emphasis on fricatives...
+gv(czs<3) = 0; gv(czs>19) = -3;
 Nm = Nv*gv; 
-%%%%% ANDRE MUTED THIS SO WE CAN USE THE SAME FILTERING WE HAD BEFORE
-%%%%% INSTEAD OF THIS WEIRD SHIT
+% andre note: original filtering below was muted out because result still
+% gave pretty jagged envelopes, opted to do filtfilt afterward and it
+% didn't seem right to stack that on top of this filtering 
 % b = ones([3 1],'double')./3; n = 13;
 % for nn = 1:n, Nm = filtfilt(b,1,Nm); end
-
+%andre note: added rectification of this result - negatives are
+%reintroduced despite prior rectification due to weights
+Nm=max(0,Nm);
+% andre note: added intensity normalization per Schotola 1984 to account
+% for syllable detection errors seemingly stemming from variability in
+% intensity across utterances
+% constant to reduce influence of silent periods
+c=0.03*max(Nm);
+F=1./(sqrt(sum((Nv+c).^2,2)));
+Nm=F.*Nm;
 envelopeOut = Nm;
+
 %REFERENCES:
 
 % Bismarck Gv (1973). Vorschlag fur ein einfaches Verfahren zur

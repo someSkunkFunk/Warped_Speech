@@ -40,7 +40,8 @@ defaults = struct( ...
     'hard_cutoff_hz',8, ...,
     'env_derivative_noise_tol',0, ...,
     'min_pkrt_height',0, ...,
-    'area_thresh',0 ...
+    'area_thresh',0, ...,
+    'env_lpf',10 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -132,7 +133,12 @@ switch env_method
         env=extractGCEnvelope(struct('wf',wf,'fs',fs),fs);
     case 'oganian'
         % fully rely on all the peakrate algorithm steps in oganian method
-        [env, peakRate_, ~,diff_env]=find_peakRate_oganian(wf, fs, [], 'loudness', fs);
+        [env, ~, ~,diff_env]=find_peakRate_oganian(wf, fs, [], 'loudness', fs);
+        % note: oganian function does this already when evaluating peakrate 
+        % but gives entire sound series + we want to be able to filter peaks
+        % afterwards
+        diff_env(diff_env<0)=0;
+
     otherwise
         error('need to specify which envelope to use.')
 
@@ -482,8 +488,8 @@ for ss=1:n_segs
                 % generate random rates from uniform distribution across
                 % range of possible values plus a slightly higher lower
                 % bound
-                min_stretch_rate=2./sil_tol;
-                max_stretch_rate=peakRate_cutoff;
+                min_stretch_rate=1./sil_tol;
+                max_stretch_rate=hard_cutoff_hz;
                 % % leave overly fast intervals unchanged
                 % IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));

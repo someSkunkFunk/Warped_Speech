@@ -22,7 +22,7 @@ warp_rules=[11];
 % center_freqs=[4.12960014982676,	0,	8.21688093907211];
 % center_freqs=[-1 0 1] -> [lquartile median uquartile]
 % -1 -> lquartile, 0->median, 1-> uquartile
-center_freqs=0;
+center_freqs=4;
 % center_freqs=[6.358,3.940, 0]; %NOTE: we assuming only 3 values given at a time MAXIMUM (one of which is median...)
 % and all values greater than 1 since 1 means mode....
 conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
@@ -76,19 +76,26 @@ for warp_rule_num=warp_rules
                         warp_config.k=-1;
                 end
                 warp_config.center=center_f;
-                % warp_config.env_method='bark';
-                warp_config.env_method='oganian';
-                warp_config.env_thresh_std=1e-2;
+                warp_config.env_method='bark';
+                % warp_config.env_method='oganian';
+                warp_config.env_thresh_std=1e-3;
                 warp_config.jitter=0.05;
                 warp_config.sil_tol=1;
-                warp_config.hard_cutoff_hz=13; % in Hz, rate which is considered too fast to count as new syllable from input distribution
-                % warp_config.env_derivative_noise_tol=0;
-                % warp_config.min_pkrt_height=1e-5; % based on eyeballing env derivative 
-                % warp_config.prom_thresh=0.2;
-                % warp_config.width_thresh=0.07;
-                % warp_config.area_thresh=4e-7; % based on peak area distribution fo
-                warp_config.min_pkrt_height=3e-4; % to reduce spurious peaks from oganian method
+                % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
+                warp_config.hard_cutoff_hz=12; 
+                %note: added this new param after noticing that syllables
+                %sometimes occur above 10 Hz so maybe shouldn't lowpass the
+                %envelope blanketly at 10 hz...
+                warp_config.env_lpf=14;
+                % warp_config.env_derivative_noise_tol=0;
+                % minimal as to eliminate spurious peaks during silences
+                warp_config.min_pkrt_height=6.9e-5;
+                % warp_config.prom_thresh=0.2;
+                % warp_config.width_thresh=0.01;
+                warp_config.area_thresh=2.40e-6; 
+                % still imperfect (removes real syllables and keeps peaks
+                % that are not distinct syllables..)
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s/', ...

@@ -1,19 +1,18 @@
 function [peakRate, env, diff_env,env_thresh]=get_peakRate(env,fs,warp_config)
 % [peakTs,peakVals,p,w]=get_peakRate(env,fs,warp_config)
-
+env_lpf=warp_config.env_lpf;
 env_thresh_std=warp_config.env_thresh_std;
 % denv_noise_tol=warp_config.env_derivative_noise_tol;
 min_pkrt_height=warp_config.min_pkrt_height;
-% [peakTs,peakVals]=peakRate(env,fs,peak_tol)
-% TODO: can we make Hd an input param conveniently? 
-Hd = getLPFilt(fs,10); %% Maybe don't filter so harshly?
+% 
+Hd = getLPFilt(fs,env_lpf); %% Maybe don't filter so harshly?
 env = filtfilthd(Hd,env);
 % rectify + remove noisy envelope fluctuations (from lowpass filtering)
 env_thresh=std(env)*env_thresh_std;
 env_noise_mask=env<env_thresh;
 env(env_noise_mask)=0;
 % Find onsets
-diff_env = [diff(env) 0];
+diff_env = [diff(env); 0];
 %only care about positive peaks
 diff_env(diff_env<0) = 0;
 % remove spurious peaks envelope fluctuations that persist in quiet periods

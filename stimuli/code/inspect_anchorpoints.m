@@ -14,7 +14,7 @@ line_ys(2,:)=-1;
 
 
 figure
-subplot(2,1,1)
+ax1=subplot(2,1,1);
 plot(t_og,wf)
 hold on
 plot(repmat(t_og(s(:,1)),2,1),line_ys,'Color','m')
@@ -22,11 +22,12 @@ title('original waveform')
 ylim([min(wf) max(wf)])
 ylabel('time (s)')
 
-subplot(2,1,2)
+ax2=subplot(2,1,2);
 plot(t_warp,wf_warp)
 hold on
 plot(repmat(t_warp(s(:,2)),2,1),line_ys,'Color','m')
 title('warped waveform')
 ylim([min(wf_warp) max(wf_warp)])
 ylabel('time (s)')
+linkaxes([ax1 ax2])
 end

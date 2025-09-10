@@ -12,6 +12,9 @@ pr_times=repmat(Ifrom,1,2)';
 %
 seg_ys=ones(2,n_segs);
 seg_ys(2,:)=-1;
+% env scaling gets weird with intensity correction...
+% keeping env min so we can see if rectification mistakenly missing
+env=normalize(env,'range',[min(env) max(wf)]);
 % env derivative needs scaling to be visible - min should already be zero
 diff_env=normalize(diff_env,'range',[0 max(env)]);
 % [~,pk_idx]=findpeaks(env_onsets);
@@ -26,7 +29,7 @@ plot(t_vec,wf)
 hold on
 plot(t_vec,env,'Color','c')
 plot(pr_times,pr_ys,'Color','m')
-plot(t_vec(1:end),diff_env,'Color','y')
+plot(t_vec(1:end),diff_env,'Color','k')
 plot(seg_starts,seg_ys,'Color','g')
 plot(seg_ends,seg_ys,'Color','r')
 legend(sprintf('%s env',warp_config.env_method))
