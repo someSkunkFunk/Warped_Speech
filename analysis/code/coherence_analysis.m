@@ -10,70 +10,43 @@
 clearvars -except boxdir_mine boxdir_lab
 
 
-
+conditions={'fast','og','slow'};
+cond_durs=64.*[2/3,1,3/2];
+% run_psd_code=false;
+show_psds=true;
+psd_config=[]; %empty for defaults
+show_mscohere=false;
 % for subj=[3:7,9:22]
 for subj=2
-    % not actually looking at trfs so separate conditions doesn't matter
-    separate_conditions=false;
     preprocess_config=config_preprocess(subj);
-    trf_config=config_trf(subj,~separate_conditions,preprocess_config);
     load(preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-    stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-    resp=preprocessed_eeg.resp;
-    fs=preprocessed_eeg.fs;
-    n_electrodes=size(resp{1},2);
-    n_trials=length(stim);
-    conditions={'fast','og','slow'};
-    cond_durs=64.*[2/3,1,3/2];
-    run_psd_code=false;
+    %TODO: add preprocess_config to all preprocessed_eeg files for
+    %convenience...
+    %however, I now see the issue of why I avoided this previously...
+    %boxdirs will depend on what machine you run this from, so maybe just
+    %stick to this method for now
+    preprocessed_eeg.preprocess_config=preprocess_config;
     
-    %todo: package below vars into a config struct to feed into functionalized
-    %versions of code below which depends on them
-    fft_seg_dur=10; % in s, segment duration for pwelch; gives 1/freq resolution
-    fft_seg_len=round(fft_seg_dur*fs)+1;
-        % note: nfft depends on window length, so by using the same window length
-        % across conditions we ensure the same bins despite different durations
-        % hence we don't need to specify nfft in pwelch since helpful for
-        % preallocating output psd
-    nfft=2^nextpow2(fft_seg_len);
-    if run_psd_code
-        %% compute avg psds for stimuli
-        % load all the evelopes
-        if ~exist("all_envs",'var')
-            all_envs=load(preprocess_config.envelopesFile);
-            all_envs=all_envs.env;
-        end
-        %% compute avg psds for stimuli
-        
-        P_envs=nan(length(conditions),nfft/2+1);
-        % nfft=seg_len
-        for cc=1:length(conditions)
-            envs_=cat(2,all_envs{cc,:});
-            [envs_,psd_freqs]=pwelch(envs_,fft_seg_len,[],nfft,fs);
-            P_envs(cc,:)=mean(envs_,2); % avg across trials
-            clear envs_ cc
-        end
-        %% compute avg psds for eeg
-        P_eeg=nan(length(conditions),nfft/2+1);
-        for cc=1:length(conditions)
-            % trial_idx_=find(preprocessed_eeg.cond==cc);
-            resp_=cat(2,resp{preprocessed_eeg.cond==cc});
-            % will give time X n_electrodes*n_trials_cc
-            % but mean is linear and we averaging across trials/electrodes anyway
-            [resp_,psd_freqs]=pwelch(resp_,fft_seg_len,[],nfft,fs);
-            P_eeg(cc,:)=squeeze(mean(resp_,2));
-            
-            clear resp_
-        end
+    stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+    % resp=preprocessed_eeg.resp;
+    % fs=preprocessed_eeg.fs;
+
+    if show_psds
+        [P_envs, P_eeg, psd_freqs,psd_config]=psds_wrapper(preprocessed_eeg,psd_config);
         %% plot avg psds for stimuli
         %note: maybe adding a 1/f corrective factor (.*sqrt(repmat(psd_freqs',3,1)))
         % would accentuate the coherence pattern... but not sure how to factor that
         % into the mscoherence calculation...
+
+        %note that envelope psds definitely show correspondence with speech
+        %rate (albeit hard to see), but eeg doesnt
+        %todo: wrap these plots in a function
         stim_psd_xlims=[0 10]; % 
         figure
         plot(psd_freqs,P_envs)
         legend(conditions)
         xlim(stim_psd_xlims)
+        xlabel('frequency (Hz)')
         title('envelope psds (aka true mod spectra)')
         %% plot avg psds for eeg
         stim_psd_xlims=[0 10]; % 
@@ -81,29 +54,16 @@ for subj=2
         plot(psd_freqs,P_eeg)
         legend(conditions)
         xlim(stim_psd_xlims)
+        xlabel('frequency (Hz)')
         title(sprintf('subj %d eeg psds',subj))
     end
     %% compute coherence using mscohere
-    run_mscohere_code=false;
-    if run_mscohere_code
+    if show_mscohere
         %todo: group by trial condition + average across subjects?
         %preallocate mscac... note that I'm not sure how to determine the number of
         %frequencies but I think it depends on nfft and the signal lengths... below
         %is based on default settings of mscohere
-        mscac=nan(length(conditions),nfft/2+1);
-        for cc=1:length(conditions)
-            m_=preprocessed_eeg.cond==cc;
-            stim_=cat(2,stim{m_});
-            % expand stim mat to match eeg mat by repeating each stim for each
-            % electrode
-            stim_=repelem(stim_,1,n_electrodes);
-            resp_=cat(2,resp{m_});
-            [mscac_, msc_freqs]=mscohere(stim_,resp_, ...
-                fft_seg_len,[],nfft,fs);
-            % average out trials/electrodes
-            mscac(cc,:)=mean(mscac_,2);
-            clear mscac_ stim_ resp_ cc
-        end
+        psd_
         
         %% plot mscohere result
         %note: oganian & chang averaged across sensors... sensible to do here as
@@ -217,6 +177,62 @@ end
 % probably should do mismatch cacs just to show how mismatching the
 % data conditions affects the cac
 %% helpers
+function [P_envs, P_eeg, psd_freqs,psd_config]=psds_wrapper(preprocessed_eeg,psd_config)
+    defaults=struct( ...
+    'fft_seg_dur',10 ...
+        );
+    fldnms=fieldnames(defaults);
+    for ff=1:numel(fldnms)
+        fld=fldnms{ff};
+        if ~isfield(psd_config,fld)||isempty(psd_config.(fld))
+            psd_config.(fld)=defaults.(fld);
+        end
+    end
+    %unpack config params
+    % in s, segment duration for pwelch; gives 1/freq resolution
+    fft_seg_dur=psd_config.fft_seg_dur;
+
+    fft_seg_len=round(fft_seg_dur*preprocessed_eeg.fs)+1;
+    % note: nfft depends on window length, so by using the same window length
+    % across conditions we ensure the same bins despite different durations
+    % hence we don't need to specify nfft in pwelch since helpful for
+    % preallocating output psd
+    nfft=2^nextpow2(fft_seg_len);
+
+    % load all the evelopes
+    all_envs=load(preprocessed_eeg.preprocess_config.envelopesFile);
+    all_envs=all_envs.env;
+
+
+    cond_nums=unique(preprocessed_eeg.cond)';
+    if ~isequal(cond_nums,1:3)
+        disp('warning: check that conditions make sense: unique(preprocessed_eeg.cond)=')
+        disp(cond_nums)
+    end
+    %% compute avg psds for stimuli
+    
+    P_envs=nan(length(cond_nums),nfft/2+1);
+    
+    for cc=cond_nums
+        envs_=cat(2,all_envs{cc,:});
+        [envs_,psd_freqs]=pwelch(envs_,fft_seg_len,[],nfft,preprocessed_eeg.fs);
+        P_envs(cc,:)=mean(envs_,2); % avg across trials
+        clear envs_ cc
+    end
+    %% compute avg psds for eeg
+    P_eeg=nan(length(cond_nums),nfft/2+1);
+    for cc=cond_nums
+        % trial_idx_=find(preprocessed_eeg.cond==cc);
+        resp_=cat(2,preprocessed_eeg.resp{preprocessed_eeg.cond==cc});
+        % will give time X n_electrodes*n_trials_cc
+        % but mean is linear and we averaging across trials/electrodes anyway
+        [resp_,psd_freqs]=pwelch(resp_,fft_seg_len,[],nfft,preprocessed_eeg.fs);
+        P_eeg(cc,:)=squeeze(mean(resp_,2));
+        
+        clear resp_
+    end
+end
+
 function cac=get_cac(env_tf,eeg_tf)
 % cac=get_cac(env_tf,eeg_tf)
 % env_tf/eeg_tf: [fbands x time*trials*electrodes]
@@ -306,7 +322,21 @@ function [sos,g]=design_bandpass(cf,bw_octave,fs)
         [z,p,k]=butter(n_ord,W_natural,'bandpass');
         [sos,g]=zp2sos(z,p,k);
 end
-
+function mscac_wrapper(preprocessed_eeg,stim,psd_config)
+mscac=nan(length(conditions),nfft/2+1);
+        for cc=1:length(conditions)
+            m_=preprocessed_eeg.cond==cc;
+            stim_=cat(2,stim{m_});
+            % expand stim mat to match eeg mat by repeating each stim for each
+            % electrode
+            stim_=repelem(stim_,1,n_electrodes);
+            resp_=cat(2,resp{m_});
+            [mscac_, msc_freqs]=mscohere(stim_,resp_, ...
+                fft_seg_len,[],nfft,fs);
+            % average out trials/electrodes
+            mscac(cc,:)=mean(mscac_,2);
+            clear mscac_ stim_ resp_ cc
+        end
 function [psd,freqs]=get_psd(X,fs,method)
 % assumes X is 2D matrix that is [time, waveforms] shape
 
