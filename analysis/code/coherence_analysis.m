@@ -11,7 +11,8 @@ clearvars -except boxdir_mine boxdir_lab
 
 
 
-for subj=[3:7,9:22]
+% for subj=[3:7,9:22]
+for subj=2
     % not actually looking at trfs so separate conditions doesn't matter
     separate_conditions=false;
     preprocess_config=config_preprocess(subj);
@@ -139,63 +140,71 @@ for subj=[3:7,9:22]
     end
 
     %% use oganian & chang coherence metric
-    %preallocate
-    cacs=nan(length(conditions),numel(tf_config.cfs));
-    for cc=1:length(conditions)
-    % for cc=3
-        fprintf('getting %s cac...\n',conditions{cc})
-        m_=preprocessed_eeg.cond==cc;
-        stim_=cat(2,stim{m_});
-        n_samples_=size(stim_,1);
-        % expand stim mat to match eeg mat by repeating each stim for each
-        % electrode
-        stim_=repelem(stim_,1,n_electrodes);
-        resp_=cat(2,resp{m_});
-        % get tf representation using filters defined in oganian & chang
-        % note: we probably want to save these for future reference but
-        % currently they're just overwritten on each loop iteration
-        [env_tf_,eeg_tf_]=get_tf(stim_,resp_,tf_config);
-        % compute cac based on oganian & chang's description
-        switch conditions{cc}
-            case 'slow'
-                % slow has too many samples to do in one go... split and average cac...
-                n_splits_=3;
-                % untangle time-dimension for clarity
-                env_tf_=reshape(env_tf_,numel(tf_config.cfs),n_samples_,[]);
-                eeg_tf_=reshape(eeg_tf_,numel(tf_config.cfs),n_samples_,[]);
-                cacs_=nan(n_splits_,numel(tf_config.cfs));
-                
-                idx_splits_=reshape(1:n_samples_,[],n_splits_)';
-                for nn=1:n_splits_
-                    split_env_tf_=reshape(env_tf_(:,idx_splits_(nn,:),:),numel(tf_config.cfs),[]);
-                    split_eeg_tf_=reshape(eeg_tf_(:,idx_splits_(nn,:),:),numel(tf_config.cfs),[]);
-                    cacs_(nn,:)=get_cac(split_env_tf_,split_eeg_tf_);
-                    clear nn split_env_tf_ split_eeg_tf_
-                end
-                % note: if we are keeping env_tf/eeg_tf for future reference we
-                % should re-flatten the third dimension out again here...
-                cacs(cc,:)=mean(cacs_,1);
-                clear n_splits_ nn
-            case {'fast','og'}
-                % technically oganian & chang used the time-split averaging to
-                % accounnt for different amounts of data across conditions...
-                % maybe should do that here too?
-                cacs(cc,:)=get_cac(env_tf_,eeg_tf_);
-            otherwise
-                error('idk that condition bro')
-        end
-        % note that averaging across trials/electrodes is implicit in how we
-        % defined get_cac
-        clear m_ stim_ resp_ cc env_tf_ eeg_tf_ n_samples_
-    end
-    % todo: save result for each subject in analysis folder
-    %% save cac result
+    %todo: load precomputed
     global boxdir_mine
     tf_dir=fullfile(boxdir_mine,'analysis','cac');
     cac_fpth=fullfile(tf_dir,sprintf('warped_speech_s%02d.mat',subj));
-    fprintf('saving cacs for subj %d...\n',subj)
-    save(cac_fpth,"cacs","tf_config","preprocess_config","trf_config")  
-    disp('saved.')
+    if ~exist(cac_fpth,"file")
+        %preallocate
+        cacs=nan(length(conditions),numel(tf_config.cfs));
+        for cc=1:length(conditions)
+        % for cc=3
+            fprintf('getting %s cac...\n',conditions{cc})
+            m_=preprocessed_eeg.cond==cc;
+            stim_=cat(2,stim{m_});
+            n_samples_=size(stim_,1);
+            % expand stim mat to match eeg mat by repeating each stim for each
+            % electrode
+            stim_=repelem(stim_,1,n_electrodes);
+            resp_=cat(2,resp{m_});
+            % get tf representation using filters defined in oganian & chang
+            % note: we probably want to save these for future reference but
+            % currently they're just overwritten on each loop iteration
+            [env_tf_,eeg_tf_]=get_tf(stim_,resp_,tf_config);
+            % compute cac based on oganian & chang's description
+            switch conditions{cc}
+                case 'slow'
+                    % slow has too many samples to do in one go... split and average cac...
+                    n_splits_=3;
+                    % untangle time-dimension for clarity
+                    env_tf_=reshape(env_tf_,numel(tf_config.cfs),n_samples_,[]);
+                    eeg_tf_=reshape(eeg_tf_,numel(tf_config.cfs),n_samples_,[]);
+                    cacs_=nan(n_splits_,numel(tf_config.cfs));
+                    
+                    idx_splits_=reshape(1:n_samples_,[],n_splits_)';
+                    for nn=1:n_splits_
+                        split_env_tf_=reshape(env_tf_(:,idx_splits_(nn,:),:),numel(tf_config.cfs),[]);
+                        split_eeg_tf_=reshape(eeg_tf_(:,idx_splits_(nn,:),:),numel(tf_config.cfs),[]);
+                        cacs_(nn,:)=get_cac(split_env_tf_,split_eeg_tf_);
+                        clear nn split_env_tf_ split_eeg_tf_
+                    end
+                    % note: if we are keeping env_tf/eeg_tf for future reference we
+                    % should re-flatten the third dimension out again here...
+                    cacs(cc,:)=mean(cacs_,1);
+                    clear n_splits_ nn
+                case {'fast','og'}
+                    % technically oganian & chang used the time-split averaging to
+                    % accounnt for different amounts of data across conditions...
+                    % maybe should do that here too?
+                    cacs(cc,:)=get_cac(env_tf_,eeg_tf_);
+                otherwise
+                    error('idk that condition bro')
+            end
+            % note that averaging across trials/electrodes is implicit in how we
+            % defined get_cac
+            clear m_ stim_ resp_ cc env_tf_ eeg_tf_ n_samples_
+        end
+        % todo: save result for each subject in analysis folder
+        %% save cac result
+        
+        fprintf('saving cacs for subj %d...\n',subj)
+        save(cac_fpth,"cacs","tf_config","preprocess_config","trf_config")  
+        disp('saved.')
+    else
+        %load
+        fprintf('loading existing cacs for subj %d...\n',subj)
+        load(cac_fpth)
+    end
     %% plot cac
     figure
     plot(repmat(tf_config.cfs,length(conditions),1)',cacs');
