@@ -551,7 +551,7 @@ wsola_param.tolerance = 256;
 wsola_param.synHop = 256;
 wsola_param.win = win(1024,2); % hann window
 wf_warp = wsolaTSM(wf,s,wsola_param);
-if rule_num==11
+if rule_num==11 && k==1
     % janky fix to add this parameter for recordkeeping only once to
     % warp_config
     warp_config.stretch_rate_lims=[min_stretch_rate max_stretch_rate];
