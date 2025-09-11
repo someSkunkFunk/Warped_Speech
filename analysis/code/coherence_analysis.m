@@ -15,7 +15,7 @@ cond_durs=64.*[2/3,1,3/2];
 show_psds=false;
 psd_config=[]; %empty for defaults
 show_mscohere=false;
-mscac_config=[];
+mscac_config=[]; 
 show_cac=true;
 overwrite_cac=false;
 inspect_tf_filters=false;
@@ -24,7 +24,27 @@ subjs=[2:7,9:22];
 % note: computing individual cacs takes a lot of time and memory, so only
 % run show_savg_cac=true if the files for each subject exist already, not
 % when computing
-show_savg_cac=true;
+show_savg_cac=false;
+debug_cac=true;
+%%
+if debug_cac
+    % get cac between stimulus and itself
+    global boxdir_mine
+    envelopes_file=fullfile(boxdir_mine,'WrinkleEnvelopes128hz.mat');
+    fs=128;
+    tf_config=[];
+    tf_config=config_tf(tf_config,fs);
+    [env_tf,eeg_tf]=get_tf(env,[],tf_config);
+    cac=get_cac(env_tf,env_tf);
+
+    figure
+    plot(tf_config.cfs,)
+    
+    
+    % see how it changes as 1/f noise is added 
+end
+
+%%
 for ss=1:numel(subjs)
     subj=subjs(ss);
     preprocess_config=config_preprocess(subj);
@@ -72,9 +92,8 @@ for ss=1:numel(subjs)
     end
     %% compute coherence using mscohere
     if show_mscohere
-        
-        [mscac,msc_freqs,mscac_config]=mscac_wrapper(preprocessed_eeg,stim,mscac_config);
-        %todo: verify that msc_freqs and psd_freqs are interchangible...
+        % test cac with cac(stim,stim)
+                 %todo: verify that msc_freqs and psd_freqs are interchangible...
         %% plot mscohere result
         %note: oganian & chang averaged across sensors... sensible to do here as
         %well?
