@@ -20,7 +20,7 @@ show_cac=true;
 overwrite_cac=false;
 inspect_tf_filters=false;
 tf_config=[];
-subjs=[3:7,9:22];
+subjs=[2:7,9:22];
 % note: computing individual cacs takes a lot of time and memory, so only
 % run show_savg_cac=true if the files for each subject exist already, not
 % when computing
