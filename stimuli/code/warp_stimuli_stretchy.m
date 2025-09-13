@@ -25,11 +25,11 @@ warp_rules=[11];
 center_freqs=4;
 % center_freqs=[6.358,3.940, 0]; %NOTE: we assuming only 3 values given at a time MAXIMUM (one of which is median...)
 % and all values greater than 1 since 1 means mode....
-conditions=[1 2]; % 1-> irreg (stretchy) 2-> reg (compessy)
+conditions=[1]; % 1-> irreg (stretchy) 2-> reg (compessy)
 
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 1;
+overwrite = 0;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
@@ -94,14 +94,16 @@ for warp_rule_num=warp_rules
                 warp_config.min_pkrt_height=6.9e-5;
                 % warp_config.prom_thresh=0.2;
                 % warp_config.width_thresh=0.01;
-                warp_config.area_thresh=2.40e-6; 
+                warp_config.area_thresh=2.40e-6;
+                warp_config.rng=0;
+                
                 % still imperfect (removes real syllables and keeps peaks
                 % that are not distinct syllables..)
                 
 
-                outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s/', ...
+                outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d/', ...
                         outputStimfolder,cond_nm,warp_config.rule_num, ...
-                        warp_config.env_method,center_str);
+                        warp_config.env_method,center_str,warp_config.rng);
                 audioOutputFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name);
                 audioParamsFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name(1:end-4));
     
