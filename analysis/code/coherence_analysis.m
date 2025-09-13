@@ -144,7 +144,7 @@ for ss=1:numel(subjs)
     end
 end
 %% TODO: plot across-subjs avg cac... + handle mismatch case...?
-if show_savg_cacs
+if show_savg_cac
     savg_cacs=squeeze(mean(savg_cacs,1));
     figure
     plot(repmat(tf_config.cfs,length(conditions),1)', savg_cacs');

@@ -41,7 +41,8 @@ defaults = struct( ...
     'env_derivative_noise_tol',0, ...,
     'min_pkrt_height',0, ...,
     'area_thresh',0, ...,
-    'env_lpf',10 ...
+    'env_lpf',10, ...,
+    'rng',0 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -114,8 +115,15 @@ switch center
             f_center=center;
 end
 
-% For repeatability
-rng(1);
+switch warp_config.rng
+    case 1
+        % For repeatability
+        rng(1);
+    case 0
+    otherwise
+        error('not recognized.')
+        
+end
 
 
 % Extract envelope
