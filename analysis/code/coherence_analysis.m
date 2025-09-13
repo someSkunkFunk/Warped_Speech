@@ -25,21 +25,30 @@ subjs=[2:7,9:22];
 % run show_savg_cac=true if the files for each subject exist already, not
 % when computing
 show_savg_cac=false;
-debug_cac=true;
+test_cac=true;
 %%
-if debug_cac
+if test_cac
     % get cac between stimulus and itself
     global boxdir_mine
-    envelopes_file=fullfile(boxdir_mine,'WrinkleEnvelopes128hz.mat');
+    envelopes_file=fullfile(boxdir_mine,'stimuli/wrinkle/WrinkleEnvelopes128hz.mat');
+    load(envelopes_file);
     fs=128;
     tf_config=[];
     tf_config=config_tf(tf_config,fs);
-    [env_tf,eeg_tf]=get_tf(env,[],tf_config);
-    cac=get_cac(env_tf,env_tf);
+    [env_tf,~]=get_tf(env{1},[],tf_config);
+    self_cac=get_cac(env_tf,env_tf);
 
     figure
-    plot(tf_config.cfs,)
+    plot(tf_config.cfs,self_cac)
+    title('cac of envelope with itself')
+    ylim([0 1.1])
     
+
+    [env_tf2,~]=get_tf(env{3},[],tf_config);
+    cross_cc_cac=get_cac(env_tf,env_tf2(:,1:size(env_tf2,2)));
+    figure
+    plot(tf_config.cfs,cross_cc_cac)
+    title('cac of fast envelope with slow')
     
     % see how it changes as 1/f noise is added 
 end
@@ -116,7 +125,7 @@ for ss=1:numel(subjs)
         tf_dir=fullfile(boxdir_mine,'analysis','cac');
         cac_fpth=fullfile(tf_dir,sprintf('warped_speech_s%02d.mat',subj));
         if (~exist(cac_fpth,"file")||overwrite_cac)&&~show_savg_cac
-            cacs=cacs_wrapper(tf_config,conditions);
+            cacs=cacs_wrapper(stim,preprocessed_eeg,tf_config,conditions);
             %% save cac result
             fprintf('saving cacs for subj %d...\n',subj)
             save(cac_fpth,"cacs","tf_config","preprocess_config","trf_config")  
@@ -157,12 +166,14 @@ end
 % probably should do mismatch cacs just to show how mismatching the
 % data conditions affects the cac
 %% helpers
-function cacs=cacs_wrapper(tf_config,conditions)
+function cacs=cacs_wrapper(stim,preprocessed_eeg,tf_config,conditions)
 %todo: add var for match vs mismatched - then adapt code to handle mm...
 % also test that it runs correctly in m case?
 % also... how to handle differing amounts of data in mm case?
 % is there a smarter way to handle that in m case also...?
 %preallocate
+resp=preprocessed_eeg.resp;
+n_electrodes=preprocessed_eeg.preprocess_config.nchan;
 cacs=nan(length(conditions),numel(tf_config.cfs));
 for cc=1:length(conditions)
     fprintf('getting %s cac...\n',conditions{cc})
@@ -229,8 +240,8 @@ end
 
 function [env_tf,eeg_tf]=get_tf(env,eeg,tf_config)
     % [env_tf,eeg_tf]=get_tf(env,eeg,tf_config)
-    %env: [time x trials*electrodes]
-    %eeg: [time x trials*electrodes]
+    %env: [time x trials*electrodes] matrix
+    %eeg: [time x trials*electrodes] matrix
     %env_tf/eeg_tf: [fbands x time*trials*electrodes]
     % note that second dimension is assumed to have a correspondence across
     % the env and eeg samples but can be electrodes, or trials, or both
@@ -248,18 +259,25 @@ function [env_tf,eeg_tf]=get_tf(env,eeg,tf_config)
     cfs=tf_config.cfs;
 
     n_bands=numel(cfs);
-    [n_samples,n_waveforms]=size(eeg);
+    if ~isempty(eeg)
+        [n_samples,n_waveforms]=size(eeg);
+    else
+        % assume we only want 1 waveform when debugging.
+        n_samples=length(env);n_waveforms=1;
+    end
     env_tf=nan(n_bands,n_samples*n_waveforms);
     eeg_tf=nan(n_bands,n_samples*n_waveforms);
     for ff=1:n_bands
         cf=cfs(ff);
         [sos,g]=design_bandpass(cf,bw_octave,fs);
-
+        
         ff_env_tf=filtfilt(sos,g,env);
-        ff_eeg_tf=filtfilt(sos,g,eeg);
         % unwrap all fband tf representations into single vector
         env_tf(ff,:)=ff_env_tf(:);
-        eeg_tf(ff,:)=ff_eeg_tf(:);
+        if ~isempty(eeg)
+            ff_eeg_tf=filtfilt(sos,g,eeg);
+            eeg_tf(ff,:)=ff_eeg_tf(:);
+        end
     end    
 end
 function show_tf_filters(tf_config)
