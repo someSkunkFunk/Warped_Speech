@@ -20,7 +20,8 @@ show_cac=true;
 overwrite_cac=false;
 inspect_tf_filters=false;
 tf_config=[];
-subjs=[2:7,9:22];
+% subjs=[2:7,9:22];
+subjs=[]; %empty to only run test codeee
 % note: computing individual cacs takes a lot of time and memory, so only
 % run show_savg_cac=true if the files for each subject exist already, not
 % when computing
@@ -30,8 +31,10 @@ test_cac=true;
 if test_cac
     % get cac between stimulus and itself
     global boxdir_mine
+    % could read fs from file if we source signal...
     envelopes_file=fullfile(boxdir_mine,'stimuli/wrinkle/WrinkleEnvelopes128hz.mat');
     load(envelopes_file);
+
     fs=128;
     tf_config=[];
     tf_config=config_tf(tf_config,fs);
@@ -45,11 +48,22 @@ if test_cac
     
 
     [env_tf2,~]=get_tf(env{3},[],tf_config);
-    cross_cc_cac=get_cac(env_tf,env_tf2(:,1:size(env_tf2,2)));
+    cross_cc_cac=get_cac(env_tf,env_tf2(:,1:size(env_tf,2)));
     figure
     plot(tf_config.cfs,cross_cc_cac)
     title('cac of fast envelope with slow')
-    
+    % constant delay in time-> linear phase shift... ?
+    dts=round(fs.*logspace(-2,1,10));
+    env_tf_delayed=delayseq(env_tf,dts);
+    for dd=length(dts)
+        dt=dts(dd);
+        env_tf_delayed=delayseq(env_tf,dt);
+        delay_cac=get_cac(env_tf,env_tf_delayed())
+        figure
+        plot()
+
+    end
+
     % see how it changes as 1/f noise is added 
 end
 
