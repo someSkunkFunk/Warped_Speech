@@ -38,11 +38,12 @@ defaults = struct( ...
     'width_thresh',0, ...
     'env_thresh_std',0, ...
     'hard_cutoff_hz',8, ...,
-    'env_derivative_noise_tol',0, ...,
-    'min_pkrt_height',0, ...,
-    'area_thresh',0, ...,
-    'env_lpf',10, ...,
-    'rng',0 ...
+    'env_derivative_noise_tol',0, ...
+    'min_pkrt_height',0, ...
+    'area_thresh',0, ...
+    'env_lpf',10, ...
+    'rng',0, ...
+    'manual_filter',0 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -176,6 +177,49 @@ if any(diff(Ifrom<hard_cutoff_hz))
     ff=true(length(Ifrom),1);
     Ifrom=Ifrom(recursive_cutoff_filter(ff,Ifrom,hard_cutoff_hz));
 end
+% manual peak removal
+if warp_config.manual_filter
+    % define segments to scan thru
+    t_seg=8; % in seconds
+    len_seg=round(fs*t_seg); % segment length in samples
+    n_overlap=round(0.9*len_seg); % number of samples to overlap segments by
+    n_offset=len_seg-n_overlap; % amount of samples to slide for next segment 
+    n_segments=1+floor((length(wf)-len_seg)/n_offset);
+    % preallocate segment indices
+    seg_idxs=nan(n_segments,len_seg);
+    for ss=1:n_segments
+        seg_idxs(ss,:)=1+(ss-1)*n_offset:(ss-1)*n_offset+len_seg;
+    % play audio segment
+
+    % show waveform for that segment
+
+    % get user input for peaks to remove
+    % use time window to specify the peak
+
+    % find peak within window and remove from Ifrom
+
+    % regenerate waveform plot with new peaks
+    
+    % note: we could add information about which peaks were manually
+    % removed for peakRate distribution plots... or we could use
+    % warp_config to find if peaks that are in peakrate but NOT in s-mat
+    % can be attributed to manual filter, and if so just remove them
+
+    
+    end
+    % save resulting Ifrom...? so we don't have to do manual process twice?
+    %probably okay to just do it 
+
+    %what if the peaks we choose yield unsatisfactory results? we won't
+    %really know which should have stayed until after we warp the thing...
+    %so it may be beneficial to save the Ifrom after all....?
+
+    % aside from that, we may want to add peaks back after removing them
+    % and realizing a different peak should be removed instead (by accident
+    % or whatever)... add option to re-instate such peaks...
+
+end
+
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
 %inter-segment interval
 ISI=0;

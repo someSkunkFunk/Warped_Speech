@@ -6,18 +6,22 @@
 
 clear, clc
 global boxdir_mine
-warp_dir='rule11_seg_bark_4.000Hz';
-regularity=-1; %1-> irreg -1-> reg
+warp_dir='rule11_seg_bark_4.000Hz_0';
+regularity=1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
 %%
 hist_config=[]; %use defaults
+hist_config.normalization='count';
 rates_hist_wrapper(s_intervals(:,1),hist_config)
 title('og')
 xlabel('peakrate (hz)')
+ylabel('count')
 clear hist_config
 hist_config=[]; %use defaults
+hist_config.normalization='count';
 rates_hist_wrapper(s_intervals(:,2),hist_config)
+ylabel('count')
 title(cond_nm)
 xlabel('peakrate (hz)')
 
@@ -111,49 +115,49 @@ warp_rule=sscanf(warp_info{1},'rule%d');
 % s_intervals_og(s_intervals_og>max_interval)=[];
 % s_intervals_warped(s_intervals_warped>max_interval)=[];
 %% plot s-mat hists
-
-%TODO: fix names so normalization info can also be readily extracted this
-%way
-ylims=[0 .2]; % make emptyy for no fuks given
-hist_config_sw.bin_scale='log';
-hist_config_sw.n_bins=50;
-hist_config_sw.xlims=[1 34];
-hist_config_sw.logTicks=2.^(-1:16);
-% hist_config_sw.title=sprintf('Anchorpoints - rule%d - regularity: %d',warp_rule,regularity);
-hist_config_sw.title=sprintf('%s speech syllable rate distribution',cond_nm);
-hist_config_sw.bin_lims=[.5, 36];
-
-hist_config_sog=hist_config_sw;
-% hist_config_sog.title=sprintf('Anchorpoints - og');
-hist_config_sog.title='original speech syllable rate distribution';
-
-figure
-rates_hist_wrapper(s_intervals_og,hist_config_sog);
-if ~isempty(ylims)
-    set(gca(),"YLim",ylims)
-end
-ylabel('probability')
-figure
-rates_hist_wrapper(s_intervals_warped,hist_config_sw);
-ylabel('probability')
-if ~isempty(ylims)
-    set(gca(),"YLim",ylims)
-end
-include_intervals=false;
-if include_intervals
-     % plot the actual intervals 
-    figure
-    histogram(s_intervals_warped,NumBins=50)
-    xlabel('time (s)')
-    title(sprintf('interpeak intervals for rule %d',warp_rule))
-    xlim([0 1]);
-    
-    figure
-    histogram(s_intervals_og)
-    xlabel('time (s)')
-    title('og intervals distribution')
-    xlim([0 1])
-end
+% 
+% %TODO: fix names so normalization info can also be readily extracted this
+% %way
+% ylims=[0 .2]; % make emptyy for no fuks given
+% hist_config_sw.bin_scale='log';
+% hist_config_sw.n_bins=50;
+% hist_config_sw.xlims=[1 34];
+% hist_config_sw.logTicks=2.^(-1:16);
+% % hist_config_sw.title=sprintf('Anchorpoints - rule%d - regularity: %d',warp_rule,regularity);
+% hist_config_sw.title=sprintf('%s speech syllable rate distribution',cond_nm);
+% hist_config_sw.bin_lims=[.5, 36];
+% 
+% hist_config_sog=hist_config_sw;
+% % hist_config_sog.title=sprintf('Anchorpoints - og');
+% hist_config_sog.title='original speech syllable rate distribution';
+% 
+% figure
+% rates_hist_wrapper(s_intervals_og,hist_config_sog);
+% if ~isempty(ylims)
+%     set(gca(),"YLim",ylims)
+% end
+% ylabel('probability')
+% figure
+% rates_hist_wrapper(s_intervals_warped,hist_config_sw);
+% ylabel('probability')
+% if ~isempty(ylims)
+%     set(gca(),"YLim",ylims)
+% end
+% include_intervals=false;
+% if include_intervals
+%      % plot the actual intervals 
+%     figure
+%     histogram(s_intervals_warped,NumBins=50)
+%     xlabel('time (s)')
+%     title(sprintf('interpeak intervals for rule %d',warp_rule))
+%     xlim([0 1]);
+% 
+%     figure
+%     histogram(s_intervals_og)
+%     xlabel('time (s)')
+%     title('og intervals distribution')
+%     xlim([0 1])
+% end
 %% plot algo hists
 % %% calculate fano-factors
 % fano_og_alg=get_fano_factor(alg_intervals_og);
@@ -339,7 +343,8 @@ defaults=struct('bin_scale','log', ...
     'n_bins',50, ...
     'bin_lims',[.5, 36], ...
     'logTicks',2.^(-1:16), ...
-    'xlims',[1 34]...
+    'xlims',[1 34],...
+    'normalization','probability' ...
     );
 % copy defaults
 config_fldnms=fieldnames(defaults);
@@ -354,6 +359,7 @@ n_bins=hist_config.n_bins;
 bin_lims=hist_config.bin_lims;
 logTicks=hist_config.logTicks;
 xlims=hist_config.xlims;
+normalization=hist_config.normalization;
 
 switch bin_scale
     case 'log'
@@ -362,7 +368,7 @@ switch bin_scale
         freq_bins=linspace(min(bin_lims),max(bin_lims),n_bins);
 end
 figure
-histogram(1./intervals,freq_bins,'Normalization','probability')
+histogram(1./intervals,freq_bins,'Normalization',normalization)
 xline(median(1./intervals),'r--','DisplayName',sprintf('median: %0.3f Hz',median(1./intervals)))
 xlabel('freq (Hz)')
 set(gca,'Xtick',logTicks,'Xscale','log','XLim',xlims)

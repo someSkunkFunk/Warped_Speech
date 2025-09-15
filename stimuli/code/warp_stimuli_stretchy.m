@@ -95,15 +95,17 @@ for warp_rule_num=warp_rules
                 % warp_config.prom_thresh=0.2;
                 % warp_config.width_thresh=0.01;
                 warp_config.area_thresh=2.40e-6;
-                warp_config.rng=0;
+                warp_config.rng=1; %note: probably want this to be false once we're confident manual filter works
+                warp_config.manual_filter=1;
                 
                 % still imperfect (removes real syllables and keeps peaks
                 % that are not distinct syllables..)
                 
 
-                outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d/', ...
+                outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d_%d/', ...
                         outputStimfolder,cond_nm,warp_config.rule_num, ...
-                        warp_config.env_method,center_str,warp_config.rng);
+                        warp_config.env_method,center_str,warp_config.rng, ...
+                        warp_config.manual_filter);
                 audioOutputFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name);
                 audioParamsFileTemp = sprintf('%s%s',outputDirTemp,d(dd).name(1:end-4));
     
