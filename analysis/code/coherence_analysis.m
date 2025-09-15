@@ -54,14 +54,16 @@ if test_cac
     title('cac of fast envelope with slow')
     % constant delay in time-> linear phase shift... ?
     dts=round(fs.*logspace(-2,1,10));
-    env_tf_delayed=delayseq(env_tf,dts);
-    for dd=length(dts)
+    % env_tf_delayed=delayseq(env_tf,dts);
+    for dd=1:length(dts)
         dt=dts(dd);
+        % pause(.5)
         env_tf_delayed=delayseq(env_tf,dt);
-        delay_cac=get_cac(env_tf,env_tf_delayed())
+        delay_cac=get_cac(env_tf,env_tf_delayed);
         figure
-        plot()
-
+        plot(tf_config.cfs,delay_cac)
+        title(sprintf('cac of envelope with itself delayed by %0.3gs',dt/fs))
+        ylim([0 1.1])
     end
 
     % see how it changes as 1/f noise is added 
