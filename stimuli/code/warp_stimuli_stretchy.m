@@ -25,7 +25,7 @@ warp_rules=[11];
 center_freqs=4;
 % center_freqs=[6.358,3.940, 0]; %NOTE: we assuming only 3 values given at a time MAXIMUM (one of which is median...)
 % and all values greater than 1 since 1 means mode....
-conditions=[1]; % 1-> irreg (stretchy) 2-> reg (compessy)
+conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
 
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);

@@ -179,45 +179,7 @@ if any(diff(Ifrom<hard_cutoff_hz))
 end
 % manual peak removal
 if warp_config.manual_filter
-    % define segments to scan thru
-    t_seg=8; % in seconds
-    len_seg=round(fs*t_seg); % segment length in samples
-    n_overlap=round(0.9*len_seg); % number of samples to overlap segments by
-    n_offset=len_seg-n_overlap; % amount of samples to slide for next segment 
-    n_segments=1+floor((length(wf)-len_seg)/n_offset);
-    % preallocate segment indices
-    seg_idxs=nan(n_segments,len_seg);
-    for ss=1:n_segments
-        seg_idxs(ss,:)=1+(ss-1)*n_offset:(ss-1)*n_offset+len_seg;
-    % play audio segment
-
-    % show waveform for that segment
-
-    % get user input for peaks to remove
-    % use time window to specify the peak
-
-    % find peak within window and remove from Ifrom
-
-    % regenerate waveform plot with new peaks
-    
-    % note: we could add information about which peaks were manually
-    % removed for peakRate distribution plots... or we could use
-    % warp_config to find if peaks that are in peakrate but NOT in s-mat
-    % can be attributed to manual filter, and if so just remove them
-
-    
-    end
-    % save resulting Ifrom...? so we don't have to do manual process twice?
-    %probably okay to just do it 
-
-    %what if the peaks we choose yield unsatisfactory results? we won't
-    %really know which should have stayed until after we warp the thing...
-    %so it may be beneficial to save the Ifrom after all....?
-
-    % aside from that, we may want to add peaks back after removing them
-    % and realizing a different peak should be removed instead (by accident
-    % or whatever)... add option to re-instate such peaks...
-
+    [Ifrom, warp_config.manually_removed_pks]=manually_pick_peaks(wf,fs,Ifrom);
 end
 
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
@@ -615,6 +577,150 @@ S=struct('s',s,'warp_config',warp_config,'wsola_param', ...
 % inspect_envelope_derivative(env_onsets,peakRate,fs,warp_config)
 % inspect_anchorpoints(wf,wf_warp,fs,s)
 end
+%% helpers
+function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
+    removed_pks=nan(length(Ifrom),1);
+    t=0:1/fs:(length(wf)-1)/fs;
+    % define segments to scan thru
+    t_seg=6; % in seconds
+    len_seg=round(fs*t_seg); % segment length in samples
+    n_overlap=round(0.1*len_seg); % number of samples to overlap segments by
+    n_offset=len_seg-n_overlap; % amount of samples to slide for next segment 
+    n_segments=1+floor((length(wf)-len_seg)/n_offset);
+    % preallocate segment indices
+    seg_idxs=nan(n_segments,len_seg);
+    
+    pause_buff=0.5;
+    for ss=1:n_segments
+        fprintf('segment %d/%d...\n',ss,n_segments)
+
+        seg_idxs(ss,:)=1+(ss-1)*n_offset:(ss-1)*n_offset+len_seg;
+        wf_slice=wf(seg_idxs(ss,:));
+        t_slice=t(seg_idxs(ss,:));
+
+        Ifrom_slice=Ifrom(Ifrom>t_slice(1)&Ifrom<t_slice(end));
+        pk_ys=ones(2,numel(Ifrom_slice));
+        pk_ys(2,:)=-1;
+        % show waveform + existing peaks for that segment
+        figure,plot(t_slice,wf_slice);
+        hold on
+        plot(repmat(Ifrom_slice',2,1),pk_ys,'color','m')
+        ylim([min(wf) max(wf)]);
+        xlabel('Time (s)')
+
+        % play audio segment
+        soundsc(wf(seg_idxs(ss,:)),fs)
+        pause(t_seg+pause_buff)
+        % get user input for time windows containing peaks to remove
+        rm_windows=validate_input()';
+
+        % find peak within window and remove from Ifrom
+        if ~isempty(rm_windows)
+            for rr=1:size(rm_windows,1)
+                onset=rm_windows(rr,1);
+                offset=rm_windows(rr,2);
+                % note: assumes a single peak contained within each window,
+                % which might not be the case...
+                rm_peak_time=Ifrom(Ifrom>onset&Ifrom<offset);
+                if numel(rm_peak_time)>1
+                    fprintf(['warning, multiple peaks contained in ' ...
+                        'window: %0.3f-%0.3f s...\n'],onset,offset)
+                end
+                Ifrom=Ifrom(Ifrom~=rm_pk_time);
+            end
+        end
+        % regenerate waveform plot with new peaks
+        
+        % note: we could add information about which peaks were manually
+        % removed for peakRate distribution plots... or we could use
+        % warp_config to find if peaks that are in peakrate but NOT in s-mat
+        % can be attributed to manual filter, and if so just remove them
+
+    
+    end
+    % save resulting Ifrom...? so we don't have to do manual process twice?
+    %probably okay to just do it 
+
+    %what if the peaks we choose yield unsatisfactory results? we won't
+    %really know which should have stayed until after we warp the thing...
+    %so it may be beneficial to save the Ifrom after all....?
+
+    % aside from that, we may want to add peaks back after removing them
+    % and realizing a different peak should be removed instead (by accident
+    % or whatever)... add option to re-instate such peaks...
+
+    % remove nans from removed peaks
+    removed_pks=removed_pks(~isnan(removed_pks));
+    function windows = validate_input(windows)
+    %VALIDATE_INPUT  Validate time window input.
+    %   WINDOWS = VALIDATE_INPUT(WINDOWS) checks that WINDOWS is either:
+    %     (1) a row vector with an even number of elements, representing
+    %         [onset1 offset1 onset2 offset2 ...], or
+    %     (2) a 2-by-N array, where each column is [onset; offset].
+    %   Additional checks:
+    %     - Each onset must be strictly less than its corresponding offset.
+    %     - Windows must not overlap.
+    %   If WINDOWS is invalid, the user will be prompted to re-enter input
+    %   until a valid set of windows (or [] for none) is given.
+    
+        while ~is_valid(windows)
+            disp('Invalid input. Please enter windows again.');
+            disp('Valid formats:');
+            disp(' - Row vector with even length: [on1 off1 on2 off2 ...]');
+            disp(' - 2-by-N array: [on1 on2 ...; off1 off2 ...]');
+            disp(' - Empty array [] is also valid.');
+            prompt='Enter (array of) time window(s) enclosing peak(s) to remove (empty array if none)';
+            windows = input(prompt);
+        end
+        
+        % Normalize format: always return 2-by-N
+        if isempty(windows)
+            return;
+        elseif isvector(windows)
+            windows = reshape(windows, 2, []);
+        end
+    end
+
+    function ok = is_valid(w)
+        ok = false;
+        
+        if isempty(w)
+            ok = true;
+            return;
+        end
+        
+        % Case 1: row vector with even number of elements
+        if isvector(w) && size(w,1) == 1 && mod(numel(w),2) == 0
+            w = reshape(w, 2, []);
+        % Case 2: 2-by-N matrix
+        elseif ismatrix(w) && size(w,1) == 2
+            % already fine
+        else
+            return; % invalid shape
+        end
+        
+        onsets = w(1,:);
+        offsets = w(2,:);
+        
+        % Check onset < offset
+        if any(offsets <= onsets)
+            return;
+        end
+        
+        % Check for overlap
+        [~, order] = sort(onsets);
+        onsets = onsets(order);
+        offsets = offsets(order);
+        
+        if any(onsets(2:end) < offsets(1:end-1))
+            return;
+        end
+        
+        ok = true;
+    end
+
+end
+
 function y=reflect_about(x,xr)
     y=x-2.*(x-xr);
 end
