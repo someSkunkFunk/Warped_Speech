@@ -118,7 +118,6 @@ for ss=1:numel(subjs)
     %% compute coherence using mscohere
     if show_mscohere
         % test cac with cac(stim,stim)
-                 %todo: verify that msc_freqs and psd_freqs are interchangible...
         %% plot mscohere result
         %note: oganian & chang averaged across sensors... sensible to do here as
         %well?
