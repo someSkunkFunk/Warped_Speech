@@ -583,10 +583,11 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
     removed_pks=[];
     t=0:1/fs:(length(wf)-1)/fs;
     % define segments to scan thru
-    t_seg=6; % in seconds
+    t_seg=3; % in seconds
     len_seg=round(fs*t_seg); % segment length in samples
     n_overlap=round(0.1*len_seg); % number of samples to overlap segments by
-    n_offset=len_seg-n_overlap; % amount of samples to slide for next segment 
+    n_offset=len_seg-n_overlap; % amount of samples to slide for next segment
+    % this seems short by one segment...?
     n_slice=1+floor((length(wf)-len_seg)/n_offset);
     % preallocate slice indices
     slice_idxs=nan(n_slice,len_seg);
@@ -624,15 +625,16 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
                     % find peak within window and remove from Ifrom
                     Ifrom_rm=rm_peaks(Ifrom,rm_windows);
                     % regenerate waveform plot with new peaks
-                    [~,~]=plot_slice(slice_idx,wf,t,Ifrom_rm);
+                    [~,~]=plot_slice(slice_idxs(ss,:),wf,t,Ifrom_rm);
                     title(sprintf('segment %d/%d after\n',ss,n_slice))
                     ok=input('Do peaks look ok now?\n');
-                    if ismember(lower(ok),{'yes','ok'})
+                    % if ismember(lower(ok),{'yes','ok'})
+                    if ok
                         %codify removed peaks and move on to next segment
                         satisfied=true;
                         % record which peaks where removed
-                        rm_m=~ismember(Ifrom,Ifrom_rm);
-                        removed_pks=cat(1,removed_pks,Ifrom(rm_m));
+                        rmd_m=~ismember(Ifrom,Ifrom_rm);
+                        removed_pks=cat(1,removed_pks,Ifrom(rmd_m));
                         % update Ifrom
                         Ifrom=Ifrom_rm;
                     end
@@ -650,7 +652,7 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
     %probably okay to just do it 
 
     % remove nans from removed peaks
-    removed_pks=removed_pks(~isnan(removed_pks));
+    % removed_pks=removed_pks(~isnan(removed_pks));
 
     function Ifrom=rm_peaks(Ifrom,rm_windows)
         npks_pre=numel(Ifrom);
@@ -660,12 +662,12 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
                 offset=rm_windows(rr,2);
                 % note: assumes a single peak contained within each window,
                 % which might not be the case...
-                rm_ _time=Ifrom(Ifrom>onset&Ifrom<offset);
-                if numel(rm_peak_time)>1
+                rm_m=Ifrom>onset&Ifrom<offset;
+                if sum(rm_m)>1
                     fprintf(['warning, multiple peaks contained in ' ...
                         'window: %0.3f-%0.3f s...\n'],onset,offset)
                 end
-                Ifrom(Ifrom==rm_pk_time)=[];
+                Ifrom(rm_m)=[];
             end
         end
         npks_post=numel(Ifrom);
@@ -696,11 +698,11 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
             windows = input(prompt);
         end
         
-        % Normalize format: always return 2-by-N
+        % Normalize format: always return N-by-2
         if isempty(windows)||isequal(windows,0)
             return;
         elseif isvector(windows)
-            windows = reshape(windows, 2, []);
+            windows = reshape(windows, 2, [])';
         end
     
         function ok = is_valid(w)
@@ -718,7 +720,8 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
             
             % Case 1: row vector with even number of elements
             if isrow(w) && mod(numel(w),2) == 0
-                w = reshape(w, 2, [])';
+                % works but should reshape outside of is_valid
+                % w = reshape(w, 2, [])';
             % Case 2: N-by-2 matrix
             elseif ismatrix(w) && size(w,2) == 2
                 % already fine

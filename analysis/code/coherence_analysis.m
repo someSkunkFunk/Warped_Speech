@@ -10,7 +10,7 @@
 clearvars -except boxdir_mine boxdir_lab
 
 
-conditions={'fast','og','slow'};
+conditions={'fast','original','slow'};
 cond_durs=64.*[2/3,1,3/2];
 show_psds=false;
 psd_config=[]; %empty for defaults
@@ -21,19 +21,27 @@ overwrite_cac=false;
 inspect_tf_filters=false;
 tf_config=[];
 % subjs=[2:7,9:22];
-subjs=[]; %empty to only run test codeee
+subjs=[2,3];
+% subjs=[]; %empty to only run test codeee
 % note: computing individual cacs takes a lot of time and memory, so only
 % run show_savg_cac=true if the files for each subject exist already, not
 % when computing
-show_savg_cac=false;
-test_cac=true;
+show_savg_cac=true;
+test_cac=false;
+
+%TODO: skip loading eeg when not required (i.e. when everything is
+%pre-loaded)
 %%
 if test_cac
     % get cac between stimulus and itself
     global boxdir_mine
     % could read fs from file if we source signal...
+    
     envelopes_file=fullfile(boxdir_mine,'stimuli/wrinkle/WrinkleEnvelopes128hz.mat');
+    disp('loading envelopes')
+    tic
     load(envelopes_file);
+    toc
 
     fs=128;
     tf_config=[];
@@ -72,16 +80,23 @@ end
 %%
 for ss=1:numel(subjs)
     subj=subjs(ss);
+    tic
     preprocess_config=config_preprocess(subj);
+    toc
+    disp('loading eeg')
+    tic
     load(preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
+    toc
     %TODO: add preprocess_config to all preprocessed_eeg files for
     %convenience...
     %however, I now see the issue of why I avoided this previously...
     %boxdirs will depend on what machine you run this from, so maybe just
     %stick to this method for now
     preprocessed_eeg.preprocess_config=preprocess_config;
-    
+    disp('loading stim')
+    tic
     stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+    toc
     % resp=preprocessed_eeg.resp;
     % fs=preprocessed_eeg.fs;
 
@@ -148,7 +163,9 @@ for ss=1:numel(subjs)
         else
             %load
             fprintf('loading existing cacs for subj %d...\n',subj)
+            tic
             load(cac_fpth)
+            toc
             if show_savg_cac
                 % aggregate all cacs into one massive array
                 if ss==1 %preallocate on first subj
