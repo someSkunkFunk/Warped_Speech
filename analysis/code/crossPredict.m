@@ -206,22 +206,39 @@ load(loc_file);
 %% oostenveld permutation test of within vs cross prediction accuracies
 
 %% generate permuted distribution of contrast maps
-% note: some permutations are redundant with this contras calculation so we
+% note: some permutations are redundant with this contrast calculation so we
 % could make it more efficient by ignoring those...
-D_obs=R_within-squeeze(mean(R_cross,3));
+config_D=[]; % use defaults - difference is default (to compare results)
+
+%TODO: check 2-way comparisons against R_cross
+D_obs=get_D(R_within,R_cross,config_D);
+n_comp=size(D_obs,1);
+
 n_perm=6000;
 [~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond,n_cond),4);
 % n_perm independent permutations per subject per condition
-D_perm=nan(n_perm,n_subjs,n_cond,n_electrodes);
-for nn=1:n_perm
-    for ss=1:n_subjs
-        for cc=1:n_cond
-            within_perm_idx=squeeze(perm_idx(nn,ss,cc,1));
-            cross_perm_idx=squeeze(perm_idx(nn,ss,cc,2:n_cond));
-            S_within_=squeeze(all_subj_Rcs(ss,within_perm_idx,cc,:));
-            S_cross_=squeeze(mean(all_subj_Rcs(ss,cross_perm_idx,cc,:),2));
-            D_perm(nn,ss,cc,:)=S_within_-S_cross_;
-            clear S_within_ S_cross_
+D_perm=nan(n_comp,n_perm,n_subjs,n_cond,n_electrodes);
+for dd=1:n_comp
+    for nn=1:n_perm
+        for ss=1:n_subjs
+            for cc=1:n_cond
+                % TODO: get_D isn't expecting input for individual
+                % electrodes here... so either adapt the function to deal
+                % with that case OR define S_within_/S_cross_ in a way that
+                % is compatible.....
+                % OR there may be a way to use perm_idx without needing all
+                % these loops here?? (watch out for memory issues
+                % though...)
+                within_perm_idx=squeeze(perm_idx(nn,ss,cc,1));
+                cross_perm_idx=squeeze(perm_idx(nn,ss,cc,2:n_cond));
+                S_within_=squeeze(all_subj_Rcs(ss,within_perm_idx,cc,:));
+                % note: will want to keep cross conditions separate in S_cross
+                % so that its dims are consistent with D_obs in function
+                S_cross_=squeeze(mean(all_subj_Rcs(ss,cross_perm_idx,cc,:),2));
+                D_perm(dd,nn,ss,cc,:)=get_D(S_within_,S_cross_,config_D);
+                % D_perm(nn,ss,cc,:)=S_within_-S_cross_;
+                clear S_within_ S_cross_
+            end
         end
     end
 end
@@ -231,9 +248,21 @@ end
 % calculate cdf^-1 up to alpha and abs it 
 crit_p=0.05;
 t_thresh=abs(tinv(crit_p,n_subjs-1));
+% preallocate TODO: check this is what we expect
+T_perm=nan(n_comp,n_perm,n_cond,n_electrodes);
+T_obs=nan(n_comp,n_cond,n_electrodes);
 % get one-sample t-statistic of mean contrasts
-T_perm=squeeze(mean(D_perm,2)./(std(D_perm,0,2)/sqrt(n_subjs)));
-T_obs=squeeze(mean(D_obs,1)./(std(D_obs,0,1)/sqrt(n_subjs)));
+%TODO: in separate train conditions comparison, is it still a one-sample?
+%probably right...
+for dd=1:size(D_obs,1)
+    % compute across-subjects t-statistics 
+    D_perm_=D_perm(dd,:,:,:,:);
+    T_perm(dd,:,:,:)=squeeze(mean(D_perm_,3)./(std(D_perm_,0,3)/sqrt(n_subjs)));
+    clear D_perm_
+    D_obs_=D_obs(dd,:,:,:);
+    T_obs(dd,:,:)=squeeze(mean(D_obs_,2)./(std(D_obs_,0,2)/sqrt(n_subjs)));
+    clear D_obs_
+end
 %% plot D_obs & T_obs topos
 for cc=1:n_cond
     for ss=1:n_subjs
@@ -732,6 +761,48 @@ end
 % disp(glme)
 
 %% helpers
+function D=get_D(R_within,R_cross,config)
+% R_within: subjs-by-test_conditions-by-channels
+% R_cross: subjs-by-test_conditions-by-train_conditions-by-channels
+
+% check config + set defaults if not specified
+defaults=struct( ...
+    'metric','raw_diff', ...
+    'comparison','lumped');
+fldnms=fieldnames(defaults);
+for ff=1:numel(fldnms)
+    fldnm=fldnms{ff};
+    if ~isfield(config,fldnm)||isempty(config.(fldnm))
+        config.(fldnm)=defaults.(fldnm);
+    end
+end
+
+switch lower(config.comparison)
+    case 'lumped'
+        % don't distinguish between cross-training conditions
+        R_cross=mean(R_cross,3);
+    case 'separate'
+        % can just permute and use first dim for iteration later
+    otherwise
+        error('config.comparison:%s not valid',config.comparison)
+end
+R_cross=permute(R_cross,[3 1 2 4]);
+D=nan(size(R_cross));
+for dd=1:size(D,1)
+    % get R_cross in compatible shape with R_within
+    R_cross_=squeeze(R_cross(dd,:,:,:));
+    switch lower(config.metric)
+        case 'raw_diff'
+            D(dd,:,:,:)=R_within-R_cross_;
+            % D_obs=R_within-squeeze(mean(R_cross,3));
+        case 'percent_change'
+            D(dd,:,:,:)=100*(R_within-R_cross_)./R_within;
+        otherwise
+            error('config.metric: %s not valid',config.metric)
+    end
+end
+
+end
 function cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj)
 % T_perm: permutations x conditions x electrodes
 % note: when testing on T_perm, need to iterate over each condition AND
