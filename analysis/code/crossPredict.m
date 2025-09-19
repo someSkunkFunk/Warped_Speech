@@ -2,6 +2,10 @@ clear, clc
 % use results where we automatically selected bad channels and interpolated
 % them
 force_interpBadChans=false;
+plots_config=[]; %todo... defaults + use wrapper function
+plots_config.subj_lvl_topos=false;
+
+
 %% compute stats_cross... or stats_cross_fair
 % false does the unfair comparison we originally devised which gives
 % stats_cross - true crossvalidates so that all scores are based on unseen
@@ -210,6 +214,7 @@ load(loc_file);
 % note: some permutations are redundant with this contrast calculation so we
 % could make it more efficient by ignoring those...
 D_config=[]; % use defaults - difference is default (to compare results)
+D_config.metric='percent_change';
 
 %TODO: check 2-way comparisons against R_cross
 [D_obs,D_config]=get_D(R_within,R_cross,D_config);
@@ -243,43 +248,6 @@ for pp=1:n_perm
 end
 
 
-
-
-
-%%% old code just in case
-% 
-% 
-% for dd=1:n_comp
-%     for nn=1:n_perm
-%         size(perm_idx(:,:,:,:))
-%         for ss=1:n_subjs
-%             for cc=1:n_cond
-%                 % TODO: get_D isn't expecting input for individual
-%                 % electrodes here... so either adapt the function to deal
-%                 % with that case OR define S_within_/S_cross_ in a way that
-%                 % is compatible.....
-%                 % OR there may be a way to use perm_idx without needing all
-%                 % these loops here?? (watch out for memory issues
-%                 % though...)
-% 
-%                 % isequal(1:3,sort(squeeze(perm_idx(nn,ss,cc,:))')) % ->
-%                 % true
-%                 % select a randomized within-train condition
-%                 within_perm_idx=squeeze(perm_idx(nn,ss,cc,1));
-%                 % select a randomized cross-train condition
-%                 cross_perm_idx=squeeze(perm_idx(nn,ss,cc,2:n_cond));
-%                 S_within_=squeeze(all_subj_Rcs(ss,within_perm_idx,cc,:));
-%                 % note: will want to keep cross conditions separate in S_cross
-%                 % so that its dims are consistent with D_obs in function
-%                 S_cross_=squeeze(mean(all_subj_Rcs(ss,cross_perm_idx,cc,:),2));
-% 
-%                 D_perm(nn,ss,cc,:)=S_within_-S_cross_;
-%                 clear S_within_ S_cross_
-%             end
-%         end
-%     end
-% end
-
 %% compute group-level statistics
 % note: alpha is 0.05 and since t-dist is symmetric about zero can just
 % calculate cdf^-1 up to alpha and abs it 
@@ -301,14 +269,16 @@ for dd=1:size(D_obs,1)
     clear D_obs_
 end
 %% plot D_obs & T_obs topos (individual subjs)
-for dd=1:n_comp
-    for cc=1:n_cond
-        for ss=1:n_subjs
-            figure
-            topoplot(D_obs(dd,ss,cc,:),chanlocs);
-            colorbar
-            title(sprintf('subj %d R_{within}-mean(R_{cross}) - %s',...
-                subjs(ss),cond{cc}))
+if plots_config.subj_lvl_topos
+    for dd=1:n_comp
+        for cc=1:n_cond
+            for ss=1:n_subjs
+                figure
+                topoplot(D_obs(dd,ss,cc,:),chanlocs);
+                colorbar
+                title(sprintf('subj %d R_{within}-mean(R_{cross}) - %s',...
+                    subjs(ss),cond{cc}))
+            end
         end
     end
 end
@@ -326,41 +296,49 @@ end
 %TODO: configure these to work in lumped vs not comparisons case... code
 %above could also use a clean up in that regard probably (may e use
 %functions?)
-for ss=1:n_subjs
-    figure
-    for cc=1:n_cond
-        scatter(repmat(cc,n_electrodes,1),squeeze(D_obs(ss,cc,:)));
-        hold on
+if plots_config.subj_lvl_topos
+    for ss=1:n_subjs
+        figure
+        for cc=1:n_cond
+            scatter(repmat(cc,n_electrodes,1),squeeze(D_obs(ss,cc,:)));
+            hold on
+        end
+        title(sprintf('subj %d - all electrodes',subjs(ss)))
+        xlabel('condition')
+        ylabel('R_{within}-mean(R_{cross})')
+        xticks(1:n_cond)
+        xticklabels(cond)
+        hold off
     end
-    title(sprintf('subj %d - all electrodes',subjs(ss)))
+end
+%
+for dd=1:n_comp
+        figure
+        for cc=1:n_cond
+            scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(dd,cc,:)));
+            hold on
+        end
+    % there must be a way to do the same plot in one line - also we want to add
+    % lines i think
+    % figure
+    % scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(cc,:)));
+    title(sprintf('across-subjects t-statistic - all electrodes'))
     xlabel('condition')
-    ylabel('R_{within}-mean(R_{cross})')
-    xticks(1:n_cond)
+    switch D_config.metric
+        case 'raw_diff'
+            ylabel('tstat(R_{within}-mean(R_{cross}))')
+        case 'percent_change'
+            ylabel('tstat(% \Delta(R_{within}, mean(R_{cross}))) ')
+    end
+    xticks(1:3)
     xticklabels(cond)
     hold off
 end
-%
-figure
-for cc=1:n_cond
-    scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(cc,:)));
-    hold on
-end
-% there must be a way to do the same plot in one line - also we want to add
-% lines i think
-% figure
-% scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(cc,:)));
-title(sprintf('across-subjects t-statistic - all electrodes'))
-xlabel('condition')
-ylabel('tstat(R_{within}-mean(R_{cross}))')
-xticks(1:3)
-xticklabels(cond)
-hold off
 %% Scatterplot R_within and R_Cross
 
 
-%% across all subjects TODO: check indexing... train/test have been swapped
-
-% rwithin
+%% across all subjects 
+% also TODO: use prettier plotting code wei ching shared
 figure
 for cc=1:n_cond
     R_=squeeze(R_within(:,cc,:));
@@ -377,19 +355,24 @@ xticklabels(cond)
 hold off
 %rcross
 % get cross condition pairing labels
-pairs_=get_off_diag_pairs(n_cond);
-% sort them by test condition
-[~,Ipairs]=sort(pairs_(:,2));
-pairs_=pairs_(Ipairs,:);
-n_cross=length(pairs_);
+%% TODO: check indexing... train/test have been swapped (actually I don't think it matters here
+% also TODO: use prettier plotting code wei ching shared
+% rwithin
+off_diag_pairs=get_off_diag_pairs(n_cond);    
+n_cross=length(off_diag_pairs);
+ % note: off_diag_pairs refer to train condition's original index, which
+% needs to be adjusted for numerically by the fact that test condition
+% is missing... when indexing to R_cross
+cross_train_idx=off_diag_pairs(:,1);
+cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))=cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))-1;
 
-cross_ids=cell(size(pairs_,1),1);
+cross_ids=cell(size(off_diag_pairs,1),1);
 for pp=1:n_cross
-    cross_ids{pp}=sprintf('%s,%s',cond{pairs_(pp,1)},cond{pairs_(pp,2)});
+    cross_ids{pp}=sprintf('%s,%s',cond{off_diag_pairs(pp,1)},cond{off_diag_pairs(pp,2)});
 end
 figure
 for pp=1:n_cross
-    R_=squeeze(R_cross(:,pairs_(cc,1),pairs_(cc,2),:));
+    R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
     R_=R_(:);
     scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
     hold on
@@ -403,51 +386,54 @@ xticklabels(cross_ids)
 hold off
 %% subject-level
 % rwithin
-figure
-for ss=1:n_subjs
-    for cc=1:n_cond
-        R_=squeeze(R_within(:,cc,:));
-        R_=R_(:);
-        scatter(repmat(cc,n_electrodes*n_subjs,1),R_);
-        hold on
-        clear R_
-    end
-    title(sprintf('subj %d & all electrodes',subjs(ss)))
-    xlabel('condition')
-    ylabel('R_{within}')
-    xticks(1:n_cond)
-    xticklabels(cond)
-    hold off
-end
-
-%rcross
-for ss=1:n_subjs
-    for pp=1:n_cross
-        cross_ids{pp}=sprintf('%s,%s',cond{pairs_(pp,1)},cond{pairs_(pp,2)});
-    end
+if plots_config.subj_lvl_topos
     figure
-    for pp=1:n_cross
-        R_=squeeze(R_cross(:,pairs_(cc,1),pairs_(cc,2),:));
-        R_=R_(:);
-        scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
-        hold on
+    for ss=1:n_subjs
+        for cc=1:n_cond
+            R_=squeeze(R_within(:,cc,:));
+            R_=R_(:);
+            scatter(repmat(cc,n_electrodes*n_subjs,1),R_);
+            hold on
+            clear R_
+        end
+        title(sprintf('subj %d & all electrodes',subjs(ss)))
+        xlabel('condition')
+        ylabel('R_{within}')
+        xticks(1:n_cond)
+        xticklabels(cond)
+        hold off
     end
     
-    title(sprintf('subjs %d & all electrodes',subjs(ss)))
-    xlabel('train->test')
-    ylabel('R_{cross}')
-    xticks(1:n_cross)
-    xticklabels(cross_ids)
-    hold off
+    %rcross
+    for ss=1:n_subjs
+        for pp=1:n_cross
+            cross_ids{pp}=sprintf('%s,%s',cond{off_diag_pairs(pp,1)},cond{off_diag_pairs(pp,2)});
+        end
+        figure
+        for pp=1:n_cross
+            R_=squeeze(R_cross(:,off_diag_pairs(cc,1),off_diag_pairs(cc,2),:));
+            R_=R_(:);
+            scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
+            hold on
+        end
+        
+        title(sprintf('subjs %d & all electrodes',subjs(ss)))
+        xlabel('train->test')
+        ylabel('R_{cross}')
+        xticks(1:n_cross)
+        xticklabels(cross_ids)
+        hold off
+    end
 end
 %% define electrode neighborhoods
-
+%TODO: make a config with vis_neighbors as field to imrpove readability...
 % note this will affect clustering results
 adj=get_adjacency_mat(chanlocs);
-vis_neighbors=true; % note this will generate 129 figures!
+vis_neighbors=false; % note this will generate 129 figures!
 % having trouble keeping head size consistent when calling topoplot
 % consecutively... opting instead to have each neighborhood plotted
 % separately
+
 figure
 topoplot([],chanlocs,'electrodes','on','style','blank','headrad',.5);
 title('electrode positions')
@@ -468,37 +454,41 @@ end
 %% run cluster analysis
 % cluster analysis on T_obs
 obs_clusters=cell(n_comp,n_cond,1);obs_masses=cell(n_comp,n_cond,1);
+cluster_nulldist=cell(n_comp,1);
 for dd=1:n_comp
+    fprintf('comp %d of %d\n',dd,n_comp)
     for cc=1:n_cond
-        [obs_clusters{dd,cc}, obs_masses{dd,cc}]=clusterize(T_obs(dd,cc,:),t_thresh,adj);
+        fprintf('getting observed cluster statistics')
+        [obs_clusters{dd,cc}, obs_masses{dd,cc}]=clusterize(squeeze(T_obs(dd,cc,:)),t_thresh,adj);
     end
 
     % do cluster test on T_perm
-    cluster_nulldist=get_cluster_nulldist(squeeze(T_perm(dd,:,:,:)),t_thresh,adj);
+    disp('generating permutation distributions')
+    cluster_nulldist{dd}=get_cluster_nulldist(squeeze(T_perm(dd,:,:,:)),t_thresh,adj);
 end
 %% plot nulldistributions of oostenveld cluster analysis
 
 %plot perm distributions for each condition
 crit_mass=nan(n_cond,1);
-for cc=1:n_cond
-    figure
-    [F_null_,Fmass_null_]=ecdf(cluster_nulldist(:,cc));
-    %note: need to call twice to plot? that's outrageous
-    ecdf(cluster_nulldist(:,cc));
-    hold on
-    % get critical mass
-    crit_mass(cc)=min(Fmass_null_(F_null_>(1-crit_p)));
-    plot(repmat(crit_mass(cc),2,1), [0 1], 'r--')
-    xlabel('cluster mass')
-    ylabel('probability')
-    legend('cdf',sprintf('crit mass: %0.1f',crit_mass(cc)))
-    title(sprintf('%s null',cond{cc}))
-    hold off
-    
-
-    clear Fmass_null_ F_null_
+for dd=1:n_comp
+    for cc=1:n_cond
+        nulldist_=cluster_nulldist{dd};
+        figure
+        [F_null_,Fmass_null_]=ecdf(nulldist_(:,cc));
+        %note: need to call twice to plot? that's outrageous
+        ecdf(nulldist_(:,cc));
+        hold on
+        % get critical mass
+        crit_mass(cc)=min(Fmass_null_(F_null_>(1-crit_p)));
+        plot(repmat(crit_mass(cc),2,1), [0 1], 'r--')
+        xlabel('cluster mass')
+        ylabel('probability')
+        legend('cdf',sprintf('crit mass: %0.1f',crit_mass(cc)))
+        title(sprintf('%s null',cond{cc}))
+        hold off
+        clear Fmass_null_ F_null_
+    end
 end
-
 %% topoplots above-threshold clusters
 for cc=1:n_cond
     
@@ -865,8 +855,6 @@ for nn=1:n_perm
     fprintf('clustering %d/%d...\n',nn,n_perm)
     for cc=1:n_cond
        [~,cluster_masses]=clusterize(squeeze(T_perm(nn,cc,:)),t_thresh,adj); 
-       % note: seems like cluster_masses should be a regular array... might
-       % need to double check that though
        cluster_nulldist(nn,cc)=max(cluster_masses);
     end
 end
@@ -945,6 +933,7 @@ function [clusters, cluster_masses]=clusterize(t_vals,t_thresh,adj)
     end
 
 end
+
 function [clusters_disjoint, cluster_intersections]=check_disjoint(clusters)
 % clusters_disjoint=check_disjoint(clusters)
 % clusters_disjoint: bool, clusters: cell arrays of vectors with hopefully
@@ -971,7 +960,7 @@ end
 function adj=get_adjacency_mat(chanlocs)
     coords=[[chanlocs.X]' [chanlocs.Y]' [chanlocs.Z]'];
     D=squareform(pdist(coords));
-    dist_thresh=0.45; %TODO: figure out 'correct' value for this
+    dist_thresh=0.35; %TODO: figure out 'correct' value for this
     % it is useful later to consider each electrode a neighbor of itself
     adj=D<dist_thresh;
     % adj=D<dist_thresh&D>0;
@@ -984,6 +973,9 @@ function pairs=get_off_diag_pairs(n_cond)
     pairs=[ptrain(:),ptest(:)];
     % remove diagonals
     pairs(pairs(:,1)==pairs(:,2),:)=[];
+    % sort them by test condition
+    [~,Ipairs]=sort(pairs(:,2));
+    pairs=pairs(Ipairs,:);
 end
 function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
 % assumes all_subj_Rcs has size [subjs,cond,cond,electrodes]
