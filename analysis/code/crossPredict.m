@@ -194,7 +194,8 @@ if get_rcross
 end
 
 cond={'fast','og','slow'};
-% arrange r_cross/r_within
+% arrange r_cross/r_within - note: we can probably do this more cleanly
+% with indexing instead of this function
 [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
 % [subj X train cond X electrodes],[subj X train cond X test cond X electrodes]
 
@@ -208,40 +209,76 @@ load(loc_file);
 %% generate permuted distribution of contrast maps
 % note: some permutations are redundant with this contrast calculation so we
 % could make it more efficient by ignoring those...
-config_D=[]; % use defaults - difference is default (to compare results)
+D_config=[]; % use defaults - difference is default (to compare results)
 
 %TODO: check 2-way comparisons against R_cross
-D_obs=get_D(R_within,R_cross,config_D);
+[D_obs,D_config]=get_D(R_within,R_cross,D_config);
 n_comp=size(D_obs,1);
-
+%%
+% todo: use wrapper function here? o
 n_perm=6000;
-[~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond,n_cond),4);
+% n_perm=1;
 % n_perm independent permutations per subject per condition
+[~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond,n_cond),4);
+
+% generate grids to vectorize indexing and avoid loops
+[~,subj_grid,~,test_grid,elec_grid]=ndgrid(1:n_perm,1:n_subjs, ...
+    1:n_cond,1:n_cond,1:n_electrodes);
+% pray for no memory issues
+
+% replace train grid with electrode-expanded random permutations of
+% conditions labels
+perm_train_grid=perm_idx(:,:,:,:,ones(1,n_electrodes));
+lin_perm_idx=sub2ind(size(all_subj_Rcs),subj_grid(:),perm_train_grid(:), ...
+    test_grid(:),elec_grid(:));
+
+perm_Rcs=reshape(all_subj_Rcs(lin_perm_idx),n_perm,n_subjs,n_cond, ...
+    n_cond,n_electrodes);
+% perm_R_cross=all
+%preallocate
 D_perm=nan(n_comp,n_perm,n_subjs,n_cond,n_electrodes);
-for dd=1:n_comp
-    for nn=1:n_perm
-        for ss=1:n_subjs
-            for cc=1:n_cond
-                % TODO: get_D isn't expecting input for individual
-                % electrodes here... so either adapt the function to deal
-                % with that case OR define S_within_/S_cross_ in a way that
-                % is compatible.....
-                % OR there may be a way to use perm_idx without needing all
-                % these loops here?? (watch out for memory issues
-                % though...)
-                within_perm_idx=squeeze(perm_idx(nn,ss,cc,1));
-                cross_perm_idx=squeeze(perm_idx(nn,ss,cc,2:n_cond));
-                S_within_=squeeze(all_subj_Rcs(ss,within_perm_idx,cc,:));
-                % note: will want to keep cross conditions separate in S_cross
-                % so that its dims are consistent with D_obs in function
-                S_cross_=squeeze(mean(all_subj_Rcs(ss,cross_perm_idx,cc,:),2));
-                D_perm(dd,nn,ss,cc,:)=get_D(S_within_,S_cross_,config_D);
-                % D_perm(nn,ss,cc,:)=S_within_-S_cross_;
-                clear S_within_ S_cross_
-            end
-        end
-    end
+for pp=1:n_perm
+    D_perm(:,pp,:,:,:)=get_D(squeeze(perm_Rcs(pp,:,1,:,:)) ...
+        ,squeeze(perm_Rcs(pp,:,2:end,:,:)),D_config);
 end
+
+
+
+
+
+%%% old code just in case
+% 
+% 
+% for dd=1:n_comp
+%     for nn=1:n_perm
+%         size(perm_idx(:,:,:,:))
+%         for ss=1:n_subjs
+%             for cc=1:n_cond
+%                 % TODO: get_D isn't expecting input for individual
+%                 % electrodes here... so either adapt the function to deal
+%                 % with that case OR define S_within_/S_cross_ in a way that
+%                 % is compatible.....
+%                 % OR there may be a way to use perm_idx without needing all
+%                 % these loops here?? (watch out for memory issues
+%                 % though...)
+% 
+%                 % isequal(1:3,sort(squeeze(perm_idx(nn,ss,cc,:))')) % ->
+%                 % true
+%                 % select a randomized within-train condition
+%                 within_perm_idx=squeeze(perm_idx(nn,ss,cc,1));
+%                 % select a randomized cross-train condition
+%                 cross_perm_idx=squeeze(perm_idx(nn,ss,cc,2:n_cond));
+%                 S_within_=squeeze(all_subj_Rcs(ss,within_perm_idx,cc,:));
+%                 % note: will want to keep cross conditions separate in S_cross
+%                 % so that its dims are consistent with D_obs in function
+%                 S_cross_=squeeze(mean(all_subj_Rcs(ss,cross_perm_idx,cc,:),2));
+% 
+%                 D_perm(nn,ss,cc,:)=S_within_-S_cross_;
+%                 clear S_within_ S_cross_
+%             end
+%         end
+%     end
+% end
 
 %% compute group-level statistics
 % note: alpha is 0.05 and since t-dist is symmetric about zero can just
@@ -263,24 +300,32 @@ for dd=1:size(D_obs,1)
     T_obs(dd,:,:)=squeeze(mean(D_obs_,2)./(std(D_obs_,0,2)/sqrt(n_subjs)));
     clear D_obs_
 end
-%% plot D_obs & T_obs topos
-for cc=1:n_cond
-    for ss=1:n_subjs
-        figure
-        topoplot(D_obs(ss,cc,:),chanlocs);
-        colorbar
-        title(sprintf('subj %d R_{within}-mean(R_{cross}) - %s',...
-            subjs(ss),cond{cc}))
+%% plot D_obs & T_obs topos (individual subjs)
+for dd=1:n_comp
+    for cc=1:n_cond
+        for ss=1:n_subjs
+            figure
+            topoplot(D_obs(dd,ss,cc,:),chanlocs);
+            colorbar
+            title(sprintf('subj %d R_{within}-mean(R_{cross}) - %s',...
+                subjs(ss),cond{cc}))
+        end
     end
 end
 
-for cc=1:n_cond
-    figure
-    topoplot(T_obs(cc,:),chanlocs);
-    colorbar
-    title(sprintf('t-statistic for %s',cond{cc}))
+for dd=1:n_comp
+    for cc=1:n_cond
+        figure
+        topoplot(T_obs(dd,cc,:),chanlocs);
+        colorbar
+        title(sprintf('t-statistic for %s',cond{cc}))
+    end
 end
+
 %% scatter plots D_obs & T_obs
+%TODO: configure these to work in lumped vs not comparisons case... code
+%above could also use a clean up in that regard probably (may e use
+%functions?)
 for ss=1:n_subjs
     figure
     for cc=1:n_cond
@@ -313,7 +358,8 @@ hold off
 %% Scatterplot R_within and R_Cross
 
 
-%% across all subjects
+%% across all subjects TODO: check indexing... train/test have been swapped
+
 % rwithin
 figure
 for cc=1:n_cond
@@ -421,12 +467,15 @@ end
 
 %% run cluster analysis
 % cluster analysis on T_obs
-obs_clusters=cell(3,1);obs_masses=cell(3,1);
-for cc=1:n_cond
-    [obs_clusters{cc}, obs_masses{cc}]=clusterize(T_obs(cc,:),t_thresh,adj);
+obs_clusters=cell(n_comp,n_cond,1);obs_masses=cell(n_comp,n_cond,1);
+for dd=1:n_comp
+    for cc=1:n_cond
+        [obs_clusters{dd,cc}, obs_masses{dd,cc}]=clusterize(T_obs(dd,cc,:),t_thresh,adj);
+    end
+
+    % do cluster test on T_perm
+    cluster_nulldist=get_cluster_nulldist(squeeze(T_perm(dd,:,:,:)),t_thresh,adj);
 end
-% do cluster test on T_perm
-cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj);
 %% plot nulldistributions of oostenveld cluster analysis
 
 %plot perm distributions for each condition
@@ -761,9 +810,9 @@ end
 % disp(glme)
 
 %% helpers
-function D=get_D(R_within,R_cross,config)
+function [D,config]=get_D(R_within,R_cross,config)
 % R_within: subjs-by-test_conditions-by-channels
-% R_cross: subjs-by-test_conditions-by-train_conditions-by-channels
+% R_cross: subjs-by-train_conditions-by-test_conditions-by-channels
 
 % check config + set defaults if not specified
 defaults=struct( ...
@@ -780,13 +829,14 @@ end
 switch lower(config.comparison)
     case 'lumped'
         % don't distinguish between cross-training conditions
-        R_cross=mean(R_cross,3);
+        R_cross=mean(R_cross,2);
     case 'separate'
         % can just permute and use first dim for iteration later
     otherwise
         error('config.comparison:%s not valid',config.comparison)
 end
-R_cross=permute(R_cross,[3 1 2 4]);
+% make training condition(s) first dimension
+R_cross=permute(R_cross,[2 1 3 4]);
 D=nan(size(R_cross));
 for dd=1:size(D,1)
     % get R_cross in compatible shape with R_within
@@ -948,12 +998,12 @@ function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
     all_subj_Rcs=permute(all_subj_Rcs,[4,1,2,3]);
     %preallocate outputs
     R_within=nan(n_electrodes,n_subjs,n_cond);
-    R_cross=nan(n_electrodes,n_subjs,n_cond,n_cond-1);
+    R_cross=nan(n_electrodes,n_subjs,n_cond-1,n_cond);
     for ee=1:n_electrodes
         for ss=1:n_subjs
             R_=squeeze(all_subj_Rcs(ee,ss,:,:));
             R_within(ee,ss,:)=diag(R_);
-            R_cross(ee,ss,:,:)=reshape(R_(~logical(eye(n_cond))),n_cond,n_cond-1);
+            R_cross(ee,ss,:,:)=reshape(R_(~logical(eye(n_cond))),n_cond-1,n_cond);
             
             % R_cross(ee,ss,:,:)=
         end
