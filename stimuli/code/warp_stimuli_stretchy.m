@@ -94,9 +94,9 @@ for warp_rule_num=warp_rules
                 warp_config.min_pkrt_height=6.9e-5;
                 % warp_config.prom_thresh=0.2;
                 % warp_config.width_thresh=0.01;
-                warp_config.area_thresh=2.40e-6;
+                % warp_config.area_thresh=2.40e-6;
                 warp_config.rng=1; %note: probably want this to be false once we're confident manual filter works
-                warp_config.manual_filter=1;
+                warp_config.manual_filter=0;
                 
                 % still imperfect (removes real syllables and keeps peaks
                 % that are not distinct syllables..)

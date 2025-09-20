@@ -183,8 +183,10 @@ if warp_config.manual_filter
 end
 
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
+% preallocate Ito
+Ito=nan(size(Ifrom));
 %inter-segment interval
-ISI=0;
+% ISI=0;
 
 
 n_segs=size(seg,1);
@@ -521,15 +523,32 @@ for ss=1:n_segs
     end
     
     
-    if ss>1
-        ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss,1)-1);
-        start_t=Ito(end)+ISI;
+    % if ss>1
+    %     ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss,1)-1);
+    %     start_t=Ito(end)+ISI;
+    % % else
+    % %     %won't ISI just be zero for first segment....?
+    % %     start_t=Ifrom(seg(ss,1))+ISI;
+    % end
+    % 
+    if ss==1
+        start_t=Ifrom(seg(ss,1));
     else
-        %won't ISI just be zero for first segment....?
-        start_t=Ifrom(seg(ss,1))+ISI;
+        switch k
+            case -1
+                %reg
+                % round original inter-segement interval down to multiple
+                % of 1/f_center
+                ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss-1,2));
+                ISI=(1/(f_center))*floor(ISI*f_center);
+            case 1
+                %irreg
+                % get original inter-segment interval
+                ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss-1,2));
+        end
+        % start time at end of previous Ito segment
+        start_t=Ito(seg(ss-1,2))+ISI;
     end
-    
-    
     if normalize_segments
         seg_dur_1=sum(IPI1_seg);
         IPI1_seg=IPI1_seg.*(seg_dur_0/seg_dur_1);
@@ -544,13 +563,14 @@ for ss=1:n_segs
 
     %CUMSUM
     Ito(seg(ss,1):seg(ss,2),1)=[start_t; start_t+cumsum(IPI1_seg)];
-    if any(isnan(Ito))
-        error('wtf duude.')
-    end
+    
     % IPF1(seg(ss,1):seg(ss,2))=IPF1_seg;
     % invert segment rates back to time intervals
     % IPI1_seg=1./IPF1_seg;
     
+end
+if any(isnan(Ito))||~isequal(size(Ifrom),size(Ito))
+    error('nans in Ito or size doesnt match Ifrom.')
 end
 
 % convert to indices
@@ -673,82 +693,111 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
         npks_post=numel(Ifrom);
         fprintf('%d peaks removed...\n',npks_pre-npks_post)
     end
-
     function windows = validate_input()
-    %VALIDATE_INPUT  Validate time window input.
-    %   WINDOWS = VALIDATE_INPUT(WINDOWS) checks that WINDOWS is either:
-    %     (1) a row vector with an even number of elements, representing
-    %         [onset1 offset1 onset2 offset2 ...], or
-    %     (2) a N-by-2 array, where each row is [onset offset;].
-    %   Additional checks:
-    %     - Each onset must be strictly less than its corresponding offset.
-    %     - Windows must not overlap.
-    %   If WINDOWS is invalid, the user will be prompted to re-enter input
-    %   until a valid set of windows (or [] for none) is given.
-        prompt=['Enter (array of) time window(s) enclosing peak(s)' ...
-            '\nto remove (empty array if none):\n'];
-        windows = input(prompt);
-        while ~is_valid(windows)
+        % DEFINE WINDOWS BASED ON PRECISE TIMES + BUFFER AROUND THEM FOR
+        % ROUNDING ERROR
+        % (1) row vector
+        prompt=['peak times to 3 decimal places (in seconds) to remove \n' ...
+            '(empty array if none):\n'];
+        rm_times = input(prompt);
+        % actually - I don't think we need a while loop anymore in this
+        % scenario... unless we want to use the loop to check for overlap
+        % and adjust buffer size...?
+        while ~is_valid(rm_times)
             disp('Invalid input. Please enter windows again.');
             disp('Valid formats:');
-            disp(' - Row vector with even length: [on1 off1 on2 off2 ...]');
-            disp(' - N-by-2 array: [on1 off1 ...; on2 off2 ...]');
-            disp(' enter 0 to replay sound slice');
+            disp(' - Row vector.');
             disp(' - Empty array [] is also valid.');
-            windows = input(prompt);
+            rm_times = input(prompt);
         end
+        % generate windows with some buffer around them
+        windows=get_windows(times)
+        % check for overlap
         
-        % Normalize format: always return N-by-2
-        if isempty(windows)||isequal(windows,0)
-            return;
-        elseif isvector(windows)
-            windows = reshape(windows, 2, [])';
+        function windows=get_windows(times)
+        % 
         end
-    
-        function ok = is_valid(w)
-            ok = false;
 
-            if w==0
-                ok=true;
-                return;
-            end
-            
-            if isempty(w)
-                ok = true;
-                return;
-            end
-            
-            % Case 1: row vector with even number of elements
-            if isrow(w) && mod(numel(w),2) == 0
-                % works but should reshape outside of is_valid
-                % w = reshape(w, 2, [])';
-            % Case 2: N-by-2 matrix
-            elseif ismatrix(w) && size(w,2) == 2
-                % already fine
-            else
-                return; % invalid shape
-            end
-            
-            onsets = w(:,1);
-            offsets = w(:,2);
-            
-            % Check onset < offset
-            if any(offsets <= onsets)
-                return;
-            end
-            
-            % Check for overlap
-            [~, order] = sort(onsets);
-            onsets = onsets(order);
-            offsets = offsets(order);
-            
-            if any(onsets(2:end) < offsets(1:end-1))
-                return;
-            end
-            
-            ok = true;
+
+        function ok=is_valid()
         end
-end
+
+    end
+%     function windows = validate_input()
+%     %VALIDATE_INPUT  Validate time window input.
+%     %   WINDOWS = VALIDATE_INPUT(WINDOWS) checks that WINDOWS is either:
+%     %     (1) a row vector with an even number of elements, representing
+%     %         [onset1 offset1 onset2 offset2 ...], or
+%     %     (2) a N-by-2 array, where each row is [onset offset;].
+%     %   Additional checks:
+%     %     - Each onset must be strictly less than its corresponding offset.
+%     %     - Windows must not overlap.
+%     %   If WINDOWS is invalid, the user will be prompted to re-enter input
+%     %   until a valid set of windows (or [] for none) is given.
+%         prompt=['Enter (array of) time window(s) enclosing peak(s)' ...
+%             '\nto remove (empty array if none):\n'];
+%         windows = input(prompt);
+%         while ~is_valid(windows)
+%             disp('Invalid input. Please enter windows again.');
+%             disp('Valid formats:');
+%             disp(' - Row vector with even length: [on1 off1 on2 off2 ...]');
+%             disp(' - N-by-2 array: [on1 off1 ...; on2 off2 ...]');
+%             disp(' enter 0 to replay sound slice');
+%             disp(' - Empty array [] is also valid.');
+%             windows = input(prompt);
+%         end
+% 
+%         % Normalize format: always return N-by-2
+%         if isempty(windows)||isequal(windows,0)
+%             return;
+%         elseif isvector(windows)
+%             windows = reshape(windows, 2, [])';
+%         end
+% 
+%         function ok = is_valid(w)
+%             ok = false;
+% 
+%             if w==0
+%                 ok=true;
+%                 return;
+%             end
+% 
+%             if isempty(w)
+%                 ok = true;
+%                 return;
+%             end
+% 
+%             % Case 1: row vector with even number of elements
+%             if isrow(w) && mod(numel(w),2) == 0
+%                 % works but should reshape outside of is_valid
+%                 % w = reshape(w, 2, [])';
+%             % Case 2: N-by-2 matrix
+%             elseif ismatrix(w) && size(w,2) == 2
+%                 % already fine
+%             else
+%                 return; % invalid shape
+%             end
+% 
+%             onsets = w(:,1);
+%             offsets = w(:,2);
+% 
+%             % Check onset < offset
+%             if any(offsets <= onsets)
+%                 return;
+%             end
+% 
+%             % Check for overlap
+%             [~, order] = sort(onsets);
+%             onsets = onsets(order);
+%             offsets = offsets(order);
+% 
+%             if any(onsets(2:end) < offsets(1:end-1))
+%                 return;
+%             end
+% 
+%             ok = true;
+%         end
+% end
 
     function [wf_slice,t_slice]=plot_slice(slice_idx,wf,t,Ifrom)
         wf_slice=wf(slice_idx);
