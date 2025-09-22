@@ -29,7 +29,7 @@ conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
 
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 0;
+overwrite = 1;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
@@ -84,22 +84,19 @@ for warp_rule_num=warp_rules
                 warp_config.sil_tol=1;
                 % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
-                warp_config.hard_cutoff_hz=12; 
+                warp_config.hard_cutoff_hz=14; 
                 %note: added this new param after noticing that syllables
                 %sometimes occur above 10 Hz so maybe shouldn't lowpass the
                 %envelope blanketly at 10 hz...
                 warp_config.env_lpf=14;
                 % warp_config.env_derivative_noise_tol=0;
                 % minimal as to eliminate spurious peaks during silences
-                warp_config.min_pkrt_height=6.9e-5;
+                warp_config.min_pkrt_height=5e-5;
                 % warp_config.prom_thresh=0.2;
                 % warp_config.width_thresh=0.01;
                 % warp_config.area_thresh=2.40e-6;
                 warp_config.rng=1; %note: probably want this to be false once we're confident manual filter works
-                warp_config.manual_filter=0;
-                
-                % still imperfect (removes real syllables and keeps peaks
-                % that are not distinct syllables..)
+                warp_config.manual_filter=1;
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d_%d/', ...

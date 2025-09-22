@@ -63,10 +63,11 @@ Nv = max(0,Nv); %in case negative values, set to 0
 gv = ones([nczs 1],'double'); 
 %andre note: weights specified 1984 Schotola such that fricatives are penalized so weak
 %vowels can be emphasized in envelope..
-% gv(czs<3) = 0; gv(czs>19) = -1;
+gv(czs<3) = 0; gv(czs>19) = -1;
 % andre note: I increased the penalty because wrinkle in time reader really
-% puts a strong emphasis on fricatives...
-gv(czs<3) = 0; gv(czs>19) = -3;
+% puts a strong emphasis on fricatives... but then it seemed like "ch" and
+% "t" still add spurious peaks while other syllables are missing peaks
+% gv(czs<3) = 0; gv(czs>19) = -3;
 Nm = Nv*gv; 
 % andre note: original filtering below was muted out because result still
 % gave pretty jagged envelopes, opted to do filtfilt afterward and it
