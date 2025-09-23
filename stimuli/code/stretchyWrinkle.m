@@ -601,7 +601,6 @@ end
 function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
     % removed_pks=nan(length(Ifrom),1);
     removed_pks=[];
-    t=0:1/fs:(length(wf)-1)/fs;
     % define segments to scan thru
     t_seg=3; % in seconds
     len_seg=round(fs*t_seg); % segment length in samples
@@ -614,6 +613,8 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
     n_pad=((n_slices-1)*n_offset+len_seg)-length(wf);
     % assumes wf is col vector...
     wf=cat(1,wf,zeros(n_pad,1));
+    % define t-vec after padding so last segment doesnt cause bug
+    t=0:1/fs:(length(wf)-1)/fs;
     % preallocate slice indices... why again?
     slice_idxs=nan(n_slices,len_seg);
     pause_buff=0.5;
@@ -647,7 +648,12 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
                     if isequal(subslice,0)
                         soundsc(wf_slice,fs)
                     else
-                        soundsc(wf_slice(t_slice>min(subslice)&t_slice<max(subslice)),fs)
+                        try
+                            soundsc(wf_slice(t_slice>min(subslice)&t_slice<max(subslice)),fs)
+                        catch
+                            disp('replay lims specified incorrectly. replaying full slice.')
+                            soundsc(wf_slice,fs);
+                        end
                     end
                 else
                     % find peak within window and remove from Ifrom

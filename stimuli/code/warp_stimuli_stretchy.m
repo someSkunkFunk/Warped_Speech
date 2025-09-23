@@ -29,7 +29,7 @@ conditions=[2]; % 1-> irreg (stretchy) 2-> reg (compessy)
 
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 1;
+overwrite = 0;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
