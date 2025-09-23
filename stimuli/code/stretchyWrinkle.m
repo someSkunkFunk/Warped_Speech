@@ -817,6 +817,8 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
     function [wf_slice,t_slice]=plot_slice(slice_idx,wf,t,Ifrom)
         wf_slice=wf(slice_idx);
         t_slice=t(slice_idx);
+        t_start=t_slice(1);
+        t_end=t_slice(end);
 
         Ifrom_slice=Ifrom(Ifrom>t_slice(1)&Ifrom<t_slice(end));
         pk_ys=ones(2,numel(Ifrom_slice));
@@ -836,7 +838,16 @@ function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
         text(Ifrom_slice', text_ys,time_lbls, ...
             "FontSize",9)
         ylim([min(wf) max(wf)]);
+        xlim([t_start t_end]);
+        
+        % add grid labels to help read times
+        dxt=0.1;
+        xt=t_start:dxt:t_end;
+        xt_labels=strings(size(xt));
+        xt_labels(mod(xt,0.5)==0)=string(xt(mod(xt,0.5)==0));
+        grid on
         xlabel('Time (s)')
+        set(gca,'XTick',xt,'XTickLabel',xt_labels);
     end
 
 end
