@@ -3,7 +3,7 @@ clear, clc
 % them
 force_interpBadChans=false;
 plots_config=[]; %todo... defaults + use wrapper function
-plots_config.subj_lvl_topos=false;
+plots_config.show_ind_subjs=false;
 
 
 %% compute stats_cross... or stats_cross_fair
@@ -269,7 +269,7 @@ for dd=1:size(D_obs,1)
     clear D_obs_
 end
 %% plot D_obs & T_obs topos (individual subjs)
-if plots_config.subj_lvl_topos
+if plots_config.show_ind_subj
     for dd=1:n_comp
         for cc=1:n_cond
             for ss=1:n_subjs
@@ -296,7 +296,7 @@ end
 %TODO: configure these to work in lumped vs not comparisons case... code
 %above could also use a clean up in that regard probably (may e use
 %functions?)
-if plots_config.subj_lvl_topos
+if plots_config.show_ind_subj
     for ss=1:n_subjs
         figure
         for cc=1:n_cond
@@ -339,20 +339,16 @@ end
 
 %% across all subjects 
 % also TODO: use prettier plotting code wei ching shared
-figure
-for cc=1:n_cond
-    R_=squeeze(R_within(:,cc,:));
-    R_=R_(:);
-    scatter(repmat(cc,n_electrodes*n_subjs,1),R_);
-    hold on
-    clear R_
-end
+% note: do we want to average across electrodes also?
+pretty_scat(R_within,2)
+
 title('all subj & all electrodes')
 xlabel('condition')
 ylabel('R_{within}')
 xticks(1:n_cond)
 xticklabels(cond)
 hold off
+
 %rcross
 % get cross condition pairing labels
 %% TODO: check indexing... train/test have been swapped (actually I don't think it matters here
@@ -370,14 +366,16 @@ cross_ids=cell(size(off_diag_pairs,1),1);
 for pp=1:n_cross
     cross_ids{pp}=sprintf('%s,%s',cond{off_diag_pairs(pp,1)},cond{off_diag_pairs(pp,2)});
 end
-figure
-for pp=1:n_cross
-    R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
-    R_=R_(:);
-    scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
-    hold on
-end
-
+% figure
+% for pp=1:n_cross
+%     R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
+%     R_=R_(:);
+%     scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
+%     hold on
+% end
+% TODO: pretty scat does not reproduce the same result as above, which I'm
+% pretty certain is correct
+pretty_scat(reshape(R_cross,n_subjs,n_cross,n_electrodes),2)
 title('all subjs & all electrodes')
 xlabel('train->test')
 ylabel('R_{cross}')
@@ -386,7 +384,7 @@ xticklabels(cross_ids)
 hold off
 %% subject-level
 % rwithin
-if plots_config.subj_lvl_topos
+if plots_config.show_ind_subj
     figure
     for ss=1:n_subjs
         for cc=1:n_cond
@@ -428,28 +426,12 @@ end
 %% define electrode neighborhoods
 %TODO: make a config with vis_neighbors as field to imrpove readability...
 % note this will affect clustering results
-adj=get_adjacency_mat(chanlocs);
-vis_neighbors=false; % note this will generate 129 figures!
+adj_config=[];
+adj_config.vis_neighbors=false; % note true will generate 129 figures!
+adj=get_adjacency_mat(chanlocs,adj_config);
 % having trouble keeping head size consistent when calling topoplot
 % consecutively... opting instead to have each neighborhood plotted
 % separately
-
-figure
-topoplot([],chanlocs,'electrodes','on','style','blank','headrad',.5);
-title('electrode positions')
-if vis_neighbors
-    % check adjacency matrix
-    for chn_=1:n_electrodes
-        figure
-        topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
-            find(adj(chn_,:)),'emarker',{'o','b',10,1},'headrad',.5);
-        title(sprintf('%s + neighbors',chanlocs(chn_).labels))
-        % topoplot([],chanlocs(chn_),'conv','off','numcontour',0);
-        % plot(X_(chn_),Y_(chn_),chanlocs)
-        % hold off
-    end
-    clear chn_
-end
 
 %% run cluster analysis
 % cluster analysis on T_obs
@@ -800,6 +782,37 @@ end
 % disp(glme)
 
 %% helpers
+function pretty_scat(D,cond_dim)
+% wrapper for pretty scatter plots
+% D data matrix with size sz
+% cond_dim: index of dimension corresponding to the conditions
+sz=size(D);
+n_cond=sz(cond_dim);
+if cond_dim~=1
+    dim_ord=1:numel(sz);
+    % get permute order such that first dimension is conditions
+    % by shifting
+    dim_ord=circshift(dim_ord,1-cond_dim);
+    D=permute(D,dim_ord);
+    %update size
+    sz=size(D);
+end
+
+n_per_cc=prod(sz(2:end));
+
+figure
+for cc=1:n_cond
+    % want col vector because columns get separate color
+    D_cc=D(1+n_per_cc*(cc-1):n_per_cc*(cc))';
+    % D_cc=squeeze(D(cc,:));
+    % D_cc=D_cc(:);
+    scatter(repmat(cc,n_per_cc,1),D_cc);
+    hold on
+    % boxplot()
+    % clear D_cc
+end
+
+end
 function [D,config]=get_D(R_within,R_cross,config)
 % R_within: subjs-by-test_conditions-by-channels
 % R_cross: subjs-by-train_conditions-by-test_conditions-by-channels
@@ -957,16 +970,44 @@ function [clusters_disjoint, cluster_intersections]=check_disjoint(clusters)
     end
 end
 
-function adj=get_adjacency_mat(chanlocs)
+function adj=get_adjacency_mat(chanlocs,config)
+    defaults=struct( ...
+        'dist_thresh',0.35, ...
+        'vis_neighbors',false);
+    fields=fieldnames(defaults);
+    %extract defaults
+    for ff=1:numel(fields)
+        field=fields{ff};
+        if ~isfield(config,field)||isempty(config.(field))
+            config.(field)=defaults.(field);
+        end
+    end
+    dist_thresh=config.dist_thresh; %TODO: figure out 'correct' value for this
+    vis_neighbors=config.vis_neighbors;
+    % establish coordinates and get pairwise distances
     coords=[[chanlocs.X]' [chanlocs.Y]' [chanlocs.Z]'];
     D=squareform(pdist(coords));
-    dist_thresh=0.35; %TODO: figure out 'correct' value for this
+    
     % it is useful later to consider each electrode a neighbor of itself
     adj=D<dist_thresh;
     % adj=D<dist_thresh&D>0;
     figure, imagesc(adj), axis square; colorbar 
     title(sprintf('electrode ajacancy matrix - dist thresh: %0.2f',dist_thresh))
+    if vis_neighbors
+    % check adjacency matrix
+        for chn_=1:n_electrodes
+            figure
+            topoplot([],chanlocs,'electrodes','on','style','blank','plotchans', ...
+                find(adj(chn_,:)),'emarker',{'o','b',10,1},'headrad',.5);
+            title(sprintf('%s + neighbors, distance threshold: %0.3f', ...
+                chanlocs(chn_).labels),dist_thresh)
+            % topoplot([],chanlocs(chn_),'conv','off','numcontour',0);
+            % plot(X_(chn_),Y_(chn_),chanlocs)
+            % hold off
+        end
+    end
 end
+
 
 function pairs=get_off_diag_pairs(n_cond)
     [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
