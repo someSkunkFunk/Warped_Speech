@@ -3,7 +3,7 @@ clear, clc
 % them
 force_interpBadChans=false;
 plots_config=[]; %todo... defaults + use wrapper function
-plots_config.show_ind_subjs=false;
+plots_config.show_ind_subj=false;
 
 
 %% compute stats_cross... or stats_cross_fair
@@ -792,14 +792,15 @@ if cond_dim~=1
     dim_ord=1:numel(sz);
     % get permute order such that first dimension is conditions
     % by shifting
-    dim_ord=circshift(dim_ord,1-cond_dim);
+    % dim_ord=circshift(dim_ord,1-cond_dim);
+    dim_ord=[dim_ord(dim_ord~=cond_dim),cond_dim];
     D=permute(D,dim_ord);
     %update size
     sz=size(D);
 end
 
-n_per_cc=prod(sz(2:end));
-
+% n_per_cc=prod(sz(2:end));
+n_per_cc=prod(sz(1:end-1));
 figure
 for cc=1:n_cond
     % want col vector because columns get separate color
