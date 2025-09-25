@@ -1,23 +1,36 @@
 clear, clc
 % use results where we automatically selected bad channels and interpolated
 % them
-force_interpBadChans=false;
+force_interpBadChans=true;
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
+% subjs=[2:7,9:22];
+subjs=3; % subj missing 1 SLOW trial
 
+%TODO: put these in a config, make stuff below a function
+compute_stats_cross=true;
+overwrite_stats_cross=false;
+% trim end of trials for og/slow to match number of samples in fast trials
+trim_stimuli=true; % todo: move to compute_stats_cross config
+
+% todo: move to script_config for computing Rcs ("r-values for stats")
+get_rcross=true;
+avg_cross_trials_rcross=true;
+% note: not sure how to interpret non-averaged results so code really just
+% assumes avg_cross_trials is true
+overwrite_Rcs=false;
 
 %% compute stats_cross... or stats_cross_fair
 % false does the unfair comparison we originally devised which gives
 % stats_cross - true crossvalidates so that all scores are based on unseen
 % data
-compute_stats_cross=false;
-overwrite_stats_cross=false;
+
+
+
 if compute_stats_cross
     fair=true;
-    % trim end of trials for og/slow to match number of samples in fast trials
-    trim_stimuli=true;
     %todo: include an override variable
-    subjs=[2:7,9:22];
+
     % for reproducibility
     rng(1);
     for subj=subjs
@@ -106,6 +119,7 @@ if compute_stats_cross
                 save(trf_config.model_metric_path,'stats_cross_cv','-append')
         
             else
+                disp('DONT DO THIS')
                 % this comparison didn't hold out data so is unfair
                 model_data=load(trf_config.trf_model_path,"model");
                 stats_data=load(trf_config.model_metric_path,"stats_obs");
@@ -142,14 +156,8 @@ if compute_stats_cross
 end
 %% setup r-values for stats
 
-get_rcross=true;
-avg_cross_trials_rcross=true;
-% note: not sure how to interpret non-averaged results so code really just
-% assumes this is true...
-overwrite_Rcs=false;
 
 if get_rcross 
-    subjs=[2:7,9:22];
     % note: can't figure out how to pre-a
     n_electrodes=128; % how to avoid hardcoding? does it even matter?
     n_cond=3;
@@ -190,13 +198,13 @@ if get_rcross
             load(trf_config.model_metric_path,"Rcs")
         end
         clear trf_config
-        all_subj_Rcs(ss,:,:,:)=Rcs;
-        
-        
+        all_subj_Rcs(ss,:,:,:)=Rcs; 
     end
-    
 end
+%% debug
+Rcs=compile_rvals(stats_cross_cv,cond,avg_cross_trials_rcross);
 
+%%
 cond={'fast','og','slow'};
 % arrange r_cross/r_within - note: we can probably do this more cleanly
 % with indexing instead of this function
@@ -214,13 +222,13 @@ load(loc_file);
 % note: some permutations are redundant with this contrast calculation so we
 % could make it more efficient by ignoring those...
 D_config=[]; % use defaults - difference is default (to compare results)
-D_config.metric='percent_change';
-
+D_config.metric='raw_diff';
+disp(D_config)
 %TODO: check 2-way comparisons against R_cross
 [D_obs,D_config]=get_D(R_within,R_cross,D_config);
 n_comp=size(D_obs,1);
 %%
-% todo: use wrapper function here? o
+% todo: use wrapper function here? oostveld or something?
 n_perm=6000;
 % n_perm=1;
 % n_perm independent permutations per subject per condition
@@ -239,7 +247,7 @@ lin_perm_idx=sub2ind(size(all_subj_Rcs),subj_grid(:),perm_train_grid(:), ...
 
 perm_Rcs=reshape(all_subj_Rcs(lin_perm_idx),n_perm,n_subjs,n_cond, ...
     n_cond,n_electrodes);
-% perm_R_cross=all
+
 %preallocate
 D_perm=nan(n_comp,n_perm,n_subjs,n_cond,n_electrodes);
 for pp=1:n_perm
@@ -268,7 +276,18 @@ for dd=1:size(D_obs,1)
     T_obs(dd,:,:)=squeeze(mean(D_obs_,2)./(std(D_obs_,0,2)/sqrt(n_subjs)));
     clear D_obs_
 end
-%% plot D_obs & T_obs topos (individual subjs)
+%% plot D_obs & T_obs topos
+% T_obs: across subjects
+for dd=1:n_comp
+    for cc=1:n_cond
+        figure
+        topoplot(T_obs(dd,cc,:),chanlocs);
+        colorbar
+        title(sprintf('t-statistic for %s',cond{cc}))
+    end
+end
+
+% D_obs: individual subjs
 if plots_config.show_ind_subj
     for dd=1:n_comp
         for cc=1:n_cond
@@ -283,41 +302,12 @@ if plots_config.show_ind_subj
     end
 end
 
-for dd=1:n_comp
-    for cc=1:n_cond
-        figure
-        topoplot(T_obs(dd,cc,:),chanlocs);
-        colorbar
-        title(sprintf('t-statistic for %s',cond{cc}))
-    end
-end
-
 %% scatter plots D_obs & T_obs
-%TODO: configure these to work in lumped vs not comparisons case... code
-%above could also use a clean up in that regard probably (may e use
-%functions?)
-if plots_config.show_ind_subj
-    for ss=1:n_subjs
-        figure
-        for cc=1:n_cond
-            scatter(repmat(cc,n_electrodes,1),squeeze(D_obs(ss,cc,:)));
-            hold on
-        end
-        title(sprintf('subj %d - all electrodes',subjs(ss)))
-        xlabel('condition')
-        ylabel('R_{within}-mean(R_{cross})')
-        xticks(1:n_cond)
-        xticklabels(cond)
-        hold off
-    end
-end
-%
+%TODO: configure these to work in lumped vs not comparisons case... 
+
+% T_obs: across subjects
 for dd=1:n_comp
-        figure
-        for cc=1:n_cond
-            scatter(repmat(cc,n_electrodes,1),squeeze(T_obs(dd,cc,:)));
-            hold on
-        end
+        pretty_scat(squeeze(T_obs(dd,:,:)),1);
     % there must be a way to do the same plot in one line - also we want to add
     % lines i think
     % figure
@@ -334,6 +324,23 @@ for dd=1:n_comp
     xticklabels(cond)
     hold off
 end
+% D_obs: individual subject
+if plots_config.show_ind_subj
+    for ss=1:n_subjs
+        figure
+        for cc=1:n_cond
+            scatter(repmat(cc,n_electrodes,1),squeeze(D_obs(ss,cc,:)));
+            hold on
+        end
+        title(sprintf('subj %d - all electrodes',subjs(ss)))
+        xlabel('condition')
+        ylabel('R_{within}-mean(R_{cross})')
+        xticks(1:n_cond)
+        xticklabels(cond)
+        hold off
+    end
+end
+
 %% Scatterplot R_within and R_Cross
 
 
@@ -788,7 +795,7 @@ function pretty_scat(D,cond_dim)
 % cond_dim: index of dimension corresponding to the conditions
 sz=size(D);
 n_cond=sz(cond_dim);
-if cond_dim~=1
+if cond_dim~=numel(sz)
     dim_ord=1:numel(sz);
     % get permute order such that first dimension is conditions
     % by shifting
@@ -1019,6 +1026,7 @@ function pairs=get_off_diag_pairs(n_cond)
     [~,Ipairs]=sort(pairs(:,2));
     pairs=pairs(Ipairs,:);
 end
+
 function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
 % assumes all_subj_Rcs has size [subjs,cond,cond,electrodes]
 % returns R_within as [subjs,cond,electrodes]
@@ -1048,9 +1056,11 @@ function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
     R_cross=permute(R_cross,[2 3 4 1]);
 end
 function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
+    % helper function to compile r-values into single matrix for further
+    % math
     n_electrodes=size(stats_cross_cv.r,3);
     n_cond=numel(unique(cond));
-    % Rs=cell(n_cond);
+    % preallocate
     Rs=nan(n_cond,n_cond,n_electrodes);
     % fast_trials=find(cond==1);
     % og_trials=find(cond==2);
@@ -1063,41 +1073,13 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     % end
     if numel(unique((cellfun(@numel, cond_ids))))>1
         disp('subject has uneven number of trials per condition, handle with care.')
+        disp('number of trials per condition:')
+        disp(cellfun(@numel,cond_ids))
+    else
+        fprintf('all conditions have %d trials.\n',numel(cond_ids{1}));
     end
 
-    % % extract within-condition predictions
-    % R_ff_=stats_cross_cv.r(fast_trials,fast_trials,:);
-    % R_oo_=stats_cross_cv.r(og_trials,og_trials,:);
-    % R_ss_=stats_cross_cv.r(slow_trials,slow_trials,:);
-    % 
-    % % remove off-diagonals (nans)
-    % 
-    % m_ff=logical(repmat(eye(numel(fast_trials)),1,1,n_electrodes));
-    % m_oo=logical(repmat(eye(numel(og_trials)),1,1,n_electrodes));
-    % m_ss=logical(repmat(eye(numel(slow_trials)),1,1,n_electrodes));
-    % 
-    % R_ff=R_ff_(m_ff);
-    % R_oo=R_oo_(m_oo);
-    % R_ss=R_ss_(m_ss);
-    %note: I think this square indexing will cause a problem when there is
-    %missing trials, so check that nan values at least line up the way we
-    %expect first - although presumably the corresponding R_xx_ matrix will
-    %be short one row in that case and logical indexing with eye will
-    %fail...
-    % in case it does not, still check that only nans will be removed:
-    % if any(isnan(R_ff_(m_ff)))||any(isnan(R_ff_(m_ss)))||any(isnan(R_oo_(m_oo)))
-    %     error('some nans remain')
-    % end
-    % if ~(all(isnan(R_ff_(~m_ff))))||~(all(isnan(R_ss_(~m_ss))))||all(isnan(R_oo_(m_oo)))
-    %     error('some non-nans are missing')
-    % end
-    % R_ff=reshape(R_ff,[],n_electrodes);
-    % R_oo=reshape(R_oo,[],n_electrodes);
-    % R_ss=reshape(R_ss,[],n_electrodes);
-    % % average the values
-    % R_ff=mean(R_ff,1);
-    % R_oo=mean(R_oo,1);
-    % R_ss=mean(R_ss,1);
+    
     function R_within=get_within(idx)
         R_=stats_cross_cv.r(idx,idx,:);
         m=logical(repmat(eye(numel(idx)),1,1,n_electrodes));
@@ -1118,60 +1100,12 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     % R_ss=get_within(cond_ids{3});
 
     for ww=1:n_cond
-        % Rs{ww,ww}=get_within(cond_ids{ww});
         Rs(ww,ww,:)=get_within(cond_ids{ww});
     end
 
-    % % load cross-trial rs
-    % R_fs=stats_cross_cv.r(fast_trials,slow_trials,:);
-    % R_fo=stats_cross_cv.r(fast_trials,og_trials,:);
-    % 
-    % R_sf=stats_cross_cv.r(slow_trials,fast_trials,:);
-    % R_so=stats_cross_cv.r(slow_trials,og_trials,:);
-    % 
-    % R_of=stats_cross_cv.r(og_trials,fast_trials,:);
-    % R_os=stats_cross_cv.r(og_trials,slow_trials,:);
-    % 
-    % if avg_cross_trials
-    %     % average across all training folds
-    %     R_fs=mean(R_fs,1);
-    %     R_fo=mean(R_fo,1);
-    % 
-    %     R_sf=mean(R_sf,1);
-    %     R_so=mean(R_so,1);
-    % 
-    %     R_of=mean(R_of,1);
-    %     R_os=mean(R_os,1);
-    % 
-    %     % avg across testing folds
-    %     R_fs=mean(R_fs,2);
-    %     R_fo=mean(R_fo,2);
-    % 
-    %     R_sf=mean(R_sf,2);
-    %     R_so=mean(R_so,2);
-    % 
-    %     R_of=mean(R_of,2);
-    %     R_os=mean(R_os,2);
-    % 
-    % end
-    % R={R_ff,R_fo,R_fs;...
-    % R_of, R_oo, R_os;...
-    % R_sf,R_so,R_ss};
-    % % R=R';
-    
     % extract cross-condition scores
 
     % (tain indx, test indx)
-    % pairs={...
-    %     {1,3},{1,2},... %fs,fo
-    %     {2,1},{2,3},... %of,os
-    %     {3,1},{3,2},... %sf,so
-    %     };
-    % names={'R_fs','R_fo','R_of','R_os','R_sf','R_so'};
-    % [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
-    % pairs=[ptrain(:),ptest(:)];
-    % % remove diagonals
-    % pairs(pairs(:,1)==pairs(:,2),:)=[];
     pairs=get_off_diag_pairs(n_cond);
     for kk=1:size(pairs,1)
         train_idx=cond_ids{pairs(kk,1)};
@@ -1179,13 +1113,10 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
         % Rs{pairs(kk,1),pairs(kk,2)}=stats_cross_cv.r(train_idx,test_idx,:);
         R_cross_=stats_cross_cv.r(train_idx,test_idx,:);
         if avg_cross_trials
-            % Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},1); %avg over train folds
-            % Rs{pairs(kk,1),pairs(kk,2)}=mean(Rs{pairs(kk,1),pairs(kk,2)},2); %avg over test folds
             R_cross_=mean(R_cross_,1); %avg over train folds
             R_cross_=mean(R_cross_,2); % avg over test folds
             Rs(pairs(kk,1),pairs(kk,2),:)=permute(squeeze(R_cross_),[2,1]);
         end
-        % assignin('base',names{kk},R);
     end
     % Rs={R_ff,R_fo,R_fs,...
     %     R_of, R_oo, R_os,...
