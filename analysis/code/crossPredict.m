@@ -202,6 +202,8 @@ if get_rcross
     end
 end
 %% debug
+cond=preprocessed_eeg.cond;
+avg_cross_trials_rcross=true;
 Rcs=compile_rvals(stats_cross_cv,cond,avg_cross_trials_rcross);
 
 %%
@@ -1081,12 +1083,13 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
 
     
     function R_within=get_within(idx)
+        % trials x trials x electrodes
         R_=stats_cross_cv.r(idx,idx,:);
         m=logical(repmat(eye(numel(idx)),1,1,n_electrodes));
     
-        vals=R_(m);
+        vals=R_(m); % unfolds into col vector?
         if any(isnan(vals))
-            errors('some nans remain')
+            error('some nans remain')
         end
         if ~all(isnan(R_(~m)))
             error('some non-nans where nans should be.')
