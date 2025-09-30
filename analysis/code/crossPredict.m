@@ -1058,8 +1058,8 @@ function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
     R_cross=permute(R_cross,[2 3 4 1]);
 end
 function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
-    % helper function to compile r-values into single matrix for further
-    % math
+    % helper function to compile single-subject crossvalidated
+    % r-values into single matrix for furthermath
     n_electrodes=size(stats_cross_cv.r,3);
     n_cond=numel(unique(cond));
     % preallocate
@@ -1094,6 +1094,7 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
         if ~all(isnan(R_(~m)))
             error('some non-nans where nans should be.')
         end
+        % average across trials of current condition
         R_within=mean(reshape(vals,[],n_electrodes),1);
         clear R_
     end
@@ -1111,14 +1112,28 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
     % (tain indx, test indx)
     pairs=get_off_diag_pairs(n_cond);
     for kk=1:size(pairs,1)
+        fprintf('train, test: %d,%d\n',pairs(kk,1),pairs(kk,2))
         train_idx=cond_ids{pairs(kk,1)};
         test_idx=cond_ids{pairs(kk,2)};
+        disp('check that train idx conditions are all equal:')
+        disp(cond(train_idx))
+        disp('check that quantity of trials makes sense')
+        disp(numel(cond(train_idx)))
+        disp('check that test idx conditions are all equal:')
+        disp(cond(test_idx))
+        disp('check that quantity of trials makes sense')
+        disp(numel(cond(test_idx)))
         % Rs{pairs(kk,1),pairs(kk,2)}=stats_cross_cv.r(train_idx,test_idx,:);
         R_cross_=stats_cross_cv.r(train_idx,test_idx,:);
+        disp('check that R_cross_ size makes sense')
+        disp(size(R_cross_))
         if avg_cross_trials
+            % average out across all trials for current cross-condition
+            % pairing
             R_cross_=mean(R_cross_,1); %avg over train folds
             R_cross_=mean(R_cross_,2); % avg over test folds
-            Rs(pairs(kk,1),pairs(kk,2),:)=permute(squeeze(R_cross_),[2,1]);
+            Rs(pairs(kk,1),pairs(kk,2),:)=R_cross_;
+            % Rs(pairs(kk,1),pairs(kk,2),:)=permute(squeeze(R_cross_),[2,1]);
         end
     end
     % Rs={R_ff,R_fo,R_fs,...

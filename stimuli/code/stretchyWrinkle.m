@@ -37,13 +37,16 @@ defaults = struct( ...
     'prom_thresh',0, ... 
     'width_thresh',0, ...
     'env_thresh_std',0, ...
-    'hard_cutoff_hz',8, ...,
+    'hard_cutoff_hz',inf, ...,
     'env_derivative_noise_tol',0, ...
     'min_pkrt_height',0, ...
     'area_thresh',0, ...
     'env_lpf',10, ...
     'rng',0, ...
-    'manual_filter',0 ...
+    'manual_filter',0, ...
+    'wav_fnm','none_assigned',...
+    'min_stretch_rate',1, ...
+    'max_stretch_rate',10 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -77,6 +80,8 @@ area_t=warp_config.area_thresh;
 env_thresh_std=warp_config.env_thresh_std;
 hard_cutoff_hz=warp_config.hard_cutoff_hz;
 env_derivative_noise_tol=warp_config.env_derivative_noise_tol;
+min_stretch_rate=warp_config.min_stretch_rate;
+max_stretch_rate=warp_config.max_stretch_rate;
 switch center 
         case -1 
             % use lower quartile
@@ -147,29 +152,45 @@ switch env_method
         % but gives entire sound series + we want to be able to filter peaks
         % afterwards
         diff_env(diff_env<0)=0;
+    case 'textgrid'
+        % doesn't extract envelope at all, just uses textgrids to locate
+        % syllables directly (using WebMAUS 'Pipeline name' -
+        % 'G2P->MAUS->PHO2SYL')
 
     otherwise
         error('need to specify which envelope to use.')
 
 end
-if strcmp(env_method,'oganian')
-    %todo: define env_thresh (if needed?)
-    % peakrate -> Ifrom & peakRate struct we're familiar with
-    [pkVals,pkTimes,w,p] = findpeaks(diff_env',fs,'MinPeakHeight',warp_config.min_pkrt_height);
-    peakRate=struct('pkVals',pkVals,'pkTimes',pkTimes,'p',p,'w',w);
-else
-    % note: get_peakrate lowpasses the envelope at 10 hz 
-    % - keeping to visualize
-    [peakRate,env,diff_env,env_thresh]=get_peakRate(env,fs,warp_config);
-    %or dont when happy with stimuli output:
-    % [peakRate,~,~,env_thresh]=get_peakRate(env,fs,env_thresh_std);
-    warp_config.env_thresh=env_thresh;
+switch env_method
+    case 'oganian'
+        %todo: define env_thresh (if needed?)
+        % peakrate -> Ifrom & peakRate struct we're familiar with
+        [pkVals,pkTimes,w,p] = findpeaks(diff_env',fs,'MinPeakHeight',warp_config.min_pkrt_height);
+        peakRate=struct('pkVals',pkVals,'pkTimes',pkTimes,'p',p,'w',w);
+    case {'hilbert','bark','gammaChirp'}
+        % note: get_peakrate lowpasses the envelope at 10 hz 
+        % - keeping to visualize
+        [peakRate,env,diff_env,env_thresh]=get_peakRate(env,fs,warp_config);
+        %or dont when happy with stimuli output:
+        % [peakRate,~,~,env_thresh]=get_peakRate(env,fs,env_thresh_std);
+        warp_config.env_thresh=env_thresh;
+    case 'textgrid'
 end
-Ifrom=peakRate.pkTimes;p=peakRate.p;w=peakRate.w;
-% threshold peaks
-Ifrom=Ifrom(p>p_t&w>w_t&(p.*w)>area_t);
+
+switch env_method
+    case 'textgrid'
+        % use syllable times from webmaus forced-aligner
+        % todo: read in file for current stimulus into function
+        Ifrom=read_syll_from_textgrid(warp_config.wav_fnm);
+        
+    case {'oganian','hilbert','bark','gammaChirp'}
+        % use acoustic info from peak rate to index syllables
+        Ifrom=peakRate.pkTimes;p=peakRate.p;w=peakRate.w;
+        % threshold peaks
+        Ifrom=Ifrom(p>p_t&w>w_t&(p.*w)>area_t);
+end
 % recursively remove rates that are too fast - recalculate with filtered
-% times
+        % times
 if any(diff(Ifrom<hard_cutoff_hz))
     % make a dummy mask to make recursive function compatible with how we used
     % it in optimize_peakRate_algo
@@ -181,7 +202,6 @@ end
 if warp_config.manual_filter
     [Ifrom, warp_config.manually_removed_pks]=manually_pick_peaks(wf,fs,Ifrom);
 end
-
 seg=[[1; find(diff(Ifrom)>sil_tol)+1] [find(diff(Ifrom)>sil_tol); length(Ifrom)]];
 % preallocate Ito
 Ito=nan(size(Ifrom));
@@ -212,7 +232,9 @@ for ss=1:n_segs
     % sanity-check + workaround for backwards compatability of rules that
     % affect fast vs slow rates differently:
     too_fast=(1./IPI0_seg)>hard_cutoff_hz;
-    if any(too_fast)
+    if any(too_fast) && ~strcmp(env_method,'textgrid')
+        % turns out the reader routinely says syllables at rates higher
+        % than 10 Hz with unknown upper bound (probably 12-14 hz)
         error('there should be no too_fast rates now...')
     end
     
@@ -508,12 +530,12 @@ for ss=1:n_segs
                 % min stretch rate mostly drove the duration discrepancies,
                 % so tuned it such that the durations are not too far from
                 % original
-                min_stretch_rate=1/0.55;
+                % min_stretch_rate=1/0.55;
+                % min_stretch_rate=2;
+                % min_stretch_rate=1;
                 % added some wiggle room to max rate 
-                % because distinct syllables get 
-                % grouped together due to imperpfect peakrate
-                % correspondence
-                max_stretch_rate=8;
+                
+                % max_stretch_rate=9;
                 % % leave overly fast intervals unchanged
                 % IPI1_seg(too_fast)=IPI0_seg(too_fast);
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
@@ -523,22 +545,15 @@ for ss=1:n_segs
     end
     
     
-    % if ss>1
-    %     ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss,1)-1);
-    %     start_t=Ito(end)+ISI;
-    % % else
-    % %     %won't ISI just be zero for first segment....?
-    % %     start_t=Ifrom(seg(ss,1))+ISI;
-    % end
-    % 
+
     if ss==1
         start_t=Ifrom(seg(ss,1));
     else
         switch k
             case -1
                 %reg
-                % round original inter-segement interval down to multiple
-                % of 1/f_center
+                %round original inter-segement interval down to multiple
+                %of 1/f_center
                 ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss-1,2));
                 ISI=(1/(f_center))*floor(ISI*f_center);
             case 1
@@ -590,14 +605,46 @@ if rule_num==11 && k==1
     % warp_config
     warp_config.stretch_rate_lims=[min_stretch_rate max_stretch_rate];
 end
-S=struct('s',s,'warp_config',warp_config,'wsola_param', ...
-    wsola_param,'peakRate',peakRate);
+switch env_method
+    case {'hilbert','oganian','gammaChirp','bark'}
+        S=struct('s',s,'warp_config',warp_config,'wsola_param', ...
+            wsola_param,'peakRate',peakRate);
+    case 'textgrid'
+        S=struct('s',s,'warp_config',warp_config,'wsola_param', ...
+            wsola_param,'syllable_times',Ifrom);
+end
 % run these in debug mode:
 % inspect_segs(wf,fs,Ifrom,seg,env,p_t,w_t,env_onsets)
 % inspect_envelope_derivative(env_onsets,peakRate,fs,warp_config)
 % inspect_anchorpoints(wf,wf_warp,fs,s)
 end
 %% helpers
+function syll_times=read_syll_from_textgrid(wav_fnm)
+    % reads syllable times from textgrid files
+    global boxdir_mine
+
+    % todo: make tgFName variable fed into function - can just pass wav fpth
+    % from outer script to here 
+    tgFName=fullfile(boxdir_mine,'stimuli','wrinkle','syllable_textgrids',...
+    sprintf('%s.TextGrid',wav_fnm));
+    % tgFName='C:/Users/ninet/Box/my box/LALOR LAB/oscillations project/MATLAB/Warped Speech/stimuli/wrinkle/syllable_textgrids/wrinkle001.TextGrid';
+    % whichTier=[]; % load all tiers
+    whichTier='MAS'; % syllable tier only
+    [TextGridStruct,~,~,~]= ReadTextGrid(tgFName, whichTier);
+    pause_symbol='<p:>';
+    % make a mask for syllable onsets
+    syll_m=cellfun(@(x) ~strcmp(pause_symbol,x),TextGridStruct.labs);
+    % use onsets
+    % syll_m=[syll_m, false(size(syll_m))];
+    % use offsets
+    % syll_m=[false(size(syll_m)),syll_m];
+    % get onset/offset times
+    % syll_times=TextGridStruct.segs(syll_m);
+    syll_times=mean(TextGridStruct.segs(syll_m,:),2);
+
+%%
+end
+
 function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
     % removed_pks=nan(length(Ifrom),1);
     removed_pks=[];

@@ -6,10 +6,14 @@
 
 clear, clc
 global boxdir_mine
-warp_dir='rule11_seg_bark_4.000Hz_0';
-regularity=1; %1-> irreg -1-> reg
+warp_dir='rule11_seg_textgrid_4.000Hz_1_0';
+regularity=-1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
+medians_=median(s_intervals);
+og_median=medians_(1);
+warped_median=medians_(2);
+clear medians_
 %%
 hist_config=[]; %use defaults
 hist_config.normalization='count';
@@ -17,6 +21,7 @@ rates_hist_wrapper(s_intervals(:,1),hist_config)
 title('og')
 xlabel('peakrate (hz)')
 ylabel('count')
+legend()
 clear hist_config
 hist_config=[]; %use defaults
 hist_config.normalization='count';
@@ -24,7 +29,7 @@ rates_hist_wrapper(s_intervals(:,2),hist_config)
 ylabel('count')
 title(cond_nm)
 xlabel('peakrate (hz)')
-
+legend()
 %%
 % fs=44100;
 % max_interval=0.75; % in s
@@ -246,8 +251,7 @@ end
 smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/%s/%s/',boxdir_mine,cond_dir,warp_dir);
 D=dir([smats_dir '*.mat']);
 % arrange into column vectors
-% s_intervals_og=[];
-% s_intervals_warped=[];
+% note: could avoid memory errors here by preallocating
 s_intervals=[];
 peakrate_mat=[];
 for dd=1:numel(D)
@@ -269,10 +273,19 @@ for dd=1:numel(D)
     % s_intervals_warped=cat(1,s_intervals_warped,s_intervals(:,2));
     clear s
     % stack peakRate
-    peakRate=S.peakRate;
-    peakrate_mat=cat(1,peakrate_mat, ...
-        [peakRate.pkVals,peakRate.pkTimes,peakRate.p,peakRate.w]);
-    clear peakRate S
+    switch warp_config.env_method
+        case {'hilbert','bark','gammaChirp','oganian'}
+            peakRate=S.peakRate;
+            peakrate_mat=cat(1,peakrate_mat, ...
+                [peakRate.pkVals,peakRate.pkTimes,peakRate.p,peakRate.w]);
+
+        case 'textgrid'
+            syllable_times=S.syllable_times;
+            filler_nans=nan(length(syllable_times),1);
+            peakrate_mat=cat(1,peakrate_mat,filler_nans,syllable_times, ...
+                filler_nans,filler_nans);
+    end
+    clear peakRate S syllable_times filler_nans
 end
 % filter out long pauses
 max_interval=warp_config.sil_tol;
