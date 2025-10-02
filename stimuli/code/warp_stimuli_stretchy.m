@@ -55,6 +55,9 @@ for warp_rule_num=warp_rules
             otherwise
 
                 center_str=sprintf('%0.3fHz',center_f);
+                % box/windows doesn't like folder names with periods in
+                % them
+                center_str=strrep(center_str,'.','p');
         end
         
     for gg = 1:length(stimgroup)
@@ -98,7 +101,7 @@ for warp_rule_num=warp_rules
                 
                 warp_config.manual_filter=0;
                 warp_config.wav_fnm=d(dd).name(1:end-4);
-                warp_config.elongation_thresh=3; 
+                warp_config.elongation_thresh=.25; 
                 % note: for irreg, want to avoid overly-elongating short
                 % intervals, do this so distribution maintains continuity
                 % at the cutoff:
