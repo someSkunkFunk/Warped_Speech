@@ -235,7 +235,7 @@ for ss=1:n_segs
     if any(too_fast) && ~strcmp(env_method,'textgrid')
         % turns out the reader routinely says syllables at rates higher
         % than 10 Hz with unknown upper bound (probably 12-14 hz)
-        error('there should be no too_fast rates now...')
+        warning('this caused weird error before proceed with caution...')
     end
     
     switch rule_num

@@ -29,7 +29,7 @@ conditions=[1]; % 1-> irreg (stretchy) 2-> reg (compessy)
 
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 1;
+overwrite = 0;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
@@ -105,6 +105,11 @@ for warp_rule_num=warp_rules
                 % end
                 warp_config.manual_filter=0;
                 warp_config.wav_fnm=d(dd).name(1:end-4);
+                % note: for irreg, want to avoid overly-elongating short
+                % intervals, do this so distribution maintains continuity
+                % at the cutoff:
+                warp_config.max_stretch_rate=10;
+                warp_config.hard_cutoff_hz=warp_config.max_stretch_rate;
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d_%d/', ...
