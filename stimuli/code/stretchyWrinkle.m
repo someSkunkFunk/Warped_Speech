@@ -523,6 +523,19 @@ for ss=1:n_segs
                 V=jitter(1);
                 mu=log(M^2/sqrt(V+M^2));
                 sigma=sqrt(log(V/M^2+1));
+                IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
+                    
+            case 1 
+                %irreg
+
+                % generate random rates from uniform distribution across
+                % range of possible values plus a slightly higher lower
+                % bound
+
+                % min stretch rate mostly drove the duration discrepancies,
+                % so tuned it such that the durations are not too far from
+                % original
+            
                 % note: everything below until clear statement could be a
                 % function
                 ok_=false;
@@ -530,7 +543,7 @@ for ss=1:n_segs
                 ii_=0;
                 while (~ok_)&&(ii_<maxiter_)
                     ii_=ii_+1;
-                    IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
+                    IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
                     if all((IPI1_seg/IPI0_seg)<elongation_thresh)
                         ok_=true;
                     end
@@ -542,25 +555,6 @@ for ss=1:n_segs
                     disp(ii_)
                 end
                 clear ii_ ok_ maxiter_
-            case 1 
-                %irreg
-
-                % generate random rates from uniform distribution across
-                % range of possible values plus a slightly higher lower
-                % bound
-
-                % min stretch rate mostly drove the duration discrepancies,
-                % so tuned it such that the durations are not too far from
-                % original
-                % min_stretch_rate=1/0.55;
-                % min_stretch_rate=2;
-                % min_stretch_rate=1;
-                % added some wiggle room to max rate 
-                
-                % max_stretch_rate=9;
-                % % leave overly fast intervals unchanged
-                % IPI1_seg(too_fast)=IPI0_seg(too_fast);
-                IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
         end
 
     
