@@ -94,22 +94,16 @@ for warp_rule_num=warp_rules
                 % warp_config.env_derivative_noise_tol=0;
                 % minimal as to eliminate spurious peaks during silences
                 warp_config.min_pkrt_height=5e-5;
-                % warp_config.prom_thresh=0.2;
-                % warp_config.width_thresh=0.01;
-                % warp_config.area_thresh=2.40e-6;
                 warp_config.rng=0; %note: probably want this to be false once we're confident manual filter works
-                % if isequal(dd,3)
-                %     warp_config.manual_filter=1;
-                % else 
-                %     warp_config.manual_filter=0;
-                % end
+                
                 warp_config.manual_filter=0;
                 warp_config.wav_fnm=d(dd).name(1:end-4);
+                warp_config.elongation_thresh=3; 
                 % note: for irreg, want to avoid overly-elongating short
                 % intervals, do this so distribution maintains continuity
                 % at the cutoff:
-                warp_config.max_stretch_rate=10;
-                warp_config.hard_cutoff_hz=warp_config.max_stretch_rate;
+                % warp_config.max_stretch_rate=10;
+                % warp_config.hard_cutoff_hz=warp_config.max_stretch_rate;
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d_%d/', ...

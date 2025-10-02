@@ -1,4 +1,7 @@
 function AAA_WarpedSpeech_eeg(subject)
+%TODO: edit script to find reg/irreg stimuli
+% remember to include fixed "randomized" order which avoids trials with
+% non-english
 try
     %% Initialize
     Screen('Preference','SyncTestSettings' ,0.002,50,0.1,5);
@@ -59,7 +62,8 @@ try
 
     % set up conditions
     m(:,1) = [2/3 1 3/2]'; % speed
-    m(:,2) = [0 0 0]'; % regularity: 0 = normal cadence, >0 = more regular, <0 = more irregular
+    m(:,1)=[1 1 1]';
+    m(:,2) = [-1 0 1]'; % regularity: 0 = normal cadence, >0 = more regular, <0 = more irregular
 
     if ntrials*size(m,1)>length(stimfiles)
         error('Too many trials')
@@ -69,7 +73,7 @@ try
     m = repmat(m,ntrials,1);
 
     % shuffle
-    I = randperm(size(m,1));
+    I2 = randperm(size(m,1));
     m = m(I,:);
 
     totaltrials = size(m,1);

@@ -46,7 +46,8 @@ defaults = struct( ...
     'manual_filter',0, ...
     'wav_fnm','none_assigned',...
     'min_stretch_rate',1, ...
-    'max_stretch_rate',10 ...
+    'max_stretch_rate',10, ...
+    'elongation_thresh',inf...
     );
 
 % copy missing fields from defaults into warp_config
@@ -82,6 +83,8 @@ hard_cutoff_hz=warp_config.hard_cutoff_hz;
 env_derivative_noise_tol=warp_config.env_derivative_noise_tol;
 min_stretch_rate=warp_config.min_stretch_rate;
 max_stretch_rate=warp_config.max_stretch_rate;
+% max (warp_interval/original_interval) ratio allowed for output
+elongation_thresh=warp_config.elongation_thresh;
 switch center 
         case -1 
             % use lower quartile
@@ -520,9 +523,28 @@ for ss=1:n_segs
                 V=jitter(1);
                 mu=log(M^2/sqrt(V+M^2));
                 sigma=sqrt(log(V/M^2+1));
-                IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
-            case 1
+                % note: everything below until clear statement could be a
+                % function
+                ok_=false;
+                maxiter_=1e4;
+                ii_=0;
+                while (~ok_)&&(ii_<maxiter_)
+                    ii_=ii_+1;
+                    IPI1_seg(~too_fast)=1./lognrnd(mu,sigma,sum(~too_fast),1);
+                    if all((IPI1_seg/IPI0_seg)<elongation_thresh)
+                        ok_=true;
+                    end
+                end
+                if ii_>=maxiter_
+                    warning('iter threshold surpassed.')
+                else
+                    disp('n iterations to find valid set:')
+                    disp(ii_)
+                end
+                clear ii_ ok_ maxiter_
+            case 1 
                 %irreg
+
                 % generate random rates from uniform distribution across
                 % range of possible values plus a slightly higher lower
                 % bound
@@ -642,7 +664,7 @@ function syll_times=read_syll_from_textgrid(wav_fnm)
     % syll_times=TextGridStruct.segs(syll_m);
     syll_times=mean(TextGridStruct.segs(syll_m,:),2);
 
-%%
+
 end
 
 function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)
