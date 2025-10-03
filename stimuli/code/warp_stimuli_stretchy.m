@@ -101,12 +101,11 @@ for warp_rule_num=warp_rules
                 
                 warp_config.manual_filter=0;
                 warp_config.wav_fnm=d(dd).name(1:end-4);
-                warp_config.elongation_thresh=.25; 
-                % note: for irreg, want to avoid overly-elongating short
-                % intervals, do this so distribution maintains continuity
-                % at the cutoff:
-                % warp_config.max_stretch_rate=10;
-                % warp_config.hard_cutoff_hz=warp_config.max_stretch_rate;
+                warp_config.elongation_thresh=3;
+                warp_config.shortening_thresh=1/4;
+                warp_config.max_stretch_rate=8;
+                warp_config.min_stretch_rate=1.5;
+
                 
 
                 outputDirTemp=sprintf('%s%s/rule%d_seg_%s_%s_%d_%d/', ...

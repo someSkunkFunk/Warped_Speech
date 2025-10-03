@@ -47,7 +47,8 @@ defaults = struct( ...
     'wav_fnm','none_assigned',...
     'min_stretch_rate',1, ...
     'max_stretch_rate',10, ...
-    'elongation_thresh',inf...
+    'elongation_thresh',inf,...
+    'shortening_thresh',0 ...
     );
 
 % copy missing fields from defaults into warp_config
@@ -85,6 +86,7 @@ min_stretch_rate=warp_config.min_stretch_rate;
 max_stretch_rate=warp_config.max_stretch_rate;
 % max (warp_interval/original_interval) ratio allowed for output
 elongation_thresh=warp_config.elongation_thresh;
+shortening_thresh=warp_config.shortening_thresh;
 switch center 
         case -1 
             % use lower quartile
@@ -539,13 +541,21 @@ for ss=1:n_segs
                 % note: everything below until clear statement could be a
                 % function
                 ok_=false;
-                maxiter_=1e4;
+                maxiter_=1e6;
                 ii_=0;
+                IPI1_seg(~too_fast)=get_rand_rate_intervals(min_stretch_rate,max_stretch_rate,sum(~too_fast));
                 while (~ok_)&&(ii_<maxiter_)
                     ii_=ii_+1;
-                    IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
-                    if all((IPI1_seg/IPI0_seg)<elongation_thresh)
+                    %note: "too fast" should be ok automatically since not
+                    %warped at all.... so long as elongation/shortening
+                    %thresh create interval that contains 1
+                    elongation_ok_mask_=(IPI1_seg./IPI0_seg)<elongation_thresh;
+                    shortening_ok_mask_=(IPI1_seg./IPI0_seg)>shortening_thresh;
+                    if all(elongation_ok_mask_)&&all(shortening_ok_mask_)
                         ok_=true;
+                    else
+                        % only resample out-of-bounds intervals
+                        IPI1_seg(~elongation_ok_mask_|~shortening_ok_mask_)=get_rand_rate_intervals(min_stretch_rate,max_stretch_rate,sum(~elongation_ok_mask_|~shortening_ok_mask_));
                     end
                 end
                 if ii_>=maxiter_
@@ -554,7 +564,7 @@ for ss=1:n_segs
                     disp('n iterations to find valid set:')
                     disp(ii_)
                 end
-                clear ii_ ok_ maxiter_
+                clear ii_ ok_ maxiter_ elongation_ok_mask_ shortening_ok_mask_
         end
 
     
@@ -635,6 +645,13 @@ end
 % inspect_anchorpoints(wf,wf_warp,fs,s)
 end
 %% helpers
+function rand_intervals=get_rand_rate_intervals(min_stretch_rate,max_stretch_rate,n_rates)
+% generate random intervals by sampling a uniform distribution between
+% min_stretch_rate,max_stretch_rate andn taking their reciprocal
+% n_rates: number of random samples to generate
+    rand_intervals=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(n_rates,1));
+end
+
 function syll_times=read_syll_from_textgrid(wav_fnm)
     % reads syllable times from textgrid files
     global boxdir_mine

@@ -6,8 +6,8 @@
 
 clear, clc
 global boxdir_mine
-warp_dir='rule11_seg_textgrid_4.000Hz_1_0';
-regularity=-1; %1-> irreg -1-> reg
+warp_dir='rule11_seg_textgrid_4p545Hz_0_0';
+regularity=1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
 medians_=median(s_intervals);
