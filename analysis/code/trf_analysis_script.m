@@ -2,7 +2,11 @@
 %% config analysis
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
-
+%TODO 1: do resampling last without additional filtering
+%TODO 2: clean up trf and preprocess config param setting (check that it
+%works with fast/slow)
+% TODO 3: extend code functionality to reg/irreg
+% TODO 3: look at reg trf (does it exist??)
 % for subj=[2:7,9:22]
 for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
@@ -537,7 +541,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         EEG.data=[EEG.data, zeros(preprocess_config.nchan,ns_pad)];
     end
 
-    if preprocess_config.add_speech_delay_corr
+    if ~ismepty(preprocess_config.stim_delay_time)
         EEG=add_speech_delay(EEG,preprocess_config);
     end
     
