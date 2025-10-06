@@ -1,86 +1,106 @@
-function trf_config=config_trf(subj,do_lambda_optimization,preprocess_config)
+function trf_config=config_trf(trf_config,preprocess_config)
+%note: is it better to have this depend on input preprocess_config or have
+%it be standalone such that we can call it on it's own, in which case
+%should run config_preprocess here if empty....?
 %% %trf params config file
 global user_profile
 global boxdir_lab
 global boxdir_mine
-% fprintf(['note that variable called separate_conditions has been ' ...
-%     'replaced with do_lambda_optimization and downstream code ' ...
-%     'might need to be updated to reflect proper functionality if it uses' ...
-%     'the old variable....\n'])
-% although ideally, packaging the directories and logic used to located 
-% them into this function is the point of making this function to begin
-% with so that should not be an issue...
+defaults=struct( ...
+    'subj',[],...
+    'lam_range',10.^(-3:8), ...
+    'cv_tmin_ms',0, ...
+    'cv_tmax_ms',400, ...
+    'tmin_ms',-500, ...
+    'tmax_ms',800, ...
+    'do_lambda_optimization',false,...
+    'separate_conditions',false,...
+    'crossvalidated',false,...
+    'zscore_envs',false, ...
+    'norm_envs',true,...
+    'zscore_eeg',true...
+    );
+fields=fieldnames(defaults);
+for ff=1:numel(fields)
+    if ~isfield(trf_config,fields{ff})||isempty(trf_config.(fields{ff}))
+        trf_config.(fields{ff})=defaults.(fields{ff});
+    end
+end
+
+if isempty(preprocess_config)
+    warning('empty preprocess_config given...')
+    disp('initializing one with defaults to get trf_config...')
+    disp('avoid this when doing actual analysis')
+    preprocess_config=config_preprocess([]);
+else
+    trf_config.subj=preprocess_config.subj;
+end
 %% stuff that might change depending on context
 % optimization params
 %range over which we optimize lambda with all conditions combined
-lam_range=10.^(-3:8);
-cv_tmin_ms=0;
-cv_tmax_ms=400;
+% lam_range=10.^(-3:8);
+% cv_tmin_ms=0;
+% cv_tmax_ms=400;
 
 %model params
-tmin_ms=-500;
-tmax_ms=800;
+% tmin_ms=-500;
+% tmax_ms=800;
 %% stuff that doesn't generally need to change
-% TODO: currently, we only do cross-validation when we optimize lambda
-% (using cross-condition TRFs), we will definitely be re-structuring
-% project directories in future so that all model results end up on the
-% same file, at which point we probably want to make it possible for
-% condition-specific TRFs to be optimized and/or cross validated
-% independently of the condition-agnostic TRFs
+%NOTE: consider making lambda optimization independent separate
+%conditions.... or making them dependent in outer script rather than here
+% if trf_config.do_lambda_optimization
+%     conditions_dir='all_conditions/';
+%     cvdir='cv/';
+%     %for new output file format - just store as variables within the same
+%     %file instead of dividing into separate dirs
+%     trf_config.separate_conditions=false;
+%     crossvalidated=true;
+% 
+% else
+%     conditions_dir='sep_conditions/';
+%     cvdir='';
+% 
+%     separate_conditions=true;
+%     crossvalidated=false;
+% end
 
-if do_lambda_optimization
-    conditions_dir='all_conditions/';
-    cvdir='cv/';
-    %for new output file format - just store as variables within the same
-    %file instead of dividing into separate dirs
-    separate_conditions=false;
-    crossvalidated=true;
+% zscore_envs=false;
+% norm_envs=true;
+% zscore_eeg=true;
 
-else
-    conditions_dir='sep_conditions/';
-    cvdir='';
-    
-    separate_conditions=true;
-    crossvalidated=false;
-end
-
-zscore_envs=false;
-norm_envs=true;
-zscore_eeg=true;
-
-nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat', ...
-    preprocess_config.matfolder,conditions_dir,cvdir,subj);
-envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat', boxdir_mine, ...
+% nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat', ...
+%     preprocess_config.matfolder,conditions_dir,cvdir,subj);
+trf_config.envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat', boxdir_mine, ...
     preprocess_config.fs);
 
 
 %% new format vars to replace single nuldistribution file output
-model_metric_path=sprintf('%s/analysis/metrics/warped_speech_s%0.2d.mat', ...
-    boxdir_mine,subj);
-trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
-    boxdir_mine,subj);
+trf_config.model_metric_path=sprintf('%s/analysis/metrics/warped_speech_s%0.2d.mat', ...
+    boxdir_mine,trf_config.subj);
+trf_config.trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
+    boxdir_mine,trf_config.subj);
 
-model_metric_dir=fileparts(model_metric_path);
+trf_config.model_metric_dir=fileparts(trf_config.model_metric_path);
 
-if ~exist(model_metric_dir,'dir')
-    fprintf('%s DNE - making dir ...\n',model_metric_dir)
-    mkdir(model_metric_dir)
+if ~exist(trf_config.model_metric_dir,'dir')
+    fprintf('%s DNE - making dir ...\n',trf_config.model_metric_dir)
+    mkdir(trf_config.model_metric_dir)
 end
 
-trf_model_dir=fileparts(trf_model_path);
-if ~exist(trf_model_dir,'dir')
-    fprintf('%s DNE - making dir ...\n',trf_model_dir)
-    mkdir(trf_model_dir)
+trf_config.trf_model_dir=fileparts(trf_config.trf_model_path);
+if ~exist(trf_config.trf_model_dir,'dir')
+    fprintf('%s DNE - making dir ...\n',trf_config.trf_model_dir)
+    mkdir(trf_config.trf_model_dir)
 end
 
 
-vars=whos;
-trf_config=struct();
-for nn=1:numel(vars)
-    trf_config.(vars(nn).name)=eval(vars(nn).name);
-end
+% vars=whos;
+% trf_config=struct();
+% for nn=1:numel(vars)
+%     trf_config.(vars(nn).name)=eval(vars(nn).name);
+% end
 
-fprintf('voila trf_config:\n')
+disp('voila trf_config:')
 disp(trf_config)
 % guess won't need this since function only returns trf_config
 % clearvars -except trf_config 

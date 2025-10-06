@@ -11,24 +11,23 @@ clc
 for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
-% uses separate configs that force bad chans interp to be done AND save in
-% separate directory as prior analases in order to preserve old results
-force_interpBadChans=false;
+%% setup configs
+preprocess_config.subj=subj;
+trf_config.subj=subj;
+trf_config.do_lambda_optimization=true;
 
-do_lambda_optimization=true;
-if force_interpBadChans
-    preprocess_config=config_preprocess2(subj);
-    trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
+if trf_config.do_lambda_optimization 
+    trf_config.separate_conditions=false;
+    trf_config.crossvalidated=true;
 else
-    preprocess_config=config_preprocess(subj);
-    trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+    trf_config.separate_conditions=true;
+    trf_config.crossvalidated=false;
 end
-%
-%NOTE: do_nulltest=false case may complicate config validation if we
-%suddenly choose to do a different analysis configuration... but maybe
-%not... should check this
-% still havent investigated this issue ^ but running with do_nulltest=false
-% also seems to prevent saving of stats_obs...?
+
+
+preprocess_config=config_preprocess(preprocess_config);
+trf_config=config_trf(trf_config,preprocess_config);
+
 do_nulltest=true;
 
 

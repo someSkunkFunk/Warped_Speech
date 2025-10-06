@@ -1,9 +1,10 @@
-function preprocess_config=config_preprocess(subj,preprocess_config)
+function preprocess_config=config_preprocess(preprocess_config)
 global user_profile
 global boxdir_lab
 global boxdir_mine
 %generate preprocess params config file
 defaults=struct( ...
+    'subj',[],...
     'bpfilter',[1 15], ...
     'ref','mast', ...
     'fs',128, ...
@@ -17,7 +18,7 @@ defaults=struct( ...
     );
 fields=fieldnames(defaults);
 for ff=1:numel(fields)
-    if ~ifield(preprocess_config,fields{ff})||isempty(preprocess_config.(fields{ff}))
+    if ~isfield(preprocess_config,fields{ff})||isempty(preprocess_config.(fields{ff}))
         preprocess_config.(fields{ff})=defaults.(fields{ff});
     end
 end
@@ -48,14 +49,14 @@ end
 % biosig import options
 switch preprocess_config.ref
     case 'avg'
-        preprocess_config.refI=1:nchan;
+        preprocess_config.refI=1:preprocess_config.nchan;
     case 'mast'
-        preprocess_config.refI=nchan+(1:2);
+        preprocess_config.refI=preprocess_config.nchan+(1:2);
     otherwise
         % specificy which channels in ref
         preprocess_config.refI=ref;
 end
-preprocess_config.opts = {'channels',1:(nchan+2),'importannot','off','ref',refI};
+preprocess_config.opts = {'channels',1:(preprocess_config.nchan+2),'importannot','off','ref',preprocess_config.refI};
 % add_speech_delay_corr=true; % add one sec to event latencies before epoching to account for speech delay in noisy stims
 % rec_dur = 96; % needed for epoching variable-duration trials
 % n_trials=75; % ideal number - TODO: replace with true numberbefore 
@@ -75,31 +76,32 @@ preprocess_config.datafolder = sprintf('%s/data/',boxdir_mine);
 % matfolder = sprintf('%smat/%g-%g_%s-ref_%dHz/%s',datafolder,bpfilter(1),bpfilter(2),ref,fs,speech_delay_corr_dir);
 % matfile = sprintf('%swarpedSpeech_s%0.2d.mat',matfolder,subj);
 %above 2 replaced by  2 below
-preprocess_config.preprocessed_eeg_dir=sprintf('%spreprocessed_eeg/',datafolder);
-preprocess_config.preprocessed_eeg_path=sprintf('%swarped_speech_s%0.2d.mat',preprocessed_eeg_dir,subj);
+preprocess_config.preprocessed_eeg_dir=sprintf('%spreprocessed_eeg/',preprocess_config.datafolder);
+preprocess_config.preprocessed_eeg_path=sprintf('%swarped_speech_s%0.2d.mat',preprocess_config.preprocessed_eeg_dir,preprocess_config.subj);
 if ~exist(preprocess_config.preprocessed_eeg_dir,'dir')
     fprintf('%s DNE - making dir...\n',preprocess_config.preprocessed_eeg_path)
     mkdir(preprocess_config.preprocessed_eeg_dir)
 end
 
-preprocess_config.behfile = sprintf('%ss%0.2d_WarpedSpeech.mat',datafolder,subj);
-preprocess_config.bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf',datafolder,subj);
-preprocess_config.envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat',boxdir_mine,fs);
-% for finding chanlocs file:
-% (note - probably should copy this into project for reliability)
-%NOTE: this file seems to have coordinates rotated incorrectly - should use
-%128chanlocs.mat that is copied into analysis in my box folder for project 
-% instead
-chanlocs_dir=sprintf('%s/Box/Lalor Lab Box/Code library/EEGpreprocessing/',user_profile);
-chanlocs_path=sprintf('%schanlocs.xyz',chanlocs_dir);
-        
+preprocess_config.behfile = sprintf('%ss%0.2d_WarpedSpeech.mat', ...
+    preprocess_config.datafolder,preprocess_config.subj);
+preprocess_config.bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf', ...
+    preprocess_config.datafolder,preprocess_config.subj);
+%NOTE: we have this in trf config and don't really need here..
+% preprocess_config.envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat' ...
+%     ,boxdir_mine,preprocess_config.fs);
+% for finding chanlocs file
+%NOTE: this file seems to have coordinates rotated incorrectly 
+% chanlocs_dir=sprintf('%s/Box/Lalor Lab Box/Code library/EEGpreprocessing/',user_profile);
+% chanlocs_path=sprintf('%schanlocs.xyz',chanlocs_dir);
+preprocess_config.chanlocs_path=sprintf('%s/128chanlocs.mat',preprocess_config.datafolder);
 %% put everything into a structure and disp
 
-vars=whos;
-preprocess_config=struct();
-for nn=1:numel(vars)
-    preprocess_config.(vars(nn).name)=eval(vars(nn).name);
-end
-fprintf('voila preprocess_config:\n')
+% vars=whos;
+% preprocess_config=struct();
+% for nn=1:numel(vars)
+%     preprocess_config.(vars(nn).name)=eval(vars(nn).name);
+% end
+disp('voila preprocess_config:')
 disp(preprocess_config)
 end
