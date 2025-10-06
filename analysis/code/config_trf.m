@@ -75,23 +75,23 @@ trf_config.envelopesFile=sprintf('%s/stimuli/WrinkleEnvelopes%dhz.mat', boxdir_m
 
 
 %% new format vars to replace single nuldistribution file output
-trf_config.model_metric_path=sprintf('%s/analysis/metrics/warped_speech_s%0.2d.mat', ...
+trf_config.paths.model_metric_path=sprintf('%s/analysis/metrics/warped_speech_s%0.2d.mat', ...
     boxdir_mine,trf_config.subj);
-trf_config.trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
+trf_config.paths.trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
     boxdir_mine,trf_config.subj);
 
-trf_config.model_metric_dir=fileparts(trf_config.model_metric_path);
+trf_config.paths.model_metric_dir=fileparts(trf_config.paths.model_metric_path);
 
-if ~exist(trf_config.model_metric_dir,'dir')
-    fprintf('%s DNE - making dir ...\n',trf_config.model_metric_dir)
-    mkdir(trf_config.model_metric_dir)
-end
+% if ~exist(trf_config.paths.model_metric_dir,'dir')
+%     fprintf('%s DNE - making dir ...\n',trf_config.paths.model_metric_dir)
+%     mkdir(trf_config.paths.model_metric_dir)
+% end
 
-trf_config.trf_model_dir=fileparts(trf_config.trf_model_path);
-if ~exist(trf_config.trf_model_dir,'dir')
-    fprintf('%s DNE - making dir ...\n',trf_config.trf_model_dir)
-    mkdir(trf_config.trf_model_dir)
-end
+trf_config.paths.trf_model_dir=fileparts(trf_config.paths.trf_model_path);
+% if ~exist(trf_config.trf_model_dir,'dir')
+%     fprintf('%s DNE - making dir ...\n',trf_config.paths.trf_model_dir)
+%     mkdir(trf_config.paths.trf_model_dir)
+% end
 
 
 % vars=whos;

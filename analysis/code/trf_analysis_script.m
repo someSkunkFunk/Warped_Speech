@@ -46,11 +46,7 @@ if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
     preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
     clear preprocess_checkpoint
     stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-    % else
-    %     fprintf(['%s did not contain results with specified config, ' ...
-    %         'assuming new data needs to be saved to it....\n'], ...
-    %         preprocess_config.preprocessed_eeg_path)
-    % end
+
 end
 %% preprocess from raw (bdf)
 if ~preload_preprocessed
@@ -60,17 +56,16 @@ if ~preload_preprocessed
     % trim resp to have same durations as stim (only need to do during
     % preprocessing)
     preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
-    fprintf('saving to %s\n',preprocess_config.preprocessed_eeg_path)
-    % save(preprocess_config.preprocessed_eeg_path,'preprocessed_eeg','preprocess_config');
-    %%
-    save_checkpoint(preprocess_config,preprocessed_eeg);
+    fprintf('saving to %s\n',preprocess_config.paths.preprocessed_eeg_dir)
+    %TODO: CHECK NEW SAVE FUNCTION WORKS BEFORE RELYING ON IT
+    save_preprocessed_data(subj,preprocessed_eeg,config,output_dir)
 end
 
 %% TRF ANALYSIS
+%TODO: replace all instances of load_checkpoint with appropriate 
+% registry-validated loading
+%function
 %% check if variables for current config can be preloaded
-% TODO: replace native existance check with custom wrapper that not only
-%checks existance but also for matching specified configurations - same
-%with load
 
 % function starts here...
 preload_stats_null=false;
@@ -176,6 +171,43 @@ end
 
 end
 %% Helpers
+function save_preprocessed_data(subj,preprocessed_eeg,config,output_dir)
+    if ~exits(output_dir,'dir')
+        mkdir(output_dir);
+    end
+    % generate unique hash for config
+    config_str=jsonencode(config);
+    % DataHash from fileexchange
+    config_hash=string(upper(DataHash(config_str)));
+    % define unique file names
+    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat',subj,config_hash));
+    registry_file=fullfile(output_dir,'registry.json');
+
+    % load or initialize registry
+    if isfile(registry_file)
+        registry=jsondecode(fileread(registry_file));
+    else
+        registry=struct();
+    end
+
+    %add or update entry
+    registry.(subj).(config_hash)=struct( ...
+        'config',config, ...
+        'file', mat_fpth, ...
+        'timestamp',datetime('now'));
+
+    % save data
+    save(mat_fpth,'preprocessed_eeg','config');
+
+    % save updated registry
+    fid=fopen(registry_file,'w');
+    fwrite(fid,jsonencode(registry),'char');
+    fclose(fid);
+
+    fprintf('Saved %s and updated registry.\n',mat_fptph);
+
+end
+
 function best_lam=fetch_optimized_lam(trf_config)
 % best_lam=fetch_optimized_lam(trf_config)
 % pull best_lam from trf_config associated with condition-agnostic trf
@@ -408,39 +440,6 @@ else
 end
 end
 
-% function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-%     trf_config,preprocess_config)
-% % [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg,trf_config,
-% % preprocess_config)
-%     resp=preprocessed_eeg.resp;
-%     if trf_config.zscore_envs
-%         % NOTE: need to check if they've already been z-scored before doing
-%         % this.... or not because it will always load from the mat file?
-%         if trf_config.norm_envs
-%             error('dont do both normalization and z-scoring on envelopes')
-%         end
-%         disp('z-scoring envelopes')
-%         load(preprocess_config.envelopesFile,'mu','sigma');
-% 
-%         stim=cellfun(@(x) (x-mu)/sigma, stim,'UniformOutput',false);
-%     end
-%     if trf_config.norm_envs
-%         disp('normalizing envelopes')
-%         load(preprocess_config.envelopesFile,'sigma');
-%         stim=cellfun(@(x) x/sigma, stim,'UniformOutput',false);
-%     end
-% 
-%     if trf_config.zscore_eeg
-%         disp('z-scoring eeg')
-%             % concatenate all trials
-%         resp_cat=cat(1,preprocessed_eeg.resp{:,:});
-%         % z-score all the channels together
-%         eeg_mu=mean(resp_cat,'all');
-%         eeg_sigma=std(resp_cat,0,'all');
-%         preprocessed_eeg.resp=cellfun(@(x)(x-eeg_mu)./eeg_sigma,resp,'UniformOutput',false);
-% 
-%     end
-% end
 
 function [EEG, cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_eeg)
 % [EEG, cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_eeg)
@@ -482,7 +481,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     EEG = pop_select(EEG,'nochannel',preprocess_config.nchan+(1:2));
     EEG = pop_chanedit(EEG,'load',{preprocess_config.chanlocs_path,'filetype','xyz'});
     EEG.urchanlocs = EEG.chanlocs;
-
+    %TODO: resample at END of pipeline
     % resample
     EEG = pop_resample(EEG,preprocess_config.fs);
     if preprocess_config.interpBadChans
@@ -571,34 +570,6 @@ for tt = 1:numel(stim)
 end
 
 end
-
-% function stim=load_stim_cell(preprocess_config,preprocessed_eeg)
-% %NOTE: COND and preprocessed_eeg.trials will be needed here and not in preprocess_config
-% load(preprocess_config.envelopesFile,'env')
-% fprintf('loading envelopes from %s\n',preprocess_config.envelopesFile)
-% fs_stim=load(preprocess_config.envelopesFile,'fs');
-% fs_stim=fs_stim.fs;
-% % check wav fs matches analysis fs
-% if fs_stim ~= preprocess_config.fs
-%     error('stim has wrong fs.')
-% end
-% stim = env(preprocessed_eeg.cond,preprocessed_eeg.trials);
-% % stim = env(preprocessed_eeg.cond,1:preprocess_config.n_trials);
-% stim = stim(logical(eye(size(stim))));
-% % TODO: figure out if this line below was supposed to go in
-% % clean_false_starts as we presumed?
-% % RE above: not sure if having this code here is a problem when that
-% % happens but it's definitely causing problems when there are missing
-% % trials and we've since altered the code to address that issue by making
-% % sure cond/trials in preprocessed_eeg only included trials that are not
-% % missing... theoretically should fix that issue AND false start
-% % repetitions (since those get cleaned out in preprocessing step too)
-% % ... watch
-% % out 
-% % cond = cond(preprocessed_eeg.trials,1);
-% % stim = stim(preprocessed_eeg.trials,1)';
-% end
-    
 
 
 function EEG=add_speech_delay(EEG,preprocess_config)
