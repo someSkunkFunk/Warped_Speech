@@ -34,35 +34,39 @@ do_nulltest=true;
 
 %% check if preprocessed data exists...
 preprocessed_eeg=load_preprocessed_data(subj,preprocess_config);
-preload_preprocessed=false;
-if ~isempty(preprocessed_eeg)
-    stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
-% if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
-%     configs_match(preprocess_config.preprocessed_eeg_path,preprocess_config)
-%     fprintf(['existing new-fmt preprocessed mat file found, loading ' ...
-%         'from %s.\n'],preprocess_config.preprocessed_eeg_path)
-%     preprocess_checkpoint=...
-%         load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
+% if ~isempty(preprocessed_eeg)
+%     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
+% % if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
+% %     configs_match(preprocess_config.preprocessed_eeg_path,preprocess_config)
+% %     fprintf(['existing new-fmt preprocessed mat file found, loading ' ...
+% %         'from %s.\n'],preprocess_config.preprocessed_eeg_path)
+% %     preprocess_checkpoint=...
+% %         load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
+% 
+%     % if preprocess_checkpoint.desired_config_found
+%     % preload_preprocessed=true;
+%     % preprocess_config=preprocess_checkpoint.preprocess_config;
+%     % preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
+%     % clear preprocess_checkpoint
+%     % stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+% 
+% end
 
-    % if preprocess_checkpoint.desired_config_found
-    % preload_preprocessed=true;
-    % preprocess_config=preprocess_checkpoint.preprocess_config;
-    % preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
-    % clear preprocess_checkpoint
-    % stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-
-end
 %% preprocess from raw (bdf)
-if ~preload_preprocessed
+if isempty(preprocessed_eeg)
     fprintf('processing from bdf...\n')
     preprocessed_eeg=preprocess_eeg(preprocess_config);
-    stim=load_stim_cell(preprocess_config,preprocessed_eeg);
+    stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
     % trim resp to have same durations as stim (only need to do during
     % preprocessing)
     preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.paths.preprocessed_eeg_dir)
     %TODO: CHECK NEW SAVE FUNCTION WORKS BEFORE RELYING ON IT
     save_preprocessed_data(subj,preprocessed_eeg,config,preprocess_output_dir)
+    preload_preprocessed=false;
+else
+    stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
+    preload_preprocessed=true;
 end
 
 %% TRF ANALYSIS
@@ -501,7 +505,11 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
 % expecting...
 % preprocessed_eeg=preprocess_eeg(preprocess_config)
     %  load bdf data and experimental conditions info
-    EEG = pop_biosig(preprocess_config.bdffile,preprocess_config.opts{:});
+    if preprocess_config.fs/2<=preprocess_config.bpfilter(2)
+        error(['bpfilter lowpass cutoff (Hz %d) is above nyquist for ' ...
+            'output fs (%d Hz)'],preprocess_config.bpfilter(2),round(preprocess_config.fs/2))
+    end
+    EEG = pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
     load(preprocess_config.behfile,'m')
     cond = round(m(:,1),2);
     cond(cond>1) = 3;
@@ -510,12 +518,13 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
 
     % remove mastoids
     EEG = pop_select(EEG,'nochannel',preprocess_config.nchan+(1:2));
-    EEG = pop_chanedit(EEG,'load',{preprocess_config.chanlocs_path,'filetype','xyz'});
+    EEG = pop_chanedit(EEG,'load',{preprocess_config.paths.chanlocs_path,'filetype','xyz'});
     EEG.urchanlocs = EEG.chanlocs;
-    %TODO: resample at END of pipeline
-    % resample
-    EEG = pop_resample(EEG,preprocess_config.fs);
+    
+    % EEG = pop_resample(EEG,preprocess_config.fs);
     if preprocess_config.interpBadChans
+        warning(['since resample was moved to end of pipeline finding bad' ...
+            ' chans will be really slow...'])
         % note that resp will have the interpolated channels but
         % original bdf will not
         disp('finding bad channels')
@@ -534,7 +543,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     hd_lp = getLPFilt(EEG.srate,preprocess_config.bpfilter(2));
     EEG.data = filtfilthd(hd_lp,EEG.data')';
 
-    % Epoch
+    % Epoching
     preprocessed_eeg.trials = [EEG.event.type];
     % why did aaron choose 100 in particular rather than preprocess_config.n_trials to
     % begin with?
