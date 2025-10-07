@@ -33,6 +33,7 @@ do_nulltest=true;
 
 
 %% check if preprocessed data exists...
+preprocessed_eeg=load_preprocessed_data(subj,preprocess_config,)
 preload_preprocessed=false;
 if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
     configs_match(preprocess_config.preprocessed_eeg_path,preprocess_config)
@@ -58,7 +59,7 @@ if ~preload_preprocessed
     preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.paths.preprocessed_eeg_dir)
     %TODO: CHECK NEW SAVE FUNCTION WORKS BEFORE RELYING ON IT
-    save_preprocessed_data(subj,preprocessed_eeg,config,output_dir)
+    save_preprocessed_data(subj,preprocessed_eeg,config,preprocess_output_dir)
 end
 
 %% TRF ANALYSIS
