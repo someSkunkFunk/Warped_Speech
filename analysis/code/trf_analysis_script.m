@@ -33,7 +33,7 @@ do_nulltest=true;
 
 
 %% check if preprocessed data exists...
-preprocessed_eeg=load_preprocessed_data(subj,preprocess_config);
+preprocessed_eeg=load_preprocessed_data(preprocess_config);
 % if ~isempty(preprocessed_eeg)
 %     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
 % % if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
@@ -59,10 +59,9 @@ if isempty(preprocessed_eeg)
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
     % trim resp to have same durations as stim (only need to do during
     % preprocessing)
-    preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
+    preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.paths.preprocessed_eeg_dir)
-    %TODO: CHECK NEW SAVE FUNCTION WORKS BEFORE RELYING ON IT
-    save_preprocessed_data(subj,preprocessed_eeg,config,preprocess_output_dir)
+    save_preprocessed_data(preprocessed_eeg,preprocess_config)
     preload_preprocessed=false;
 else
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
@@ -80,7 +79,8 @@ preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
 %% preload metrics
-if exist(trf_config.model_metric_path,'file')
+%todo: replicate preload process done above on preloading trf checkpoints
+if exist(trf_config.paths.model_metric_path,'file')
     % load new-format
     fprintf('checking %s for checkpoint data.\n',trf_config.model_metric_path)
     % will load both stats_obs and stats_null (if they exist... at least
@@ -179,67 +179,89 @@ end
 
 end
 %% Helpers
-function preprocessed_eeg=load_preprocessed_data(subj,preprocess_config)
+function preprocessed_eeg=load_preprocessed_data(preprocess_config)
+    subj=preprocess_config.subj;
     registry_file=fullfile(preprocess_config.paths.preprocessed_eeg_dir,'registry.json');
     if ~isfile(registry_file)
-        fprintf('No registry found for subject %d\n',subj);
+        fprintf('No registry found for subject %02d\n',subj);
         preprocessed_eeg=[];
         return
     end
     registry=jsondecode(fileread(registry_file));
-    if ~isfield(registry,subj)
-        fprintf('no entries for subjs %d in registry.\n',subj);
-        preprocessed_eeg=[];
-        return
-    end
-    config_hash=upper(DataHash(jsondecode(preprocessed_config)));
 
-    if isfield(registry,config_hash)
-        file=registry.(config_hash).file;
+    % paths may differ by machine but doesn't matter for actual params
+    preprocess_config=rmfield(preprocess_config,'paths');
+    config_str=jsonencode(preprocess_config);
+    config_hash=char(upper(DataHash(config_str)));
+    config_match_idx=find(strcmp({registry.hash},config_hash),1);
+
+    if isempty(config_match_idx)
+        warning('no preprocessed file found for this config in existing registry.')
+        preprocessed_eeg=[];
+    else
+        file=registry(config_match_idx).file;
         S=load(file,'preprocessed_eeg');
         preprocessed_eeg=S.preprocessed_eeg;
-    else
-        warning('no preprocessed file found for this config.')
-        preprocessed_eeg=[];
+        fprintf(['finished loading pre-existing preprocessed data for ' ...
+            'subj %02d (hash %s)\n'],subj,config_hash)
     end
 
 end
 
-function save_preprocessed_data(subj,preprocessed_eeg,config_preprocess)
-    output_dir=config_preprocess.paths.preprocessed_eeg_dir;
-    if ~exits(output_dir,'dir')
+function save_preprocessed_data(preprocessed_eeg,preprocess_config)
+    subj=preprocess_config.subj;
+    output_dir=preprocess_config.paths.preprocessed_eeg_dir;
+    if ~exist(output_dir,'dir')
         mkdir(output_dir);
     end
     % generate unique hash for config - remove paths first to avoid extra
     % hash ids
-    config_preprocess=rmfield(config_preprocess,'paths');
-    config_str=jsonencode(config_preprocess);
-    % DataHash from fileexchange
-    config_hash=string(upper(DataHash(config_str)));
+    preprocess_config=rmfield(preprocess_config,'paths');
+    config_str=jsonencode(preprocess_config);
+    % make unique hash using DataHash from fileexchange
+    config_hash=char(upper(DataHash(config_str)));
+
     % define unique file names
-    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat',subj,config_hash));
+    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat',preprocess_config.subj,config_hash));
     registry_file=fullfile(output_dir,'registry.json');
 
     % load or initialize registry
     if isfile(registry_file)
         registry=jsondecode(fileread(registry_file));
+        config_match_idx=find(strcmp({registry.hash},config_hash),1);
     else
-        registry=struct();
+        % intialize as 0x0 struct array for iterative assignment without
+        % error
+        registry=struct('hash',{}, ...
+            'config',{}, ...
+            'file',{}, ...
+            'timestamp',{} ...
+            );
+        config_match_idx=[];
     end
+    
+    %if no matching registry exits, save and register
+    if isempty(config_match_idx)
+        fprintf('saving new preprocessed_file for subj %02d (config hash:%s)\n',subj,config_hash)
+        %add or update entry
+        entry=struct( ...
+            'hash',config_hash,...
+            'config',preprocess_config, ...
+            'file', mat_fpth, ...
+            'timestamp',datetime('now'));
+        registry(end+1)=entry;
 
-    %add or update entry
-    registry.(config_hash)=struct( ...
-        'config',config_preprocess, ...
-        'file', mat_fpth, ...
-        'timestamp',datetime('now'));
-    % save data
-    save(mat_fpth,'preprocessed_eeg','config_preprocess');
-    % save updated registry
-    fid=fopen(registry_file,'w');
-    fwrite(fid,jsonencode(registry),'char');
-    fclose(fid);
-    fprintf('Saved %s and updated registry.\n',mat_fptph);
+        % save data
+        save(mat_fpth,'preprocessed_eeg','preprocess_config');
+        % save updated registry
+        fid=fopen(registry_file,'w');
+        fwrite(fid,jsonencode(registry),'char');
+        fclose(fid);
+        fprintf('Saved %s and updated registry.\n',mat_fpth);
+    else
+        warning('pre-existing matching config exists, skipping save - ensure that this is intended behavior.')
 
+    end
 end
 
 function best_lam=fetch_optimized_lam(trf_config)
@@ -510,7 +532,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
             'output fs (%d Hz)'],preprocess_config.bpfilter(2),round(preprocess_config.fs/2))
     end
     EEG = pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
-    load(preprocess_config.behfile,'m')
+    load(preprocess_config.paths.behfile,'m')
     cond = round(m(:,1),2);
     cond(cond>1) = 3;
     cond(cond==1) = 2;
@@ -518,10 +540,10 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
 
     % remove mastoids
     EEG = pop_select(EEG,'nochannel',preprocess_config.nchan+(1:2));
-    EEG = pop_chanedit(EEG,'load',{preprocess_config.paths.chanlocs_path,'filetype','xyz'});
+    warning('no chanlocs file added until verifying which is correct and how to enter it.')
+    % EEG = pop_chanedit(EEG,'load',{preprocess_config.paths.chanlocs_path,'filetype','xyz'});
     EEG.urchanlocs = EEG.chanlocs;
     
-    % EEG = pop_resample(EEG,preprocess_config.fs);
     if preprocess_config.interpBadChans
         warning(['since resample was moved to end of pipeline finding bad' ...
             ' chans will be really slow...'])
@@ -536,12 +558,18 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         end
     end
     % filter to frequency band of interest
+    disp('filtering with bpfilter:')
+    disp(preprocess_config.bpfilter)
     hd_hp = getHPFilt(EEG.srate,preprocess_config.bpfilter(1));
     EEG.data = filtfilthd(hd_hp,EEG.data')';
-
-
     hd_lp = getLPFilt(EEG.srate,preprocess_config.bpfilter(2));
     EEG.data = filtfilthd(hd_lp,EEG.data')';
+    % note: assumes new fs is integer-multiple of starting fs and that
+    % bpfilter sufficiently doubles as antialias filter
+    EEG=pop_downsample_noAA(EEG,preprocess_config.fs);
+
+
+
 
     % Epoching
     preprocessed_eeg.trials = [EEG.event.type];
@@ -570,22 +598,22 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
 
     
     % check if last condition is slow, otherwise need to pad EEG.data
-    % so pop_epoch works (last trial needs to be within rec_dur
+    % so pop_epoch works (last trial needs to be within epoch_dur
     % boundary)
     if cond(end)~=3
         % slow condition is fine, others need padding
        
-        ns_pad=floor((preprocess_config.rec_dur)*EEG.srate);
+        ns_pad=floor((preprocess_config.epoch_dur)*EEG.srate);
         EEG.data=[EEG.data, zeros(preprocess_config.nchan,ns_pad)];
     end
 
-    if ~ismepty(preprocess_config.stim_delay_time)
+    if ~isempty(preprocess_config.stim_delay_time)
         EEG=add_speech_delay(EEG,preprocess_config);
     end
     
     EEG = pop_epoch(EEG, ...
         mat2cell(preprocessed_eeg.trials,1, ...
-        ones(1,numel(preprocessed_eeg.trials))),[0 preprocess_config.rec_dur]);
+        ones(1,numel(preprocessed_eeg.trials))),[0 preprocess_config.epoch_dur]);
 
     resp = cell(1,size(EEG.data,3));
     for tt = 1:size(EEG.data,3)
@@ -599,11 +627,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     preprocessed_eeg.fs=EEG.srate;
 end
 
-function preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg)
-% preprocessed_eeg=remove_rec_dur(stim,preprocessed_eeg);
-%TODO: check if this will run without having to define an output
-% remove_rec_dur(stim,resp)
-% trim resp from rec_dur to stim_dur
+function preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg)
+% trim resp from epoch_dur to stim_dur
 fprintf('removing excess samples from pop_epoch\n')
 for tt = 1:numel(stim)
     preprocessed_eeg.resp{tt} = preprocessed_eeg.resp{tt}(1:size(stim{tt},1),:);
@@ -614,12 +639,11 @@ end
 
 function EEG=add_speech_delay(EEG,preprocess_config)
 % delayed_EEG=add_speech_delay(EEG,preprocess_config)
-    % shift trial starts by 1 second (speech_delay value in AAA
-        % code)      
+    % shift trial starts by 1 second (speech_delay value in expriment script)      
     
     
-    n_delay_samples=preprocess_config.delay_time*EEG.srate; 
-    fprintf('adding %0.2fs /%d samples\n',preprocess_config.delay_time,n_delay_samples)
+    n_delay_samples=preprocess_config.stim_delay_time*EEG.srate; 
+    fprintf('adding %0.2fs /%d samples\n',preprocess_config.stim_delay_time,n_delay_samples)
 
     % TODO: ASK AARON HOW TO DO THIS WITHOUT LOOPS FOR THE LOVE OF
     % ALL THAT IS HOLY
