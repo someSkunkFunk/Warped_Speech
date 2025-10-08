@@ -19,8 +19,8 @@ function data=load_checkpoint(config)
         data=[];
     else
         file=registry(config_match_idx).file;
-        S=load(file,'data');
-        data=S.data;
+        data=load(file);
+        % data=S.data;
         fprintf(['finished loading checkpoint for ' ...
             'subj %02d (hash %s)\n'],subj,config_hash)
     end

@@ -1,4 +1,8 @@
 function save_checkpoint(data,config)
+
+    % record var name in outer scope so we can reference it when loading
+    varname=inputname(1);
+    data_.(varname)=data;
     subj=config.subj;
     output_dir=config.paths.output_dir;
     if ~exist(output_dir,'dir')
@@ -30,8 +34,9 @@ function save_checkpoint(data,config)
         config_match_idx=[];
     end
     
-    %if no matching registry exits, save and register
-    if isempty(config_match_idx)
+    %if no matching registry exits, or file associated with registry 
+    % is missing current variable, save and register
+    if isempty(config_match_idx)||~ismember(varname,whos('file',mat_fpth))
         fprintf('saving new preprocessed_file for subj %02d (config hash:%s)\n',subj,config_hash)
         %add or update entry
         entry=struct( ...
@@ -42,7 +47,14 @@ function save_checkpoint(data,config)
         registry(end+1)=entry;
 
         % save data
-        save(mat_fpth,'data','config');
+        if isfile(mat_fpth)
+            save(mat_fpth,'-struct','data_','-append');
+        else
+            save(mat_fpth,'-struct','data_');
+        end
+        % should overwrite pre-existing config but that's okay cuz they
+        % shld match
+        save(mat_fpth,'config','-append');
         % save updated registry
         fid=fopen(registry_file,'w');
         fwrite(fid,jsonencode(registry),'char');

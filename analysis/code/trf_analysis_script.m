@@ -90,7 +90,7 @@ end
 preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
-%% preload trf results
+%% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
 
 trf_checkpoint_=load_checkpoint(trf_config);
 if ~isempty(trf_checkpoint_)
@@ -118,7 +118,7 @@ clear trf_checkpoint_
 disp('rescaling trf vars.')
 % will defnitely need rescaled vars
 [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-    trf_config,preprocess_config);
+    trf_config);
 % if none([preload_stats_null,preload_stats_null,preload_model])
 %     disp('rescaling trf vars.')
 %     % will defnitely need rescaled vars
@@ -130,16 +130,9 @@ disp('rescaling trf vars.')
 if ~preload_stats_obs && trf_config.crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
-%NOTE: removed exist check before running save checkpoint because that caused stats_obs
-% not to be saved, but there could be a problem with save_checkpoint
-% itself...
-    save_checkpoint(trf_config,stats_obs);
-
+    save_checkpoint(stats_obs,trf_config);
 end
 
-if ~preload_stats_null&&do_nulltest
-    % do nulltest and save
-end
 
 % if exist(trf_config.paths.model_metric_path,'file')
 %     % load new-format
@@ -160,37 +153,8 @@ end
 %     end
 %     clear metric_checkpoint
 % end
-%% preload model
-if exist(trf_config.trf_model_path,'file')
-    model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
-    if ismember('model',fieldnames(model_checkpoint))
-        model=model_checkpoint;
-        clear model_checkpoint
-        preload_model=true;
-    end
-end
-% .... function ends here
-%% continue analysis...
-
-[stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-    trf_config,preprocess_config);
-    % do crossvalidation to optimize lambda (TODO: what is point of running
-    % in optimized lambda case?)
-if ~preload_stats_obs
-    disp(['TODO: check that running this a second time (in separate ' ...
-        'conditions case) doesnt create a duplicate in file'])
-    % crossvalidate
-    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
-    fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
-%NOTE: removed exist check before running save checkpoint because that caused stats_obs
-% not to be saved, but there could be a problem with save_checkpoint
-% itself...
-    save_checkpoint(trf_config,stats_obs);
-end
-
-% NOTE: best-lambda stuff below might be pre-loadable?
-% get best lambda 
-if do_lambda_optimization
+%% THIS NEEDS TO BE UPDATED SO THAT BEST_LAM IS ADDED TO MODEL INSTEAD OF CONFIG 
+if trf_config.do_lambda_optimization
     % find best lambda from crossvalidation
     %NOTE: assuming that all conditions are together when optimizing
     %lambda and separate when not (but lambda is fixed)
@@ -214,7 +178,7 @@ if ~preload_model
     % checkpoint?
     % RE: above - seems like it falls under case 1 in save_checkpoint,
     % which does not alter in-file config... which might be ok for now
-    save_checkpoint(trf_config,model);
+    save_checkpoint(model,trf_config);
 end
 %%
 if do_nulltest && ~preload_stats_null
@@ -222,7 +186,7 @@ if do_nulltest && ~preload_stats_null
     % error('stuff below should take place in save_checkpoint...')
     % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
     % save(trf_config.model_metric_path,'stats_null','-append')
-    save_checkpoint(trf_config,stats_null);
+    save_checkpoint(stats_null,trf_config);
     % disp(['TODO: not saving stats_null to bypass save_checkpoint error.. ' ...
     %     'determine if thats a problem'])
 else
@@ -239,6 +203,7 @@ end
 end
 %% Helpers
 function best_lam=fetch_optimized_lam(trf_config)
+warning('this hasnt been updated')
 %TODO: use registry instead
 % best_lam=fetch_optimized_lam(trf_config)
 % pull best_lam from trf_config associated with condition-agnostic trf
@@ -443,14 +408,13 @@ resp=preprocessed_eeg.resp;
 if trf_config.do_lambda_optimization
     cv_lam=trf_config.lam_range;
 else
-    %TODO: reference trf_config from condition-agnostic trf to determine
-    %best_lam value...
+    % warning('this hasnt been updated to load ')
     trf_config.best_lam=fetch_optimized_lam(trf_config);
     cv_lam=trf_config.best_lam;
 end
 fs=preprocessed_eeg.fs;
-cv_tmin_ms=trf_config.cv_tmin_ms;
-cv_tmax_ms=trf_config.cv_tmax_ms;
+tmin_ms=trf_config.tmin_ms;
+tmax_ms=trf_config.tmax_ms;
 
 fprintf('running crossval with lam val(s):\n')
 fprintf('%0.2g \n',cv_lam)
@@ -463,10 +427,10 @@ if trf_config.separate_conditions
         for cc=conditions
             cc_mask=preprocessed_eeg.cond==cc;
             stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
-                cv_tmin_ms,cv_tmax_ms,cv_lam,'Verbose',0);
+                tmin_ms,tmax_ms,cv_lam,'Verbose',0);
         end
 else
-    stats_obs = mTRFcrossval(stim,resp,fs,1,cv_tmin_ms,cv_tmax_ms,cv_lam, ...
+    stats_obs = mTRFcrossval(stim,resp,fs,1,tmin_ms,tmax_ms,cv_lam, ...
         'Verbose',0);
 end
 end
