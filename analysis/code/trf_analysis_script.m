@@ -15,25 +15,35 @@ close all
 preprocess_config.subj=subj;
 trf_config.subj=subj;
 trf_config.do_lambda_optimization=true;
+do_nulltest=true;
 
-if trf_config.do_lambda_optimization 
+if trf_config.do_lambda_optimization
+    % do full crossvalidation only to get optimal lambda in
+    % condition-agnostic way
     trf_config.separate_conditions=false;
-    trf_config.crossvalidated=true;
+    % we need to crossvalidate to optimize lambds
+    trf_config.crossvalidate=true;
+    % in this case, we only use causal trf window that is shorter to speed
+    % up process
+    trf_config.tmin_ms=0;
+    trf_config.tmin_ms=400;
 else
     trf_config.separate_conditions=true;
-    trf_config.crossvalidated=false;
 end
-
+% if doing nulltest, we also need stats_obs from cross validate regardless
+% of conditions separate or not
+if do_nulltest && ~trf_config.crossvalidate
+    trf_crossvalidate=true;
+end
 
 preprocess_config=config_preprocess(preprocess_config);
 trf_config=config_trf(trf_config,preprocess_config);
 
-do_nulltest=true;
 
 
 
 %% check if preprocessed data exists...
-preprocessed_eeg=load_preprocessed_data(preprocess_config);
+preprocessed_eeg=load_checkpoint(preprocess_config);
 % if ~isempty(preprocessed_eeg)
 %     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
 % % if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
@@ -60,13 +70,15 @@ if isempty(preprocessed_eeg)
     % trim resp to have same durations as stim (only need to do during
     % preprocessing)
     preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg);
-    fprintf('saving to %s\n',preprocess_config.paths.preprocessed_eeg_dir)
-    save_preprocessed_data(preprocessed_eeg,preprocess_config)
+    fprintf('saving to %s\n',preprocess_config.paths.output_dir)
+    save_checkpoint(preprocessed_eeg,preprocess_config)
     preload_preprocessed=false;
 else
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
     preload_preprocessed=true;
 end
+
+% disp('rescaling trf vars...')
 
 %% TRF ANALYSIS
 %TODO: replace all instances of load_checkpoint with appropriate 
@@ -78,29 +90,76 @@ end
 preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
-%% preload metrics
-%todo: replicate preload process done above on preloading trf checkpoints
-if exist(trf_config.paths.model_metric_path,'file')
-    % load new-format
-    fprintf('checking %s for checkpoint data.\n',trf_config.model_metric_path)
-    % will load both stats_obs and stats_null (if they exist... at least
-    % obs should if file does)
-    metric_checkpoint=load_checkpoint(trf_config.model_metric_path,trf_config);
-    % if isempty(metric_checkpoint)
-    % if ismember('stats_obs',who('-file',trf_config.model_metric_path))
-    if ismember('stats_obs',fieldnames(metric_checkpoint))
-        stats_obs=metric_checkpoint.stats_obs;
+%% preload trf results
+
+trf_checkpoint_=load_checkpoint(trf_config);
+if ~isempty(trf_checkpoint_)
+    if isfield(trf_checkpoint_,'stats_obs')
+        stats_obs=trf_checkpoint_.stats_obs;
         preload_stats_obs=true;
-        % if ismember('stats_null',who('-file',trf_config.model_metric_path))
-        if ismember('stats_null',fieldnames(metric_checkpoint))
-            stats_null=metric_checkpoint.stats_null;
-            preload_stats_null=true;
-        end
     end
-    clear metric_checkpoint
-    
-    
+    if isfield(trf_checkpoint_,'stats_null')
+        stats_null=trf_checkpoint_.stats_null;
+        preload_stats_null=true;
+    end
+    if isfield(trf_checkpoint_,'model')
+        model=trf_checkpoint_.model;
+        preload_model=true;
+    end
+else
+    disp('no data for trf checkpoint with trf_config:')
+    disp(trf_config)
+    disp('running analysis')
 end
+clear trf_checkpoint_
+% note: we don't necessarily need these if results can preload from
+% checkpoint but it doesn't take very long AND we definitely will def need
+% to set up any trf training so just set it up in case needed
+disp('rescaling trf vars.')
+% will defnitely need rescaled vars
+[stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
+    trf_config,preprocess_config);
+% if none([preload_stats_null,preload_stats_null,preload_model])
+%     disp('rescaling trf vars.')
+%     % will defnitely need rescaled vars
+%     [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
+%         trf_config,preprocess_config);
+% else
+% end
+
+if ~preload_stats_obs && trf_config.crossvalidate
+    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
+    fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
+%NOTE: removed exist check before running save checkpoint because that caused stats_obs
+% not to be saved, but there could be a problem with save_checkpoint
+% itself...
+    save_checkpoint(trf_config,stats_obs);
+
+end
+
+if ~preload_stats_null&&do_nulltest
+    % do nulltest and save
+end
+
+% if exist(trf_config.paths.model_metric_path,'file')
+%     % load new-format
+%     fprintf('checking %s for checkpoint data.\n',trf_config.model_metric_path)
+%     % will load both stats_obs and stats_null (if they exist... at least
+%     % obs should if file does)
+%     metric_checkpoint=load_checkpoint(trf_config.model_metric_path,trf_config);
+%     % if isempty(metric_checkpoint)
+%     % if ismember('stats_obs',who('-file',trf_config.model_metric_path))
+%     if ismember('stats_obs',fieldnames(metric_checkpoint))
+%         stats_obs=metric_checkpoint.stats_obs;
+%         preload_stats_obs=true;
+%         % if ismember('stats_null',who('-file',trf_config.model_metric_path))
+%         if ismember('stats_null',fieldnames(metric_checkpoint))
+%             stats_null=metric_checkpoint.stats_null;
+%             preload_stats_null=true;
+%         end
+%     end
+%     clear metric_checkpoint
+% end
 %% preload model
 if exist(trf_config.trf_model_path,'file')
     model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
@@ -179,91 +238,6 @@ end
 
 end
 %% Helpers
-function preprocessed_eeg=load_preprocessed_data(preprocess_config)
-    subj=preprocess_config.subj;
-    registry_file=fullfile(preprocess_config.paths.preprocessed_eeg_dir,'registry.json');
-    if ~isfile(registry_file)
-        fprintf('No registry found for subject %02d\n',subj);
-        preprocessed_eeg=[];
-        return
-    end
-    registry=jsondecode(fileread(registry_file));
-
-    % paths may differ by machine but doesn't matter for actual params
-    preprocess_config=rmfield(preprocess_config,'paths');
-    config_str=jsonencode(preprocess_config);
-    config_hash=char(upper(DataHash(config_str)));
-    config_match_idx=find(strcmp({registry.hash},config_hash),1);
-
-    if isempty(config_match_idx)
-        warning('no preprocessed file found for this config in existing registry.')
-        preprocessed_eeg=[];
-    else
-        file=registry(config_match_idx).file;
-        S=load(file,'preprocessed_eeg');
-        preprocessed_eeg=S.preprocessed_eeg;
-        fprintf(['finished loading pre-existing preprocessed data for ' ...
-            'subj %02d (hash %s)\n'],subj,config_hash)
-    end
-
-end
-
-function save_preprocessed_data(preprocessed_eeg,preprocess_config)
-    subj=preprocess_config.subj;
-    output_dir=preprocess_config.paths.preprocessed_eeg_dir;
-    if ~exist(output_dir,'dir')
-        mkdir(output_dir);
-    end
-    % generate unique hash for config - remove paths first to avoid extra
-    % hash ids
-    preprocess_config=rmfield(preprocess_config,'paths');
-    config_str=jsonencode(preprocess_config);
-    % make unique hash using DataHash from fileexchange
-    config_hash=char(upper(DataHash(config_str)));
-
-    % define unique file names
-    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat',preprocess_config.subj,config_hash));
-    registry_file=fullfile(output_dir,'registry.json');
-
-    % load or initialize registry
-    if isfile(registry_file)
-        registry=jsondecode(fileread(registry_file));
-        config_match_idx=find(strcmp({registry.hash},config_hash),1);
-    else
-        % intialize as 0x0 struct array for iterative assignment without
-        % error
-        registry=struct('hash',{}, ...
-            'config',{}, ...
-            'file',{}, ...
-            'timestamp',{} ...
-            );
-        config_match_idx=[];
-    end
-    
-    %if no matching registry exits, save and register
-    if isempty(config_match_idx)
-        fprintf('saving new preprocessed_file for subj %02d (config hash:%s)\n',subj,config_hash)
-        %add or update entry
-        entry=struct( ...
-            'hash',config_hash,...
-            'config',preprocess_config, ...
-            'file', mat_fpth, ...
-            'timestamp',datetime('now'));
-        registry(end+1)=entry;
-
-        % save data
-        save(mat_fpth,'preprocessed_eeg','preprocess_config');
-        % save updated registry
-        fid=fopen(registry_file,'w');
-        fwrite(fid,jsonencode(registry),'char');
-        fclose(fid);
-        fprintf('Saved %s and updated registry.\n',mat_fpth);
-    else
-        warning('pre-existing matching config exists, skipping save - ensure that this is intended behavior.')
-
-    end
-end
-
 function best_lam=fetch_optimized_lam(trf_config)
 %TODO: use registry instead
 % best_lam=fetch_optimized_lam(trf_config)
@@ -484,7 +458,7 @@ fprintf('%0.2g \n',cv_lam)
 if trf_config.separate_conditions
         % gives 1,2,3 for either slowest to fastest 
         % 1.5,1,.67 time compress factor or smallest to largest time
-        % compress factor (so fast->slow .67,1,1.5)... can't remember
+        
         conditions=unique(preprocessed_eeg.cond)';
         for cc=conditions
             cc_mask=preprocessed_eeg.cond==cc;

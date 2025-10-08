@@ -74,17 +74,10 @@ preprocess_config.opts = {'channels',1:(preprocess_config.nchan+2),'importannot'
 % package box foldertree stuff into single field we can later ignore in
 % json encode:
 preprocess_config.paths.datafolder = sprintf('%s/data/',boxdir_mine);
-% matfolder = sprintf('%smat/%g-%g_%s-ref_%dHz/%s',datafolder,bpfilter(1),bpfilter(2),ref,fs,speech_delay_corr_dir);
-% matfile = sprintf('%swarpedSpeech_s%0.2d.mat',matfolder,subj);
-%above 2 replaced by  2 below
-preprocess_config.paths.preprocessed_eeg_dir=sprintf('%spreprocessed_eeg/s%0.2d', ...
+
+preprocess_config.paths.output_dir=sprintf('%spreprocessed_eeg/s%0.2d', ...
     preprocess_config.paths.datafolder,preprocess_config.subj);
-% preprocess_config.paths.preprocessed_eeg_path=sprintf('%swarped_speech_s%0.2d.mat', ...
-%     preprocess_config.paths.preprocessed_eeg_dir,preprocess_config.subj);
-% if ~exist(preprocess_config.paths.preprocessed_eeg_dir,'dir')
-%     fprintf('%s DNE - making dir...\n',preprocess_config.paths.preprocessed_eeg_path)
-%     mkdir(preprocess_config.paths.preprocessed_eeg_dir)
-% end
+
 
 preprocess_config.paths.behfile = sprintf('%ss%0.2d_WarpedSpeech.mat', ...
     preprocess_config.paths.datafolder,preprocess_config.subj);
