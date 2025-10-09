@@ -2,9 +2,16 @@
 %% config analysis
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
-%TODO 1: do resampling last without additional filtering
+
 %TODO 2: clean up trf and preprocess config param setting (check that it
 %works with fast/slow)
+
+%what's left: code now shoud run pretty seamlessly except for clunkiness in
+%loading best lam when doing separate conditions... also realizing that
+%having only one set of tmin,tmax values in trf_config has yoked the model
+%train time params to be yoked to the crossvalidate train params if we want
+%them to be saved to same file
+
 % TODO 3: extend code functionality to reg/irreg
 % TODO 3: look at reg trf (does it exist??)
 % for subj=[2:7,9:22]
@@ -14,10 +21,11 @@ close all
 %% setup configs
 preprocess_config.subj=subj;
 trf_config.subj=subj;
-trf_config.do_lambda_optimization=true;
+trf_config.separate_conditions=false;
 do_nulltest=true;
 
-if trf_config.do_lambda_optimization
+if ~trf_config.separate_conditions
+    trf_config.do_lambda_optimization=true;
     % do full crossvalidation only to get optimal lambda in
     % condition-agnostic way
     trf_config.separate_conditions=false;
@@ -28,12 +36,18 @@ if trf_config.do_lambda_optimization
     trf_config.tmin_ms=0;
     trf_config.tmin_ms=400;
 else
-    trf_config.separate_conditions=true;
+    % we assume optimization done data from all conditions and get best
+    % lambda from saved checkpoint
+    trf_config_=trf_config;
+    trf_config_.separate_conditions=false;
+    trf_config_.do_lambda_optimization=true;
+    
+    trf_config.do_lambda_optimization=false;
 end
 % if doing nulltest, we also need stats_obs from cross validate regardless
 % of conditions separate or not
 if do_nulltest && ~trf_config.crossvalidate
-    trf_crossvalidate=true;
+    trf_config.crossvalidate=true;
 end
 
 preprocess_config=config_preprocess(preprocess_config);
@@ -43,7 +57,7 @@ trf_config=config_trf(trf_config,preprocess_config);
 
 
 %% check if preprocessed data exists...
-preprocessed_eeg=load_checkpoint(preprocess_config);
+pp_checkpoint_=load_checkpoint(preprocess_config);
 % if ~isempty(preprocessed_eeg)
 %     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
 % % if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
@@ -63,7 +77,7 @@ preprocessed_eeg=load_checkpoint(preprocess_config);
 % end
 
 %% preprocess from raw (bdf)
-if isempty(preprocessed_eeg)
+if isempty(pp_checkpoint_)
     fprintf('processing from bdf...\n')
     preprocessed_eeg=preprocess_eeg(preprocess_config);
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
@@ -74,9 +88,11 @@ if isempty(preprocessed_eeg)
     save_checkpoint(preprocessed_eeg,preprocess_config)
     preload_preprocessed=false;
 else
+    preprocessed_eeg=pp_checkpoint_.preprocessed_eeg;
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
     preload_preprocessed=true;
 end
+clear pp_checkpoint_
 
 % disp('rescaling trf vars...')
 
@@ -126,13 +142,13 @@ disp('rescaling trf vars.')
 %         trf_config,preprocess_config);
 % else
 % end
-
+%%
 if ~preload_stats_obs && trf_config.crossvalidate
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
-    fprintf('saving stats_obs to %s...\n',trf_config.model_metric_path)
+    % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
     save_checkpoint(stats_obs,trf_config);
 end
-
+%%
 
 % if exist(trf_config.paths.model_metric_path,'file')
 %     % load new-format

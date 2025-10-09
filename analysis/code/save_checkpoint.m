@@ -37,7 +37,8 @@ function save_checkpoint(data,config)
     %if no matching registry exits, or file associated with registry 
     % is missing current variable, save and register
     if isempty(config_match_idx)||~ismember(varname,whos('file',mat_fpth))
-        fprintf('saving new preprocessed_file for subj %02d (config hash:%s)\n',subj,config_hash)
+        fprintf('saving %s\nto %s\nfor subj %02d\n(config hash:%s)\n', ...
+            varname,mat_fpth,subj,config_hash)
         %add or update entry
         entry=struct( ...
             'hash',config_hash,...
@@ -59,7 +60,7 @@ function save_checkpoint(data,config)
         fid=fopen(registry_file,'w');
         fwrite(fid,jsonencode(registry),'char');
         fclose(fid);
-        fprintf('Saved %s and updated registry.\n',mat_fpth);
+        fprintf('Saved %s to %s and updated registry.\n',varname,mat_fpth);
     else
         warning('pre-existing matching config exists, skipping save - ensure that this is intended behavior.')
 

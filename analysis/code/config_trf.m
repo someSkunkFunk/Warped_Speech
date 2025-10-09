@@ -78,7 +78,7 @@ trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.
 % trf_config.paths.trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
 %     boxdir_mine,trf_config.subj);
 
-trf_config.paths.output_dir=sprintf('%s/analysis/models/%02d',boxdir_mine,trf_config.subj);
+trf_config.paths.output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,trf_config.subj);
 
 % if ~exist(trf_config.paths.model_metric_dir,'dir')
 %     fprintf('%s DNE - making dir ...\n',trf_config.paths.model_metric_dir)
