@@ -1,5 +1,9 @@
-function save_checkpoint(data,config)
-
+function save_checkpoint(data,config,overwrite)
+    arguments
+        data
+        config (1,1) struct
+        overwrite (1,1) logical=false;
+    end
     % record var name in outer scope so we can reference it when loading
     varname=inputname(1);
     data_.(varname)=data;
@@ -36,7 +40,7 @@ function save_checkpoint(data,config)
     
     %if no matching registry exits, or file associated with registry 
     % is missing current variable, save and register
-    if isempty(config_match_idx)||~ismember(varname,whos('file',mat_fpth))
+    if isempty(config_match_idx)||~ismember(varname,{whos('-file',mat_fpth).name})||overwrite
         fprintf('saving %s\nto %s\nfor subj %02d\n(config hash:%s)\n', ...
             varname,mat_fpth,subj,config_hash)
         %add or update entry

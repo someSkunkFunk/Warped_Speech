@@ -18,44 +18,8 @@ clc
 for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
-%% setup configs
-preprocess_config.subj=subj;
-trf_config.subj=subj;
-trf_config.separate_conditions=false;
-do_nulltest=true;
-
-if ~trf_config.separate_conditions
-    trf_config.do_lambda_optimization=true;
-    % do full crossvalidation only to get optimal lambda in
-    % condition-agnostic way
-    trf_config.separate_conditions=false;
-    % we need to crossvalidate to optimize lambds
-    trf_config.crossvalidate=true;
-    % in this case, we only use causal trf window that is shorter to speed
-    % up process
-    trf_config.tmin_ms=0;
-    trf_config.tmin_ms=400;
-else
-    % we assume optimization done data from all conditions and get best
-    % lambda from saved checkpoint
-    trf_config_=trf_config;
-    trf_config_.separate_conditions=false;
-    trf_config_.do_lambda_optimization=true;
-    
-    trf_config.do_lambda_optimization=false;
-end
-% if doing nulltest, we also need stats_obs from cross validate regardless
-% of conditions separate or not
-if do_nulltest && ~trf_config.crossvalidate
-    trf_config.crossvalidate=true;
-end
-
-preprocess_config=config_preprocess(preprocess_config);
-trf_config=config_trf(trf_config,preprocess_config);
-
-
-
-
+%% setup analysis
+trf_analysis_params;
 %% check if preprocessed data exists...
 pp_checkpoint_=load_checkpoint(preprocess_config);
 % if ~isempty(preprocessed_eeg)
@@ -77,7 +41,7 @@ pp_checkpoint_=load_checkpoint(preprocess_config);
 % end
 
 %% preprocess from raw (bdf)
-if isempty(pp_checkpoint_)
+if isempty(pp_checkpoint_)||overwrite
     fprintf('processing from bdf...\n')
     preprocessed_eeg=preprocess_eeg(preprocess_config);
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
@@ -85,7 +49,7 @@ if isempty(pp_checkpoint_)
     % preprocessing)
     preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.paths.output_dir)
-    save_checkpoint(preprocessed_eeg,preprocess_config)
+    save_checkpoint(preprocessed_eeg,preprocess_config,overwrite)
     preload_preprocessed=false;
 else
     preprocessed_eeg=pp_checkpoint_.preprocessed_eeg;
@@ -109,7 +73,7 @@ preload_model=false;
 %% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
 
 trf_checkpoint_=load_checkpoint(trf_config);
-if ~isempty(trf_checkpoint_)
+if ~isempty(trf_checkpoint_)&&~overwrite
     if isfield(trf_checkpoint_,'stats_obs')
         stats_obs=trf_checkpoint_.stats_obs;
         preload_stats_obs=true;
@@ -123,7 +87,7 @@ if ~isempty(trf_checkpoint_)
         preload_model=true;
     end
 else
-    disp('no data for trf checkpoint with trf_config:')
+    disp('no data preloaded for trf checkpoint with trf_config:')
     disp(trf_config)
     disp('running analysis')
 end
@@ -135,70 +99,32 @@ disp('rescaling trf vars.')
 % will defnitely need rescaled vars
 [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
     trf_config);
-% if none([preload_stats_null,preload_stats_null,preload_model])
-%     disp('rescaling trf vars.')
-%     % will defnitely need rescaled vars
-%     [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-%         trf_config,preprocess_config);
-% else
-% end
-%%
-if ~preload_stats_obs && trf_config.crossvalidate
-    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
-    % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
-    save_checkpoint(stats_obs,trf_config);
-end
-%%
 
-% if exist(trf_config.paths.model_metric_path,'file')
-%     % load new-format
-%     fprintf('checking %s for checkpoint data.\n',trf_config.model_metric_path)
-%     % will load both stats_obs and stats_null (if they exist... at least
-%     % obs should if file does)
-%     metric_checkpoint=load_checkpoint(trf_config.model_metric_path,trf_config);
-%     % if isempty(metric_checkpoint)
-%     % if ismember('stats_obs',who('-file',trf_config.model_metric_path))
-%     if ismember('stats_obs',fieldnames(metric_checkpoint))
-%         stats_obs=metric_checkpoint.stats_obs;
-%         preload_stats_obs=true;
-%         % if ismember('stats_null',who('-file',trf_config.model_metric_path))
-%         if ismember('stats_null',fieldnames(metric_checkpoint))
-%             stats_null=metric_checkpoint.stats_null;
-%             preload_stats_null=true;
-%         end
-%     end
-%     clear metric_checkpoint
-% end
-%% THIS NEEDS TO BE UPDATED SO THAT BEST_LAM IS ADDED TO MODEL INSTEAD OF CONFIG 
-if trf_config.do_lambda_optimization
-    % find best lambda from crossvalidation
-    %NOTE: assuming that all conditions are together when optimizing
-    %lambda and separate when not (but lambda is fixed)
-    [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs, ...
-        trf_config);
-    trf_config.best_lam=best_lam;
-else
-    disp(['need to figure out what to do here ... ' ...
-        'if we want a specific value that isnt the same as ' ...
-        'optimization result?'])
-    trf_config.best_lam=fetch_optimized_lam(trf_config);
-end
 %%
-if ~preload_model
-    model=train_model(stim,preprocessed_eeg,trf_config);
-    fprintf('saving model to %s\n...',trf_config.trf_model_path)
-    % save(trf_config.trf_model_path,'model','trf_config');
-    % NOTE: after this save checkpoint, best_lam should be included in
-    % trf_config BUT probably instead what will happen is our checkpoint
-    % validation will identify this as a non-identical config and add a new
-    % checkpoint?
-    % RE: above - seems like it falls under case 1 in save_checkpoint,
-    % which does not alter in-file config... which might be ok for now
-    save_checkpoint(model,trf_config);
+if (~preload_stats_obs && trf_config.crossvalidate)||overwrite
+    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params);
+    % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
+    save_checkpoint(stats_obs,trf_config,overwrite);
+end
+
+%%
+if ~preload_model||overwrite
+    if ~trf_config.separate_conditions
+        % otherwise it gets set in trf_analysis_params
+        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+    end
+    model=train_model(stim,preprocessed_eeg,trf_config,train_params);
+    
+    save_checkpoint(model,trf_config,overwrite);
 end
 %%
 if do_nulltest && ~preload_stats_null
-    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
+    %note this is dumb and clunky but avoids error when model is preloaded
+    if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
+        % otherwise it gets set in trf_analysis_params
+        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+    end
+    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params);
     % error('stuff below should take place in save_checkpoint...')
     % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
     % save(trf_config.model_metric_path,'stats_null','-append')
@@ -315,15 +241,17 @@ function nulltest_fig_helper(r_null,r_obs,plot_chn,tit_str)
     title(tit_str)
 end
 
-function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
+function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
+% stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_param)
+%TODO: prettify params
     disp('running permutation test...')
     msg = 0;
     n_permutations=1000;
     fs=preprocessed_eeg.fs;
-    cv_tmin_ms=trf_config.cv_tmin_ms;
-    cv_tmax_ms=trf_config.cv_tmax_ms;
+    tmin_ms=trf_config.tmin_ms;
+    tmax_ms=trf_config.tmax_ms;
     conditions=unique(preprocessed_eeg.cond)';
-    model_lam=trf_config.best_lam;
+    best_lam=train_params.best_lam;
 
     for n_perm = 1:n_permutations
         if ~mod(n_perm,50)
@@ -345,23 +273,24 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
                 % fprintf('null TRF for condition %d...\n',cc)
                 cc_mask=preprocessed_eeg.cond==cc;
                 stats_null(1,cc,n_perm)=mTRFcrossval(stim(cc_mask), ...
-                    resp_shuf(cc_mask),fs,1,cv_tmin_ms,cv_tmax_ms, ...
-                    model_lam,'Verbose',0);
+                    resp_shuf(cc_mask),fs,1,tmin_ms,tmax_ms, ...
+                    best_lam,'Verbose',0);
             end
         else
-            stats_null(1,1,n_perm) = mTRFcrossval(stim,resp_shuf,fs,1,cv_tmin_ms, ...
-                cv_tmax_ms,model_lam,'Verbose',0);
+            stats_null(1,1,n_perm) = mTRFcrossval(stim,resp_shuf,fs,1,tmin_ms, ...
+                tmax_ms,best_lam,'Verbose',0);
         end
     end
 end
 
-function model=train_model(stim,preprocessed_eeg,trf_config)
-% model=train_model(stim,preprocessed_eeg,model_lam,trf_config)
-model_lam=trf_config.best_lam;
-fprintf('training model using lambda=%0.2g\n',model_lam)
+function model=train_model(stim,preprocessed_eeg,trf_config,train_params)
+% model=train_model(stim,preprocessed_eeg,model_lam,trf_config,train_params)
+disp('training model with params:')
+disp(train_params)
 
-tmin_ms=trf_config.tmin_ms;
-tmax_ms=trf_config.tmax_ms;
+tmin_ms=train_params.tmin_ms;
+tmax_ms=train_params.tmax_ms;
+best_lam=train_params.best_lam;
 resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
 if trf_config.separate_conditions
@@ -371,40 +300,38 @@ if trf_config.separate_conditions
             cc_mask=preprocessed_eeg.cond==cc;
             fprintf('TRF for condition %d...\n',cc)
             model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
-                tmin_ms,tmax_ms,model_lam,'Verbose',1);
+                tmin_ms,tmax_ms,best_lam,'Verbose',1);
         end
     else
-        model = mTRFtrain(stim,resp,fs,1,tmin_ms,tmax_ms,model_lam,'Verbose',1);
-end
+        model = mTRFtrain(stim,resp,fs,1,tmin_ms,tmax_ms,best_lam,'Verbose',1);
 end
 
-function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config)
-% [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs)
-% NOTE this function expects stats_obs to have [1,1] size and doesnt work
-% otherwise.. probably should clean this up in load_checkpoint but
-% addressing here for now by assuming non-(1,1) values in stats_obs are empty
-    if ~isequal(size(stats_obs),[1,1])
-        stats_obs=stats_obs(1,1);
-    end
-    r_avg_trials=squeeze(mean(stats_obs.r,1));
-    % get max across electrodes for each lambda
-    r_max_electrodes=squeeze(max(r_avg_trials,[],2));
-    % get indices of max r-value 
-    if isfield(trf_config,'best_lam')&&size(stats_obs.r,2)==1
-        % no idea why we did this
-        disp('TODO: fix this workaround...')
-        best_lam_idx=nan;
-        model_lam=trf_config.best_lam;
-        [~,best_chn_idx]=max(r_avg_trials);
-    else
-        [~,best_lam_idx]=max(r_max_electrodes);
-        model_lam=trf_config.lam_range(best_lam_idx);
-        [~,best_chn_idx]=max(r_avg_trials(best_lam_idx,:));
-    end
-    
-    
-    
 end
+
+% function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config)
+% % [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs)
+% % NOTE this function expects stats_obs to have [1,1] size and doesnt work
+% % otherwise.. probably should clean this up in load_checkpoint but
+% % addressing here for now by assuming non-(1,1) values in stats_obs are empty
+%     if ~isequal(size(stats_obs),[1,1])
+%         stats_obs=stats_obs(1,1);
+%     end
+%     r_avg_trials=squeeze(mean(stats_obs.r,1));
+%     % get max across electrodes for each lambda
+%     r_max_electrodes=squeeze(max(r_avg_trials,[],2));
+%     % get indices of max r-value 
+%     if isfield(trf_config,'best_lam')&&size(stats_obs.r,2)==1
+%         % no idea why we did this
+%         disp('TODO: fix this workaround...')
+%         best_lam_idx=nan;
+%         model_lam=trf_config.best_lam;
+%         [~,best_chn_idx]=max(r_avg_trials);
+%     else
+%         [~,best_lam_idx]=max(r_max_electrodes);
+%         model_lam=trf_config.lam_range(best_lam_idx);
+%         [~,best_chn_idx]=max(r_avg_trials(best_lam_idx,:));
+%     end
+% end
 
 function restart_bool=check_restart(event_trials)
 % helper function to check if there are excess trials from restarting
@@ -416,17 +343,14 @@ else
 end
 end
 
-function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
-% function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config)
-fprintf('TODO: double-check structure indexing in this function (crossval_wrapper)...\n')
-% stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
+function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params)
+% stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config,train_params)
+
 resp=preprocessed_eeg.resp;
 if trf_config.do_lambda_optimization
     cv_lam=trf_config.lam_range;
 else
-    % warning('this hasnt been updated to load ')
-    trf_config.best_lam=fetch_optimized_lam(trf_config);
-    cv_lam=trf_config.best_lam;
+    cv_lam=train_params.best_lam;
 end
 fs=preprocessed_eeg.fs;
 tmin_ms=trf_config.tmin_ms;
