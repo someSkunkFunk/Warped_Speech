@@ -4,35 +4,37 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-subjs=[2:7,9:22];
+% subjs=[2:7,9:22];
+subjs=[2];
 plot_chns='all';
-separate_conditions=true; %NOTE: not operator required when 
-    % initializing config_trf since technically it expects 
-    % "do_lambda_optimization" as argument 
-    % ignoring the false case rn sincee buggy but not a priority but should
-    % fix
 n_subjs=numel(subjs);
-plot_individual_weights=false;
-plot_avg_weights=true;
-if separate_conditions
-    conditions={'fast','og','slow'};
-else
-    conditions={'all conditions'};
-end
-n_cond=numel(conditions);
+plot_config.show_individual_weights=false;
+plot_config.show_avg_weights=true;
+
 %% Main script
+
+ 
 for ss=1:n_subjs
     subj=subjs(ss);
     fprintf('loading subj %d data...\n',subj)
     
-    preprocess_config=config_preprocess(subj);
-    trf_config=config_trf(subj,~separate_conditions,preprocess_config);
+    % preprocess_config=[];
+    % preprocess_config.subj=subj;
+    % preprocess_config=config_preprocess(preprocess_config);
+    % 
+    % trf_config=[];
+    % trf_config.separate_conditions=separate_conditions;
+    % trf_config=config_trf(trf_config,preprocess_config);
     % note we're expecting model coming out to be (1,3) regardless of
     % condtion specified but ideally load individual model should return
     % (1,1) struct
-    ind_models(ss,:)=load_individual_model(trf_config);
-    if plot_individual_weights
-        for cc=1:n_cond
+    % ind_models(ss,:)=load_individual_model(trf_config);
+    trf_analysis_params;
+    clear do_nulltest
+    % S_=load_checkpoint(trf_config);
+    %% plot weights for individual subject
+    if plot_config.show_individual_weights
+        for cc=1:numel(conditions)
             title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
                     num2str(plot_chns),conditions{cc});
             % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
@@ -44,12 +46,12 @@ for ss=1:n_subjs
 
 end
 
-%% Plot average weights
-if plot_avg_weights && n_subjs>1
+%% Plot subj-averaged weights
+if plot_config.show_avg_weights && n_subjs>1
     t_lims_=[-400 600];
     ylims_=[-.5 .7];
     avg_models=construct_avg_models(ind_models);
-    for cc=1:n_cond
+    for cc=1:numel(conditions)
          title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
                 num2str(plot_chns),conditions{cc});
         figure
@@ -78,7 +80,7 @@ if n_subjs>1
         snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
     end
     figure
-    for cc=1:n_cond
+    for cc=1:numel(conditions)
          plot(1:n_subjs,snr_per_subj(:,cc))
          hold on
     end
@@ -96,9 +98,9 @@ if plot_topos
     loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
     load(loc_file);
     topo_latencies=[54 164]; % in ms
-    if plot_avg_weights && n_subjs>1
+    if plot_config.show_avg_weights && n_subjs>1
         for tt=1:numel(topo_latencies)
-            for cc_topo=1:n_cond
+            for cc_topo=1:numel(conditions)
                 % finding time closest to those latencies to plot
                 [~,t_ii]=min(abs(avg_models(cc_topo).t-topo_latencies(tt)));
                 figure
@@ -124,8 +126,8 @@ n_electrodes=size(avg_models(1).w,3);
 evoked_tlims=[0, 400];
 evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
     avg_models(1).t<evoked_tlims(2));
-pk_locs=cell(n_cond,n_electrodes);
-for cc=1:n_cond
+pk_locs=cell(numel(conditions),n_electrodes);
+for cc=1:numel(conditions)
     w_=squeeze(avg_models(cc).w(1,time_range_idx,:));
     w_=w_';
     % filter peaks by std of weights (in 0->400 ms time range)  
@@ -144,7 +146,7 @@ for cc=1:n_cond
 end
 conditions={'fast','og','slow'};
 
-for cc=1:n_cond
+for cc=1:numel(conditions)
     title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
             num2str(plot_chns),conditions{cc});
     figure
@@ -184,20 +186,20 @@ topoplot([],chanlocs,'electrodes','on','style','blank', ...
     'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
 title('electrodes with distinct peaks')
 %% visualize difference in latency across conditions
-pk_latencies=nan(n_cond,n_single_peak_electrodes);
-for cc=1:n_cond
+pk_latencies=nan(numel(conditions),n_single_peak_electrodes);
+for cc=1:numel(conditions)
     pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
 end
 % add jitter to minimize overlapping lines
 rng(1);
-yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),n_cond,1);
+yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(conditions),1);
 % sort them for pretty colors
 [~,sortI_]=sort(pk_latencies(1,:));
 figure
-plot(1:n_cond,pk_latencies(:,sortI_)+yjitter(:,sortI_))
+plot(1:numel(conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
 colormap(jet(n_single_peak_electrodes))
 colororder(jet(n_single_peak_electrodes))
-xticks(1:n_cond);
+xticks(1:numel(conditions));
 xticklabels(conditions);
 xlabel('condition');
 ylabel('latency (ms)')
@@ -205,11 +207,11 @@ title('TRF peak latency (+jitter) across conditions')
 hold off
 clear sortI_
 % histograms of difference relative to og
-diff_pk_latency=nan(n_cond-1,n_single_peak_electrodes);
+diff_pk_latency=nan(numel(conditions)-1,n_single_peak_electrodes);
 %dum counter
 cc_=1;
-diff_labels=cell(n_cond-1);
-for cc=1:2:n_cond
+diff_labels=cell(numel(conditions)-1);
+for cc=1:2:numel(conditions)
     diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
     diff_labels{cc_}=sprintf('%s-%s',conditions{2},conditions{cc});
     cc_=cc_+1;

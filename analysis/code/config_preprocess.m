@@ -86,7 +86,8 @@ preprocess_config.paths.bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf', ...
 preprocess_config.paths.chanlocs_path=sprintf('%s128chanlocs.mat', ...
     preprocess_config.paths.datafolder);
 %% put everything into a structure and disp
-
+% because order matters for jsonencode-based match lookup...
+preprocess_config=orderfields(preprocess_config);
 disp('voila preprocess_config:')
 disp(preprocess_config)
 end

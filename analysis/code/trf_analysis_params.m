@@ -1,31 +1,38 @@
 overwrite=false;
+%%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
+
 preprocess_config.subj=subj;
-trf_config.subj=subj;
 trf_config.separate_conditions=true;
-do_nulltest=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
 % probably it's just to train a model with a particular hard-coded lam 
 % value in which case we'd set lam_range as well probably...?
-nullplot_config=[];
+
+do_nulltest=true;
+if trf_config.separate_conditions
+    conditions={'fast','og','slow'};
+else
+    conditions={'all conditions'};
+end
+
+%%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 % use extended timelims for model so TRFs don't include edge artefacts
 
 %note: it is my understanding that filter-generated ringing artefacts won't
 %leak into the TRF because enough time has passed before recording unpause
 %and stimulus onset for trial and trials are epoched from the time the
 %sound starts not the unpause of recording... 
+
+%TODO:
+warning(['reminder that train_params should be included in trf config in ' ...
+    'future, bypassing for now to continue progress..'])
 train_params.tmin_ms=-500; 
 train_params.tmax_ms=800;
 if ~trf_config.separate_conditions
     trf_config.do_lambda_optimization=true;
-    % do full crossvalidation only to get optimal lambda in
-    % condition-agnostic way
-    % we need to crossvalidate to optimize lambda
-    % in this case, we only use causal trf window that is shorter to speed
-    % up process
-    % trf_config.tmin_ms=0;
-    % trf_config.tmin_ms=400;
 else
     % we assume optimization done data from all conditions and get best
     % lambda from saved checkpoint later

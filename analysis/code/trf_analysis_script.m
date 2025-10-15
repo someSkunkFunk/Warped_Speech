@@ -17,23 +17,6 @@ close all
 trf_analysis_params;
 %% check if preprocessed data exists...
 pp_checkpoint_=load_checkpoint(preprocess_config);
-% if ~isempty(preprocessed_eeg)
-%     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
-% % if exist(preprocess_config.preprocessed_eeg_path,'file') && ...
-% %     configs_match(preprocess_config.preprocessed_eeg_path,preprocess_config)
-% %     fprintf(['existing new-fmt preprocessed mat file found, loading ' ...
-% %         'from %s.\n'],preprocess_config.preprocessed_eeg_path)
-% %     preprocess_checkpoint=...
-% %         load_checkpoint(preprocess_config.preprocessed_eeg_path,preprocess_config);
-% 
-%     % if preprocess_checkpoint.desired_config_found
-%     % preload_preprocessed=true;
-%     % preprocess_config=preprocess_checkpoint.preprocess_config;
-%     % preprocessed_eeg=preprocess_checkpoint.preprocessed_eeg;
-%     % clear preprocess_checkpoint
-%     % stim=load_stim_cell(preprocess_config,preprocessed_eeg);
-% 
-% end
 
 %% preprocess from raw (bdf)
 if isempty(pp_checkpoint_)||overwrite

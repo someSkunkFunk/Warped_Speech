@@ -33,41 +33,6 @@ if isempty(preprocess_config)
 else
     trf_config.subj=preprocess_config.subj;
 end
-%% stuff that might change depending on context
-% optimization params
-%range over which we optimize lambda with all conditions combined
-% lam_range=10.^(-3:8);
-% cv_tmin_ms=0;
-% cv_tmax_ms=400;
-
-%model params
-% tmin_ms=-500;
-% tmax_ms=800;
-%% stuff that doesn't generally need to change
-%NOTE: consider making lambda optimization independent separate
-%conditions.... or making them dependent in outer script rather than here
-% if trf_config.do_lambda_optimization
-%     conditions_dir='all_conditions/';
-%     cvdir='cv/';
-%     %for new output file format - just store as variables within the same
-%     %file instead of dividing into separate dirs
-%     trf_config.separate_conditions=false;
-%     crossvalidated=true;
-% 
-% else
-%     conditions_dir='sep_conditions/';
-%     cvdir='';
-% 
-%     separate_conditions=true;
-%     crossvalidated=false;
-% end
-
-% zscore_envs=false;
-% norm_envs=true;
-% zscore_eeg=true;
-
-% nulldistribution_file=sprintf('%s%s%snulldistribution_s%0.2d.mat', ...
-%     preprocess_config.matfolder,conditions_dir,cvdir,subj);
 trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat', boxdir_mine, ...
     preprocess_config.fs);
 
@@ -80,24 +45,7 @@ trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.
 
 trf_config.paths.output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,trf_config.subj);
 
-% if ~exist(trf_config.paths.model_metric_dir,'dir')
-%     fprintf('%s DNE - making dir ...\n',trf_config.paths.model_metric_dir)
-%     mkdir(trf_config.paths.model_metric_dir)
-% end
-% 
-% trf_config.paths.trf_model_dir=fileparts(trf_config.paths.trf_model_path);
-% if ~exist(trf_config.trf_model_dir,'dir')
-%     fprintf('%s DNE - making dir ...\n',trf_config.paths.trf_model_dir)
-%     mkdir(trf_config.paths.trf_model_dir)
-% end
-
-
-% vars=whos;
-% trf_config=struct();
-% for nn=1:numel(vars)
-%     trf_config.(vars(nn).name)=eval(vars(nn).name);
-% end
-
+trf_config=orderfields(trf_config);
 disp('voila trf_config:')
 disp(trf_config)
 % guess won't need this since function only returns trf_config
