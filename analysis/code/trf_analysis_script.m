@@ -2,15 +2,10 @@
 %% config analysis
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
+%NOTES:
+% train_params could be subfield of trf_config probably...? not worrying
+% about it now cuz it would involve too much time consuming code edits
 
-%TODO 2: clean up trf and preprocess config param setting (check that it
-%works with fast/slow)
-
-%what's left: code now shoud run pretty seamlessly except for clunkiness in
-%loading best lam when doing separate conditions... also realizing that
-%having only one set of tmin,tmax values in trf_config has yoked the model
-%train time params to be yoked to the crossvalidate train params if we want
-%them to be saved to same file
 
 % TODO 3: extend code functionality to reg/irreg
 % TODO 3: look at reg trf (does it exist??)
@@ -111,7 +106,7 @@ end
 if ~preload_model||overwrite
     if ~trf_config.separate_conditions
         % otherwise it gets set in trf_analysis_params
-        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
     end
     model=train_model(stim,preprocessed_eeg,trf_config,train_params);
     
@@ -137,11 +132,8 @@ end
 
 %%
 if do_nulltest
-    nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
+    nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
 end
-
-
-
 end
 %% Helpers
 function best_lam=fetch_optimized_lam(trf_config)
@@ -153,23 +145,17 @@ warning('this hasnt been updated')
     [best_lam,~,~]=get_best_lam(stats_obs(1,1),trf_config);
 
 end
-function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
-% nulltest_plot_wrapper(stats_obs,stats_null,trf_config,preprocessed_eeg)
-%NOTE: we got rid of r_null/r_obs nuisance vars which should be computed in
-%plotting function anyway
+function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
+% nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
+
 fav_chn_idx=85;
 subj=trf_config.subj;
-conditions=unique(preprocessed_eeg.cond)';
-% best_lam=trf_config.best_lam;
-% bl_indx=find(trf_config.lam_range==best_lam);
-%TODO: add check here to ensure thing computed outside of this function 
-% in "get_best_lam" agrees and we're not plotting some other random shit
-% running this in separate conditions case is not working out too well...
-% best chn/best lam should 
-% [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
-% if best_lam~=trf_config.best_lam
-%     error('best lambda value does not agree with trf_config')
-% end
+if trf_config.separate_conditions
+    % conditions=unique(preprocessed_eeg.cond)';
+    conditions={' - fast - ',' - original - ',' - slow - '};
+else
+    conditions={''};
+end
 
 %TODO: double-check averaging across trials correctly in separate
 %conditions case (especially once it contains multiple versions in last dimension)
@@ -178,45 +164,40 @@ disp('cc indexing below might need double checking...')
 %select correct sub-structures out during load_checkpoint... i think
 %cc_trials_idx below comes from first array dimension referenccing
 %individual trials, not our configs
-if trf_config.separate_conditions
-    for cc=conditions
-        [best_lam,~,best_chn_idx]=get_best_lam(stats_obs(1,cc),trf_config);
-        % cc_trials_idx=find(preprocessed_eeg.cond==cc);
-        %TODO: check size resulting from squeeze agrees with plotting
-        %commands
-        % disp('r_null calculation below might be incorrect...?')
-        r_null=squeeze(mean([stats_null(1,cc,:).r],1));
-        % fprintf('_rnull size correct?\n')
-        % disp(size(r_null))
-        r_obs=squeeze(mean(stats_obs(1,cc,:).r));
+best_lam=train_params.best_lam;
+for cc=1:length(conditions)
+    if trf_config.separate_conditions
+    % for cc=conditions
+        % [best_lam,~,best_chn_idx]=get_best_lam(stats_obs(1,cc),trf_config);
+    r_null=squeeze(mean([stats_null(1,cc,:).r],1));
+    r_obs=squeeze(mean(stats_obs(1,cc,:).r,1));
 
-        tit_str_temp=sprintf(['subj %d, cond %d, fav chn (%d) permutation ' ...
-            'test - \\lambda %.3g'],subj,cc,fav_chn_idx,best_lam);
-        nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
-        clear tit_str_temp
-
-        tit_str_temp=sprintf(['subj %d, cond %d, best chn (%d) permutation ' ...
-            'test - \\lambda %.3g'],subj,cc,best_chn_idx,best_lam);
-        nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
-        clear tit_str_temp
+        % tit_str_temp=sprintf(['subj %d, cond %d, fav chn (%d) permutation ' ...
+        %     'test - \\lambda %.3g'],subj,cc,fav_chn_idx,best_lam);
+        % nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
+        % clear tit_str_temp
+        % 
+        % tit_str_temp=sprintf(['subj %d, cond %d, best chn (%d) permutation ' ...
+        %     'test - \\lambda %.3g'],subj,cc,best_chn_idx,best_lam);
+        % nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
+        % clear tit_str_temp
         
-    end
+    % end
 
-else
-    [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
-    % NOTE: temporary fix to just convert comma-sep list into array for
-    % getting r_null... will need to adapt once we fix this
-    r_null=squeeze(mean([stats_null.r],1));
-    r_obs=squeeze(mean(stats_obs.r(:,best_lam_idx,:)));
-    tit_str_temp=sprintf(['subj %d, all-cond , best chn (%d) permutation ' ...
-        'test - \\lambda %.3g'],subj,best_chn_idx,best_lam);
-    nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
-    clear tit_str_temp
-
-    tit_str_temp=sprintf(['subj %d, all-cond , fav chn (%d) permutation ' ...
-        'test - \\lambda %.3g'],subj,fav_chn_idx,best_lam);
-    nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
-    clear tit_str_temp
+    else
+    % [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
+        best_lam_idx=find(trf_config.lam_range==best_lam);
+        r_null=squeeze(mean([stats_null.r],1));
+        r_obs=squeeze(mean(stats_obs.r(:,best_lam_idx,:),1));
+    % tit_str_temp=sprintf(['subj %d, all-cond , best chn (%d) permutation ' ...
+    %     'test - \\lambda %.3g'],subj,best_chn_idx,best_lam);
+    % nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
+    % clear tit_str_temp
+    % 
+    % tit_str_temp=sprintf(['subj %d, all-cond , fav chn (%d) permutation ' ...
+    %     'test - \\lambda %.3g'],subj,fav_chn_idx,best_lam);
+    % nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
+    % clear tit_str_temp
     % figure
     % hist(r_null(:,fav_ch_idx))
     % title(sprintf('subj %d, chn %d null distribution - \\lambda %.3g',subj,fav_ch_idx,best_lam))
@@ -225,6 +206,18 @@ else
     % hold on
     % plot(repmat(r_obs(fav_ch_idx),1,2),ylim,'r')
     % title(sprintf('subj %d, chn %d permutation test - \\lambda %.3g',subj,fav_ch_idx,best_lam))
+    end
+    % note: at this point, r_obs be chns-by-1 vector in either case
+    [~,best_chn_idx]=max(r_obs);
+tit_str_temp=sprintf(['subj %d%sbest chn (%d) permutation ' ...
+    'test - \\lambda %.3g'],subj,conditions{cc},best_chn_idx,best_lam);
+nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
+clear tit_str_temp
+
+tit_str_temp=sprintf(['subj %d%sfav chn (%d) permutation ' ...
+    'test - \\lambda %.3g'],subj,conditions{cc},fav_chn_idx,best_lam);
+nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
+clear tit_str_temp
 end
 end
 

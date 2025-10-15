@@ -8,7 +8,7 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 % logic partially because I'm not sure what kind of behavior we want but
 % probably it's just to train a model with a particular hard-coded lam 
 % value in which case we'd set lam_range as well probably...?
-
+nullplot_config=[];
 % use extended timelims for model so TRFs don't include edge artefacts
 
 %note: it is my understanding that filter-generated ringing artefacts won't
