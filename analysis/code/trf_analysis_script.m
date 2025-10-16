@@ -9,8 +9,8 @@ clc
 
 % TODO 3: extend code functionality to reg/irreg
 % TODO 3: look at reg trf (does it exist??)
-% for subj=[2:7,9:22]
-for subj=[2]
+for subj=[2:7,9:22]
+% for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
