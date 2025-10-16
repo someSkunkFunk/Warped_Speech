@@ -9,7 +9,8 @@ clc
 
 % TODO 3: extend code functionality to reg/irreg
 % TODO 3: look at reg trf (does it exist??)
-for subj=[2:7,9:22]
+% for subj=[2:7,9:22]
+for subj=98
 % for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
@@ -387,11 +388,19 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     end
     EEG = pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
     load(preprocess_config.paths.behfile,'m')
-    cond = round(m(:,1),2);
-    cond(cond>1) = 3;
-    cond(cond==1) = 2;
-    cond(cond<1) = 1;
-
+    % m_=unique(m(:,1:2)','rows','sorted');
+    % m_=m(:,1:2)';
+    m_=[all(m(:,1)==1),all(m(:,2)==0)];
+    switch m_
+        case [1,0]
+            
+        case [0,1]
+            cond = round(m(:,1),2);
+            cond(cond>1) = 3;
+            cond(cond==1) = 2;
+            cond(cond<1) = 1;
+        otherwise
+    end
     % remove mastoids
     EEG = pop_select(EEG,'nochannel',preprocess_config.nchan+(1:2));
     warning('no chanlocs file added until verifying which is correct and how to enter it.')
@@ -450,7 +459,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         [EEG,cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_eeg);
     end
 
-    
+    warning('rec dur check below wont work in reg/irreg case')
     % check if last condition is slow, otherwise need to pad EEG.data
     % so pop_epoch works (last trial needs to be within epoch_dur
     % boundary)

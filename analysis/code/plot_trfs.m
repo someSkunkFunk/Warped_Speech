@@ -10,7 +10,7 @@ plot_chns='all';
 n_subjs=numel(subjs);
 plot_config.show_individual_weights=false;
 plot_config.show_avg_weights=true;
-
+plot_config.show_topos=true;
 %% Main script
 
  
@@ -90,12 +90,11 @@ ylabel('snr')
 end
 %% plot topos at particular latency
 
-plot_topos=true;
 % note: we should perhaps generate a topo-movie across entire timeframe..
 
-if plot_topos
+if plot_config.show_topos
     global boxdir_mine
-    loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
+    loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);
     load(loc_file);
     topo_latencies=[54 164]; % in ms
     if plot_config.show_avg_weights && n_subjs>1

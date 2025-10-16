@@ -72,17 +72,32 @@ preprocess_config.opts = {'channels',1:(preprocess_config.nchan+2),'importannot'
 
 
 % package box foldertree stuff into single field we can later ignore in
-% json encode:
-preprocess_config.paths.datafolder = sprintf('%s/data/',boxdir_mine);
+% datahash:
+if preprocess_config.subj>90
+    preprocess_config.paths.datafolder = sprintf('%s/data/',boxdir_mine);
 
-preprocess_config.paths.output_dir=sprintf('%spreprocessed_eeg/s%0.2d', ...
-    preprocess_config.paths.datafolder,preprocess_config.subj);
+    preprocess_config.paths.output_dir=sprintf('%spreprocessed_eeg/s%0.2d', ...
+        preprocess_config.paths.datafolder,preprocess_config.subj);
+    
+    
+    preprocess_config.paths.behfile = sprintf('%ss%0.2d_RegIrregPilot.mat', ...
+        preprocess_config.paths.datafolder,preprocess_config.subj);
+    preprocess_config.paths.bdffile = sprintf('%sbdf/reg_irreg_pilot_s%0.2d.bdf', ...
+        preprocess_config.paths.datafolder,preprocess_config.subj);
 
+else
+    preprocess_config.paths.datafolder = sprintf('%s/data/',boxdir_mine);
+    
+    preprocess_config.paths.output_dir=sprintf('%spreprocessed_eeg/s%0.2d', ...
+        preprocess_config.paths.datafolder,preprocess_config.subj);
+    
+    
+    preprocess_config.paths.behfile = sprintf('%ss%0.2d_WarpedSpeech.mat', ...
+        preprocess_config.paths.datafolder,preprocess_config.subj);
+    preprocess_config.paths.bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf', ...
+        preprocess_config.paths.datafolder,preprocess_config.subj);
+end
 
-preprocess_config.paths.behfile = sprintf('%ss%0.2d_WarpedSpeech.mat', ...
-    preprocess_config.paths.datafolder,preprocess_config.subj);
-preprocess_config.paths.bdffile = sprintf('%sbdf/warpedSpeech_s%0.2d.bdf', ...
-    preprocess_config.paths.datafolder,preprocess_config.subj);
 preprocess_config.paths.chanlocs_path=sprintf('%s128chanlocs.mat', ...
     preprocess_config.paths.datafolder);
 %% put everything into a structure and disp
