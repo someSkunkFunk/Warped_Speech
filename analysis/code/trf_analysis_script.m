@@ -5,8 +5,9 @@ clc
 %NOTES:
 % train_params could be subfield of trf_config probably...? not worrying
 % about it now cuz it would involve too much time consuming code edits
-
-
+disp('***************************************************************************')
+warning('TODO: NEED TO UPDATE POP EPOCH PADDING SO IT WORKS IN REG/IRREG CASE!!!!')
+disp('***************************************************************************')
 % TODO 3: extend code functionality to reg/irreg
 % TODO 3: look at reg trf (does it exist??)
 % for subj=[2:7,9:22]
@@ -17,10 +18,14 @@ close all
 %% setup analysis
 trf_analysis_params;
 %% check if preprocessed data exists...
-pp_checkpoint_=load_checkpoint(preprocess_config);
+if overwrite
+    pp_checkpoint_=[];
+else
+    pp_checkpoint_=load_checkpoint(preprocess_config);
+end
 
 %% preprocess from raw (bdf)
-if isempty(pp_checkpoint_)||overwrite
+if isempty(pp_checkpoint_)
     fprintf('processing from bdf...\n')
     preprocessed_eeg=preprocess_eeg(preprocess_config);
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
@@ -50,9 +55,12 @@ preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
 %% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
-
-trf_checkpoint_=load_checkpoint(trf_config);
-if ~isempty(trf_checkpoint_)&&~overwrite
+if overwrite
+    trf_checkpoint=[];
+else
+    trf_checkpoint_=load_checkpoint(trf_config);
+end
+if ~isempty(trf_checkpoint_)
     if isfield(trf_checkpoint_,'stats_obs')
         stats_obs=trf_checkpoint_.stats_obs;
         preload_stats_obs=true;
@@ -331,16 +339,24 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     m_=[all(m(:,1)==1),all(m(:,2)==0)];
     %note: we could just use experiment var here but this also functions as
     %check that conditions are what's expected
-    switch m_
-        case [1,0]
-            % reg-irreg
-            cond=round(m(:,2))+2;
-        case [0,1]
-            % fast-slow
-            cond = round(m(:,1),2);
-            cond(cond>1) = 3;
-            cond(cond==1) = 2;
-            cond(cond<1) = 1;
+    switch preprocess_config.experiment
+        case 'reg-irreg'
+            % double-check conditions
+            if isequal(m_,[1,0])
+                cond=round(m(:,2))+2;
+            else
+                error('conditions in m dont match reg-irreg pattern.')
+            end
+        case 'fast-slow'
+            % double-check conditions
+            if isequal(m_,[0,1])
+                cond = round(m(:,1),2);
+                cond(cond>1) = 3;
+                cond(cond==1) = 2;
+                cond(cond<1) = 1;
+            else
+                error('conditions in m dont match fast-slow pattern')
+            end
         otherwise
             error('(preprocess_eeg) set of conditions unexpected.')
     end
@@ -378,9 +394,30 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
 
 
     % Epoching
+    warning('see comment below this line...')
+    % NOTE: no longer relying on psychport trial number trigger and instead
+    % using click trigger since it is more accurate (and sometimes trial 
+    % number trigger overlaps with click trigger) - should validate that
+    % this is retroactively compatible with subjs 2-22
+    function EEG=clean_eeg_events(EEG)
+        click_trigger=2048;
+        all_trigg=[EEG.event(:).type];
+        % keep only triggers corresponding with sound clicks
+        click_trigg_idx=find(all_trigg>click_trigger);
+        EEG.event=[EEG.event(click_trigg_idx)];
+        % renumber their types to match trial number
+        types=num2cell([EEG.event(:).type]-click_trigger);
+        [EEG.event(:).type]=types{:};
+    end
+    
+    EEG=clean_eeg_events(EEG);
     preprocessed_eeg.trials = [EEG.event.type];
     % why did aaron choose 100 in particular rather than preprocess_config.n_trials to
     % begin with?
+    % note: line below is now unnecessary since clean_eeg_events should
+    % only leave trial triggers... but we should verify that only one such
+    % even per trial remains for all subjects
+    warning('see comment above...')
     preprocessed_eeg.trials(preprocessed_eeg.trials>preprocess_config.n_trials+1) = [];
     bdf_triggers_missing=any(diff(preprocessed_eeg.trials)>1);
     % filter out missing trials from cond
@@ -418,8 +455,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     end
     
     EEG = pop_epoch(EEG, ...
-        mat2cell(preprocessed_eeg.trials,1, ...
-        ones(1,numel(preprocessed_eeg.trials))),[0 preprocess_config.epoch_dur]);
+        num2cell(preprocessed_eeg.trials),[0 preprocess_config.epoch_dur]);
 
     resp = cell(1,size(EEG.data,3));
     for tt = 1:size(EEG.data,3)

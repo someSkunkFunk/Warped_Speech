@@ -1,8 +1,9 @@
-overwrite=false;
-experiment='reg-irreg';
+overwrite=true;
+
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
+preprocess_config.experiment='reg-irreg';
 trf_config.separate_conditions=false;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
