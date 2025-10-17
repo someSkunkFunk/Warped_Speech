@@ -90,7 +90,7 @@ for warp_rule_num=warp_rules
 
                 % warp_config.hard_cutoff_hz=10;
 
-                %note: added this new param after notiing that syllables
+                %note: added this new param after noticing that syllables
                 %sometimes occur above 10 Hz so maybe shouldn't lowpass the
                 %envelope blanketly at 10 hz...
                 warp_config.env_lpf=14;

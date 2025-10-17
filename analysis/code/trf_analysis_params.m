@@ -1,4 +1,5 @@
 overwrite=false;
+experiment='reg-irreg';
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
@@ -11,7 +12,14 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 
 do_nulltest=true;
 if trf_config.separate_conditions
-    conditions={'fast','og','slow'};
+    switch experiment
+        case 'fast-slow'
+            conditions={'fast','original','slow'};
+        case 'reg-irreg'
+            conditions={'reg','original','irreg'};
+        otherwise
+            warning('experiment "%s" undefined.',experiment)
+    end
 else
     conditions={'all conditions'};
 end

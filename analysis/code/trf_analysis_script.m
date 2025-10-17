@@ -391,15 +391,20 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % m_=unique(m(:,1:2)','rows','sorted');
     % m_=m(:,1:2)';
     m_=[all(m(:,1)==1),all(m(:,2)==0)];
+    %note: we could just use experiment var here but this also functions as
+    %check that conditions are what's expected
     switch m_
         case [1,0]
-            
+            % reg-irreg
+            cond=round(m(:,2))+2;
         case [0,1]
+            % fast-slow
             cond = round(m(:,1),2);
             cond(cond>1) = 3;
             cond(cond==1) = 2;
             cond(cond<1) = 1;
         otherwise
+            error('(preprocess_eeg) set of conditions unexpected.')
     end
     % remove mastoids
     EEG = pop_select(EEG,'nochannel',preprocess_config.nchan+(1:2));
