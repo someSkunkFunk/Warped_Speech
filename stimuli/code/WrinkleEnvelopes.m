@@ -22,41 +22,47 @@ if pilot
     ntrials = 75;
     outputFile=sprintf('%s/stimuli/%s/RegIrregPilotEnvelopes%dhz.mat', ...
         boxdir_mine,stimgroup,fs);
-    stimfolder= 'rule11_seg_textgrid_4p545Hz_0_0';%note: there are two folders here... but presuming we used same folder name (rule 11 with parmsm)
+    pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';%note: there are two folders here... but presuming we used same folder name (rule 11 with parmsm)
 else
     % use for fast/slow
     stimscale = [2/3 1 3/2];
     regularity=[0 0 0];
     ntrials = 120;
     outputFile=sprintf('%s/stimuli/%s/Envelopes%dhz.mat',boxdir_mine,stimgroup,fs);
-    stimfolder = sprintf('%s/stimuli/',boxdir_lab);
+    
 end
 
-
+pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
+stimfolder = sprintf('%s/stimuli/',boxdir_lab);
 m=[stimscale;regularity];
 
 
 [env,sgram]=deal(cell(length(stimscale),ntrials));
-for cc = 1:length(m)
+%%
+for cc = 3:length(m) % note: change start of loop to cc=1 after script ends
     for tt = 1:ntrials
         fprintf('**********************\n')
         fprintf('Speed = %0.2g, regularity = %0.2g, trial %d\n',stimscale(cc),regularity(cc),tt)
         fprintf('**********************\n')
         switch regularity(cc)
             case 0
-                if stimscale(ss)==1
-                    audiofile = sprintf('%s%s/og/wrinkle%0.3d.wav',stimfolder,stimgroup,tt);
+                if stimscale(cc)==1
+                    audiofile = sprintf('%s%s/og/%s%0.3d.wav',stimfolder, ...
+                        stimgroup,stimgroup,tt);
                 else
-                    audiofile = sprintf('%s%s/%0.2f/wrinkle%0.3d.wav',stimfolder,stimgroup,stimscale(cc),tt);
+                    audiofile = sprintf('%s%s/%0.2f/%s%0.3d.wav', ...
+                        stimfolder,stimgroup,stimscale(cc),stimgroup,tt);
                 end
             case -1
                 % TODO: verify compressy is -1 in all other scripts so
                 % ordering is correct in output
-                audiofile=sprintf(['%s/%s/stretchy_compressy_temp/' ...
-                    'compressy_reg/%s'],boxdir_mine,stimgroup,stimfolder);
+                audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
+                    'compressy_reg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
+                    pilot_stimfolder,stimgroup,tt);
             case 1
-                audiofile=sprintf(['%s/%s/stretchy_compressy_temp/' ...
-                    'stretchy_irreg/%s'],boxdir_mine,stimgroup,stimfolder);
+                audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
+                    'stretchy_irreg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
+                    pilot_stimfolder,stimgroup,tt);
             otherwise
                 warning('invalid regularity %0.2g',regularity(cc))
         end

@@ -120,15 +120,6 @@ if do_nulltest
 end
 end
 %% Helpers
-function best_lam=fetch_optimized_lam(trf_config)
-warning('this hasnt been updated')
-%TODO: use registry instead
-% best_lam=fetch_optimized_lam(trf_config)
-% pull best_lam from trf_config associated with condition-agnostic trf
-    load(trf_config.model_metric_path,'stats_obs');
-    [best_lam,~,~]=get_best_lam(stats_obs(1,1),trf_config);
-
-end
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
 % nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
 
@@ -156,40 +147,12 @@ for cc=1:length(conditions)
     r_null=squeeze(mean([stats_null(1,cc,:).r],1));
     r_obs=squeeze(mean(stats_obs(1,cc,:).r,1));
 
-        % tit_str_temp=sprintf(['subj %d, cond %d, fav chn (%d) permutation ' ...
-        %     'test - \\lambda %.3g'],subj,cc,fav_chn_idx,best_lam);
-        % nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
-        % clear tit_str_temp
-        % 
-        % tit_str_temp=sprintf(['subj %d, cond %d, best chn (%d) permutation ' ...
-        %     'test - \\lambda %.3g'],subj,cc,best_chn_idx,best_lam);
-        % nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
-        % clear tit_str_temp
-        
-    % end
-
     else
     % [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
         best_lam_idx=find(trf_config.lam_range==best_lam);
         r_null=squeeze(mean([stats_null.r],1));
         r_obs=squeeze(mean(stats_obs.r(:,best_lam_idx,:),1));
-    % tit_str_temp=sprintf(['subj %d, all-cond , best chn (%d) permutation ' ...
-    %     'test - \\lambda %.3g'],subj,best_chn_idx,best_lam);
-    % nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
-    % clear tit_str_temp
-    % 
-    % tit_str_temp=sprintf(['subj %d, all-cond , fav chn (%d) permutation ' ...
-    %     'test - \\lambda %.3g'],subj,fav_chn_idx,best_lam);
-    % nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
-    % clear tit_str_temp
-    % figure
-    % hist(r_null(:,fav_ch_idx))
-    % title(sprintf('subj %d, chn %d null distribution - \\lambda %.3g',subj,fav_ch_idx,best_lam))
-    % figure
-    % ecdf(r_null(:,fav_ch_idx))
-    % hold on
-    % plot(repmat(r_obs(fav_ch_idx),1,2),ylim,'r')
-    % title(sprintf('subj %d, chn %d permutation test - \\lambda %.3g',subj,fav_ch_idx,best_lam))
+   
     end
     % note: at this point, r_obs be chns-by-1 vector in either case
     [~,best_chn_idx]=max(r_obs);
@@ -284,31 +247,6 @@ if trf_config.separate_conditions
 end
 
 end
-
-% function [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config)
-% % [model_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs)
-% % NOTE this function expects stats_obs to have [1,1] size and doesnt work
-% % otherwise.. probably should clean this up in load_checkpoint but
-% % addressing here for now by assuming non-(1,1) values in stats_obs are empty
-%     if ~isequal(size(stats_obs),[1,1])
-%         stats_obs=stats_obs(1,1);
-%     end
-%     r_avg_trials=squeeze(mean(stats_obs.r,1));
-%     % get max across electrodes for each lambda
-%     r_max_electrodes=squeeze(max(r_avg_trials,[],2));
-%     % get indices of max r-value 
-%     if isfield(trf_config,'best_lam')&&size(stats_obs.r,2)==1
-%         % no idea why we did this
-%         disp('TODO: fix this workaround...')
-%         best_lam_idx=nan;
-%         model_lam=trf_config.best_lam;
-%         [~,best_chn_idx]=max(r_avg_trials);
-%     else
-%         [~,best_lam_idx]=max(r_max_electrodes);
-%         model_lam=trf_config.lam_range(best_lam_idx);
-%         [~,best_chn_idx]=max(r_avg_trials(best_lam_idx,:));
-%     end
-% end
 
 function restart_bool=check_restart(event_trials)
 % helper function to check if there are excess trials from restarting

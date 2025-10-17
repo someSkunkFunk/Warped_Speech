@@ -33,15 +33,15 @@ if isempty(preprocess_config)
 else
     trf_config.subj=preprocess_config.subj;
 end
-trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/WrinkleEnvelopes%dhz.mat', boxdir_mine, ...
-    preprocess_config.fs);
 
-
-%% new format vars to replace single nuldistribution file output
-% trf_config.paths.model_metric_path=sprintf('%s/analysis/metrics/warped_speech_s%0.2d.mat', ...
-%     boxdir_mine,trf_config.subj);
-% trf_config.paths.trf_model_path=sprintf('%s/analysis/models/warped_speech_s%0.2d.mat', ...
-%     boxdir_mine,trf_config.subj);
+if trf_config.subj>=90
+    %TODO: avoid hardcoding 90 somehow...?
+    trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/RegIrregPilotEnvelopes%dhz.mat', boxdir_mine, ...
+        preprocess_config.fs);
+else
+    trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/Envelopes%dhz.mat', boxdir_mine, ...
+        preprocess_config.fs);
+end
 
 trf_config.paths.output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,trf_config.subj);
 
@@ -52,10 +52,5 @@ disp(trf_config)
 % clearvars -except trf_config 
 
 end
-%% BANISHED REALM
-% if ~isscalar(lam_range)
-%     cvdir='cv/';
-% else
-%     cvdir='';
-% end
+
 
