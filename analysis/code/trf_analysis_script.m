@@ -222,7 +222,7 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
                 % condition
                 % -> circularly shift responses
                 shift_amt=randi(min(cellfun('length',preprocessed_eeg.resp)));
-                resp_shuff=cellfun(@(x) circshift(x,shift_amt,1),preprocessed_eeg.resp,'UniformOutput',false);
+                resp_shuf=cellfun(@(x) circshift(x,shift_amt,1),preprocessed_eeg.resp,'UniformOutput',false);
 
         end
 
