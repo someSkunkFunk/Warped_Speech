@@ -89,7 +89,7 @@ disp('rescaling trf vars.')
 
 %%
 if (~preload_stats_obs && trf_config.crossvalidate)
-    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params);
+    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
     save_checkpoint(stats_obs,trf_config,overwrite);
 end
@@ -98,9 +98,9 @@ end
 if ~preload_model
     if ~trf_config.separate_conditions
         % otherwise it gets set in trf_analysis_params
-        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
+        trf_config.train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
     end
-    model=train_model(stim,preprocessed_eeg,trf_config,train_params);
+    model=train_model(stim,preprocessed_eeg,trf_config);
     
     save_checkpoint(model,trf_config,overwrite);
 end
@@ -135,7 +135,8 @@ fav_chn_idx=85;
 subj=trf_config.subj;
 if trf_config.separate_conditions
     % conditions=unique(preprocessed_eeg.cond)';
-    conditions={' - fast - ',' - original - ',' - slow - '};
+    % conditions={' - fast - ',' - original - ',' - slow - '};
+    conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions);
 else
     conditions={''};
 end
@@ -244,14 +245,14 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
     end
 end
 
-function model=train_model(stim,preprocessed_eeg,trf_config,train_params)
-% model=train_model(stim,preprocessed_eeg,model_lam,trf_config,train_params)
+function model=train_model(stim,preprocessed_eeg,trf_config)
+% model=train_model(stim,preprocessed_eeg,model_lam,trf_config)
 disp('training model with params:')
-disp(train_params)
+disp(trf_config.train_params)
 
-tmin_ms=train_params.tmin_ms;
-tmax_ms=train_params.tmax_ms;
-best_lam=train_params.best_lam;
+tmin_ms=trf_config.train_params.tmin_ms;
+tmax_ms=trf_config.train_params.tmax_ms;
+best_lam=trf_config.train_params.best_lam;
 resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
 if trf_config.separate_conditions
@@ -279,14 +280,14 @@ else
 end
 end
 
-function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params)
-% stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config,train_params)
+function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
+% stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config)
 
 resp=preprocessed_eeg.resp;
 if trf_config.do_lambda_optimization
     cv_lam=trf_config.lam_range;
 else
-    cv_lam=train_params.best_lam;
+    cv_lam=trf_config.train_params.best_lam;
 end
 fs=preprocessed_eeg.fs;
 tmin_ms=trf_config.tmin_ms;

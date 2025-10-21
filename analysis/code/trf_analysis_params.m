@@ -4,7 +4,7 @@ overwrite=false;
 
 preprocess_config.subj=subj;
 preprocess_config.experiment='reg-irreg';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
@@ -12,18 +12,6 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 % value in which case we'd set lam_range as well probably...?
 
 do_nulltest=true;
-if trf_config.separate_conditions
-    switch experiment
-        case 'fast-slow'
-            conditions={'fast','original','slow'};
-        case 'reg-irreg'
-            conditions={'reg','original','irreg'};
-        otherwise
-            warning('experiment "%s" undefined.',experiment)
-    end
-else
-    conditions={'all conditions'};
-end
 
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -36,10 +24,11 @@ end
 %sound starts not the unpause of recording... 
 
 %TODO:
-warning(['reminder that train_params should be included in trf config in ' ...
-    'future, bypassing for now to continue progress..'])
-train_params.tmin_ms=-500; 
-train_params.tmax_ms=800;
+% warning(['reminder that train_params should be included in trf config in ' ...
+%     'future, bypassing for now to continue progress..'])
+% train_params.tmin_ms=-500; 
+% train_params.tmax_ms=800;
+
 if ~trf_config.separate_conditions
     trf_config.do_lambda_optimization=true;
 else
@@ -49,6 +38,17 @@ else
     trf_config_.separate_conditions=false;
     trf_config_.do_lambda_optimization=true;
 end
+
+if exist("trf_config_","var")
+    % load best_lambda from condition-agnostic crossvalidation with same
+    % preprocessing params
+    trf_config_=config_trf(trf_config_,preprocess_config);
+    S_=load_checkpoint(trf_config_);
+    trf_config.train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
+    clear trf_config_ S_
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%% sanity checks %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % if doing nulltest, we also need stats_obs from cross validate regardless
 % of conditions separate or not
 if do_nulltest && ~trf_config.crossvalidate
@@ -58,13 +58,9 @@ if do_nulltest && ~trf_config.crossvalidate
     trf_config.crossvalidate=true;
 end
 
+
+%%%%% RUN THIS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=config_preprocess(preprocess_config);
 trf_config=config_trf(trf_config,preprocess_config);
-if exist("trf_config_","var")
-    % load best_lambda from condition-agnostic crossvalidation with same
-    % preprocessing params
-    trf_config_=config_trf(trf_config_,preprocess_config);
-    S_=load_checkpoint(trf_config_);
-    train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
-    clear trf_config_ S_
-end
+
+

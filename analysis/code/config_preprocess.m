@@ -37,6 +37,7 @@ switch preprocess_config.ref
 end
 preprocess_config.opts = {'channels',1:(preprocess_config.nchan+2),'importannot','off','ref',preprocess_config.refI};
 
+%%%%%%%%%%%%%%%%%%%%%% PATHS TO IGNORE IN REGISTRY %%%%%%%%%%%%%%%%%%%%%%%%
 
 % package box foldertree stuff into single field we can later ignore in
 % datahash:
