@@ -25,7 +25,7 @@ legend('tuning curve',sprintf('max r: %0.2g, \\lambda:%0.2g',r_max,best_lam))
 title(temp_tit), clear temp_tit, hold off
 
 %% plot another particular electrode
-[tc_max_r, tc_max_lam_idx]=findpeaks(R_curves(:,plot_ch));
+[tc_max_r, tc_max_lam_idx]=max(R_curves(:,plot_ch));
 tuning_curve_plot_wrapper(R_curves,trf_config.lam_range,plot_ch)
 hold on
 stem(trf_config.lam_range(best_lam_idx),r_max,'r--');

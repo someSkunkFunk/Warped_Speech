@@ -6,7 +6,7 @@ clc
 % train_params could be subfield of trf_config probably...? not worrying
 % about it now cuz it would involve too much time consuming code edits
 disp('***************************************************************************')
-warning('TODO: NEED TO UPDATE POP EPOCH PADDING SO IT WORKS IN REG/IRREG CASE!!!!')
+warning('TODO: NEED TO VERIFY REG/IRREG CASE PERMUATION CIRCULAR SHIFT DIMENSION!!!!')
 disp('***************************************************************************')
 % TODO 3: extend code functionality to reg/irreg
 % TODO 3: look at reg trf (does it exist??)
@@ -56,7 +56,7 @@ preload_stats_obs=false;
 preload_model=false;
 %% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
 if overwrite
-    trf_checkpoint=[];
+    trf_checkpoint_=[];
 else
     trf_checkpoint_=load_checkpoint(trf_config);
 end
@@ -88,14 +88,14 @@ disp('rescaling trf vars.')
     trf_config);
 
 %%
-if (~preload_stats_obs && trf_config.crossvalidate)||overwrite
+if (~preload_stats_obs && trf_config.crossvalidate)
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params);
     % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
     save_checkpoint(stats_obs,trf_config,overwrite);
 end
 
 %%
-if ~preload_model||overwrite
+if ~preload_model
     if ~trf_config.separate_conditions
         % otherwise it gets set in trf_analysis_params
         train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
@@ -206,14 +206,27 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
             fprintf(repmat('\b',msg,1))
             msg = fprintf('iteration #%0.4d\n',n_perm);
         end
-        resp_shuf = preprocessed_eeg.resp;
+        resp_shuf = cell(size(preprocessed_eeg.resp));
         % shuffle stim/responses within conditions
-        for cc = 1:3
-            I = find(preprocessed_eeg.cond==cc);
-            I2 = I(randperm(length(I)));
-            resp_shuf(I2) = preprocessed_eeg.resp(I);
+        
+        switch trf_config.experiment
+            case 'fast-slow'
+                for cc=conditions
+                    % permute condition labels
+                    I = find(preprocessed_eeg.cond==cc);
+                    I2 = I(randperm(length(I)));
+                    resp_shuf(I2) = preprocessed_eeg.resp(I);
+                end
+            case 'reg-irreg'
+                % reg/irreg stimuli don't have consistent durations even within
+                % condition
+                % -> circularly shift responses
+                shift_amt=randi(min(cellfun('length',preprocessed_eeg.resp)));
+                resp_shuff=cellfun(@(x) circshift(x,shift_amt,1),preprocessed_eeg.resp,'UniformOutput',false);
+
         end
 
+        
         if trf_config.separate_conditions
             % stats_null=cell(3,1);
             % r_null=cell(3,1);
@@ -439,20 +452,44 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         [EEG,cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_eeg);
     end
 
-    warning('rec dur check below wont work in reg/irreg case')
+    
+    function EEG=add_speech_delay(EEG,preprocess_config)
+    % delayed_EEG=add_speech_delay(EEG,preprocess_config)
+        % shift trial starts by 1 second (speech_delay value in expriment script)      
+        n_delay_samples=preprocess_config.stim_delay_time*EEG.srate; 
+        fprintf('adding %0.2fs /%d samples\n',preprocess_config.stim_delay_time,n_delay_samples)
+    
+        % TODO: ASK AARON HOW TO DO THIS WITHOUT LOOPS FOR THE LOVE OF
+        % ALL THAT IS HOLY
+        % RE: above - I did and his idea didn't work but there must be
+        % another way....
+        for trial_indx=find([EEG.event.type]<=preprocess_config.n_trials)
+            EEG.event(trial_indx).latency=EEG.event(trial_indx).latency+n_delay_samples;
+        end
+    end
+    if ~isempty(preprocess_config.stim_delay_time)
+        % note: this should definitely happen before padding calculations
+        EEG=add_speech_delay(EEG,preprocess_config);
+    end
+
     % check if last condition is slow, otherwise need to pad EEG.data
     % so pop_epoch works (last trial needs to be within epoch_dur
     % boundary)
-    if cond(end)~=3
-        % slow condition is fine, others need padding
-       
-        ns_pad=floor((preprocess_config.epoch_dur)*EEG.srate);
+    function dur_last_trial=last_trial_dur(EEG)
+        % assumes EEG.event types only pertain to start of trials
+        % also assumes EEG.times in ms....
+        end_time=EEG.times(end)*1e-3;
+        final_trial_start_time=(EEG.event(end).latency-1)/EEG.srate;
+        dur_last_trial=end_time-final_trial_start_time;
+    end
+
+    if last_trial_dur(EEG)<preprocess_config.epoch_dur       
+        ns_pad=ceil((preprocess_config.epoch_dur-last_trial_dur(EEG))*EEG.srate);
+        % append zeros to end of dataset so pop_epoch can work
         EEG.data=[EEG.data, zeros(preprocess_config.nchan,ns_pad)];
     end
 
-    if ~isempty(preprocess_config.stim_delay_time)
-        EEG=add_speech_delay(EEG,preprocess_config);
-    end
+    
     
     EEG = pop_epoch(EEG, ...
         num2cell(preprocessed_eeg.trials),[0 preprocess_config.epoch_dur]);
@@ -479,19 +516,3 @@ end
 end
 
 
-function EEG=add_speech_delay(EEG,preprocess_config)
-% delayed_EEG=add_speech_delay(EEG,preprocess_config)
-    % shift trial starts by 1 second (speech_delay value in expriment script)      
-    
-    
-    n_delay_samples=preprocess_config.stim_delay_time*EEG.srate; 
-    fprintf('adding %0.2fs /%d samples\n',preprocess_config.stim_delay_time,n_delay_samples)
-
-    % TODO: ASK AARON HOW TO DO THIS WITHOUT LOOPS FOR THE LOVE OF
-    % ALL THAT IS HOLY
-    % RE: above - I did and his idea didn't work but there must be
-    % another way....
-    for trial_indx=find([EEG.event.type]<=preprocess_config.n_trials)
-        EEG.event(trial_indx).latency=EEG.event(trial_indx).latency+n_delay_samples;
-    end
-end

@@ -2,6 +2,11 @@ function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
     trf_config)
 % [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg,trf_config)
     resp=preprocessed_eeg.resp;
+    load(trf_config.paths.envelopesFile,'env')
+    % evaluate normalization factors for envelopes independently of
+    % condition
+    env_mu=mean(cat(1,env{:}));
+    env_sigma=std(cat(1,env{:}),0);
     if trf_config.zscore_envs
         % NOTE: need to check if they've already been z-scored before doing
         % this.... or not because it will always load from the mat file?
@@ -9,14 +14,12 @@ function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
             error('dont do both normalization and z-scoring on envelopes')
         end
         disp('z-scoring envelopes')
-        load(trf_config.paths.envelopesFile,'mu','sigma');
-
-        stim=cellfun(@(x) (x-mu)/sigma, stim,'UniformOutput',false);
+        
+        stim=cellfun(@(x) (x-env_mu)/env_sigma, stim,'UniformOutput',false);
     end
     if trf_config.norm_envs
         disp('normalizing envelopes')
-        load(trf_config.paths.envelopesFile,'sigma');
-        stim=cellfun(@(x) x/sigma, stim,'UniformOutput',false);
+        stim=cellfun(@(x) x/env_sigma, stim,'UniformOutput',false);
     end
 
     if trf_config.zscore_eeg
