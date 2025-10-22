@@ -1,19 +1,29 @@
-    
-%% config analysis
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 %NOTES:
 
 % TODO 3: look at reg trf (does it exist??)
-% for subj=[2:7,9:22]
-for subj=98
+for subj=[2:7,9:22]
+% for subj=98
 % for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
 trf_analysis_params;
+if update_configs
+    disp('**********UPDATING CONFIGS - NOT RUNNING ANALYSIS SCRIPT***********')
+    % assumes these exist already and just need to add fields not
+    % previously saved
+    disp('updating preprocess config')
+    update_rehash_config(preprocess_config)
+    disp('done.')
+    disp('updating trf config')
+    update_rehash_config(trf_config)
+    disp('done.')
+    continue
+end
 %% check if data exists already...
-if overwrite
+if overwrite 
     pp_checkpoint_=[];
     trf_checkpoint_=[];
 else

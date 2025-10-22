@@ -4,6 +4,7 @@ function save_checkpoint(data,config,overwrite)
         config (1,1) struct
         overwrite (1,1) logical=false;
     end
+    warning('I think overwrite param is causing repeated entries to registry being recorded... we should fix that...')
     % record var name in outer scope so we can reference it when loading
     varname=inputname(1);
     data_.(varname)=data;
@@ -42,6 +43,8 @@ function save_checkpoint(data,config,overwrite)
     %if no matching registry exits, or file associated with registry 
     % is missing current variable, save and register
     if isempty(config_match_idx)||~ismember(varname,{whos('-file',mat_fpth).name})||overwrite
+        disp('original registry:')
+        disp(registry)
         fprintf('saving %s\nto %s\nfor subj %02d\n(config hash:%s)\n', ...
             varname,mat_fpth,subj,config_hash)
         %add or update entry
@@ -50,8 +53,15 @@ function save_checkpoint(data,config,overwrite)
             'config',config, ...
             'file', mat_fpth, ...
             'timestamp',datetime('now'));
-        registry(end+1)=entry;
+        if overwrite
+            registry(config_match_idx)=entry;
+        else
+            registry(end+1)=entry;
+        end
 
+        
+        disp('new registry:')
+        disp(registry)
         % save data
         if isfile(mat_fpth)
             save(mat_fpth,'-struct','data_','-append');

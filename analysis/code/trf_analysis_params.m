@@ -12,8 +12,8 @@ update_configs=true;
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
-preprocess_config.experiment='fast-slow';
-trf_config.separate_conditions=true;
+
+trf_config.separate_conditions=false;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
@@ -24,7 +24,11 @@ do_nulltest=true;
 
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+if subj<=90
+    preprocess_config.experiment='fast-slow';
+else
+    preprocess_config.experiment='reg-irreg';
+end
 % use extended timelims for model so TRFs don't include edge artefacts
 
 %note: it is my understanding that filter-generated ringing artefacts won't
@@ -48,14 +52,6 @@ else
     trf_config_.do_lambda_optimization=true;
 end
 
-if exist("trf_config_","var")
-    % load best_lambda from condition-agnostic crossvalidation with same
-    % preprocessing params
-    trf_config_=config_trf(trf_config_,preprocess_config);
-    S_=load_checkpoint(trf_config_);
-    trf_config.train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
-    clear trf_config_ S_
-end
 
 %%%%%%%%%%%%%%%%%%%%%%%%% sanity checks %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % if doing nulltest, we also need stats_obs from cross validate regardless
@@ -68,8 +64,16 @@ if do_nulltest && ~trf_config.crossvalidate
 end
 
 
-%%%%% RUN THIS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
+%%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=config_preprocess(preprocess_config);
+
+if exist("trf_config_","var")
+    % load best_lambda from condition-agnostic crossvalidation with same
+    % preprocessing params
+    trf_config_=config_trf(trf_config_,preprocess_config);
+    S_=load_checkpoint(trf_config_);
+    trf_config.train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
+    clear trf_config_ S_
+end
+
 trf_config=config_trf(trf_config,preprocess_config);
-
-
