@@ -1,9 +1,18 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% NOTES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%configs are saved without paths but not loaded during script - instead
+%those initialized here are used and they contain the paths.
+%load_checkpoint uses saved config to match to correct file.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%% NOTES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 overwrite=false;
+% when config fields are structured, run with option below as true - will
+% igonore overwrite (assumes saved file exists)
+update_configs=true;
 
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
-preprocess_config.experiment='reg-irreg';
+preprocess_config.experiment='fast-slow';
 trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script

@@ -3,12 +3,7 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 %NOTES:
-% train_params could be subfield of trf_config probably...? not worrying
-% about it now cuz it would involve too much time consuming code edits
-disp('***************************************************************************')
-warning('TODO: NEED TO VERIFY REG/IRREG CASE PERMUATION CIRCULAR SHIFT DIMENSION!!!!')
-disp('***************************************************************************')
-% TODO 3: extend code functionality to reg/irreg
+
 % TODO 3: look at reg trf (does it exist??)
 % for subj=[2:7,9:22]
 for subj=98
@@ -17,12 +12,15 @@ clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
 trf_analysis_params;
-%% check if preprocessed data exists...
+%% check if data exists already...
 if overwrite
     pp_checkpoint_=[];
+    trf_checkpoint_=[];
 else
     pp_checkpoint_=load_checkpoint(preprocess_config);
+    trf_checkpoint_=load_checkpoint(trf_config);
 end
+
 
 %% preprocess from raw (bdf)
 if isempty(pp_checkpoint_)
@@ -55,11 +53,7 @@ preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
 %% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
-if overwrite
-    trf_checkpoint_=[];
-else
-    trf_checkpoint_=load_checkpoint(trf_config);
-end
+
 if ~isempty(trf_checkpoint_)
     if isfield(trf_checkpoint_,'stats_obs')
         stats_obs=trf_checkpoint_.stats_obs;
