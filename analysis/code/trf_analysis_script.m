@@ -14,9 +14,12 @@ if update_configs
     disp('**********UPDATING CONFIGS - NOT RUNNING ANALYSIS SCRIPT***********')
     % assumes these exist already and just need to add fields not
     % previously saved
-    disp('updating preprocess config')
-    update_rehash_config(preprocess_config)
-    disp('done.')
+    if ~trf_config.separate_conditions
+        % should already be updated when updating sep conditions configs
+        disp('updating preprocess config')
+        update_rehash_config(preprocess_config)
+        disp('done.')
+    end
     disp('updating trf config')
     update_rehash_config(trf_config)
     disp('done.')
