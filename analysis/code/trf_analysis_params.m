@@ -78,3 +78,4 @@ if exist("trf_config_","var")
 end
 
 trf_config=config_trf(trf_config,preprocess_config);
+loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);

@@ -8,19 +8,30 @@ subjs=[2:7,9:22];
 % subjs=[98];
 plot_chns='all';
 n_subjs=numel(subjs);
-plot_config.show_individual_weights=false;
+plot_config.show_individual_weights=true;
 plot_config.show_avg_weights=true;
 plot_config.show_topos=true;
 plot_config.show_snr=false;
+plot_config.show_tuning_curves=false;
 
 %% Main script
 
+% preallocate
+% note: all configs should be the same except for subj num and best_lam, so
+% we probably don't need to keep all these in one large super structure
+% but lets do that for now cuz we lazy and we might need them for
+% reference later
+
+configs=cell2struct(cell(n_subjs,2),{'preprocess_config','trf_config'},2);
  
 for ss=1:n_subjs
     subj=subjs(ss);
     fprintf('loading subj %d data...\n',subj)
 
     trf_analysis_params;
+    if ~plot_config.show_tuning_curves
+        close(gcf)
+    end
     clear do_nulltest
     % TODO: make function
     S_=load_checkpoint(trf_config);
@@ -37,28 +48,37 @@ for ss=1:n_subjs
     ind_models(ss,:)=model_;
     clear model_
     % function ends here
-    %% plot weights for individual subject
-    if plot_config.show_individual_weights
-        for cc=1:numel(trf_config.conditions)
-            title_str=sprintf('subj: %d - chns %s - %s',trf_config.subj, ...
-                    num2str(plot_chns),trf_config.conditions{cc});
+    
+    configs(ss).preprocess_config=preprocess_config;
+    configs(ss).trf_config=trf_config;
+    clear preprocess_config trf_config
+end
+
+if plot_config.show_topos
+    load(loc_file);
+end
+%% plot weights for individual subject
+if plot_config.show_individual_weights
+    for ss=1:n_subjs
+        for cc=1:numel(configs(ss).trf_config.conditions)
+            title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
+                    num2str(plot_chns),configs(ss).trf_config.conditions{cc});
             % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
             figure
             mTRFplot(ind_models(ss,cc),'trf','all',plot_chns);
-            title(title_str)
+            title(title_str_)
+            clear title_str_
         end
     end
-
 end
-
 %% Plot subj-averaged weights
 if plot_config.show_avg_weights
     t_lims_=[-400 600];
     ylims_=[-.5 .7];
     avg_models=construct_avg_models(ind_models);
-    for cc=1:numel(trf_config.conditions)
+    for cc=1:numel(configs(end).trf_config.conditions)
          title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(plot_chns),trf_config.conditions{cc});
+                num2str(plot_chns),configs(end).trf_config.conditions{cc});
         figure
         h=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
         title(title_str,'FontSize',16)
@@ -84,11 +104,11 @@ if n_subjs>1
         snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
     end
     figure
-    for cc=1:numel(trf_config.conditions)
+    for cc=1:numel(configs(end).trf_config.conditions)
          plot(1:n_subjs,snr_per_subj(:,cc))
          hold on
     end
-    legend(trf_config.conditions)
+    legend(configs(end).trf_config.conditions)
     xlabel('n subjects')
 ylabel('snr')
 end
@@ -97,20 +117,17 @@ end
 % note: we should perhaps generate a topo-movie across entire timeframe..
 
 if plot_config.show_topos
-    global boxdir_mine
-    loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);
-    load(loc_file);
     topo_latencies=[54 164]; % in ms
     if plot_config.show_avg_weights && n_subjs>1
         for tt=1:numel(topo_latencies)
-            for cc_topo=1:numel(trf_config.conditions)
+            for cc_topo=1:numel(configs(end).trf_config.conditions)
                 % finding time closest to those latencies to plot
                 [~,t_ii]=min(abs(avg_models(cc_topo).t-topo_latencies(tt)));
                 figure
                 topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
                 title(sprintf(['subject-averaged trf model weights %0.1f ms, ' ...
                     'condition: %s'] ...
-                    ,avg_models(1,cc_topo).t(t_ii),trf_config.conditions{cc_topo}));
+                    ,avg_models(1,cc_topo).t(t_ii),configs(end).trf_config.conditions{cc_topo}));
                 colorbar
             end
         end
@@ -129,8 +146,8 @@ n_electrodes=size(avg_models(1).w,3);
 evoked_tlims=[0, 400];
 evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
     avg_models(1).t<evoked_tlims(2));
-pk_locs=cell(numel(trf_config.conditions),n_electrodes);
-for cc=1:numel(trf_config.conditions)
+pk_locs=cell(numel(configs(end).trf_config.conditions),n_electrodes);
+for cc=1:numel(configs(end).trf_config.conditions)
     w_=squeeze(avg_models(cc).w(1,time_range_idx,:));
     w_=w_';
     % filter peaks by std of weights (in 0->400 ms time range)  
@@ -149,9 +166,9 @@ for cc=1:numel(trf_config.conditions)
 end
 % conditions={'fast','og','slow'};
 
-for cc=1:numel(trf_config.conditions)
+for cc=1:numel(configs(end).trf_config.conditions)
     title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-            num2str(plot_chns),trf_config.conditions{cc});
+            num2str(plot_chns),configs(end).trf_config.conditions{cc});
     figure
     mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
     hold on
@@ -181,42 +198,40 @@ fprintf('number of electrodes with single peak across conditions:%d\n', ...
 max_pkcount=max(pk_counts(:));
 fprintf('max peakcount: %d\n',max_pkcount)
 %% topo of electrodes with distinct peak
-global boxdir_mine
-loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
-load(loc_file);
+
 figure
 topoplot([],chanlocs,'electrodes','on','style','blank', ...
     'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
 title('electrodes with distinct peaks')
 %% visualize difference in latency across conditions
-pk_latencies=nan(numel(trf_config.conditions),n_single_peak_electrodes);
-for cc=1:numel(trf_config.conditions)
+pk_latencies=nan(numel(configs(end).trf_config.conditions),n_single_peak_electrodes);
+for cc=1:numel(configs(end).trf_config.conditions)
     pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
 end
 % add jitter to minimize overlapping lines
 rng(1);
-yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(trf_config.conditions),1);
+yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(configs(end).trf_config.conditions),1);
 % sort them for pretty colors
 [~,sortI_]=sort(pk_latencies(1,:));
 figure
-plot(1:numel(trf_config.conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
+plot(1:numel(configs(end).trf_config.conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
 colormap(jet(n_single_peak_electrodes))
 colororder(jet(n_single_peak_electrodes))
-xticks(1:numel(trf_config.conditions));
-xticklabels(trf_config.conditions);
+xticks(1:numel(configs(end).trf_config.conditions));
+xticklabels(configs(end).trf_config.conditions);
 xlabel('condition');
 ylabel('latency (ms)')
 title('TRF peak latency (+jitter) across conditions')
 hold off
 clear sortI_
 % histograms of difference relative to og
-diff_pk_latency=nan(numel(trf_config.conditions)-1,n_single_peak_electrodes);
+diff_pk_latency=nan(numel(configs(end).trf_config.conditions)-1,n_single_peak_electrodes);
 %dum counter
 cc_=1;
-diff_labels=cell(numel(trf_config.conditions)-1);
-for cc=1:2:numel(trf_config.conditions)
+diff_labels=cell(numel(configs(end).trf_config.conditions)-1);
+for cc=1:2:numel(configs(end).trf_config.conditions)
     diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
-    diff_labels{cc_}=sprintf('%s-%s',trf_config.conditions{2},trf_config.conditions{cc});
+    diff_labels{cc_}=sprintf('%s-%s',configs(end).trf_config.conditions{2},configs(end).trf_config.conditions{cc});
     cc_=cc_+1;
 end
 clear cc_
@@ -285,22 +300,6 @@ function avg_model=construct_avg_models(ind_models)
 end
 
 function model=load_individual_model(trf_config)
-    disp(['TODO: fix bug - this function is return trf_config ...' ...
-        ' also will be a problem in analysis script'])
-    if exist(trf_config.trf_model_path,'file')
-        % model_checkpoint=load_checkpoint(trf_config.trf_model_path,trf_config);
-        % note: load_checkpoint is causing more pain than it's worth... if
-        % we fix it at some point later we can continue using it but right
-        % now just assuming only relevant differences in configs is wether
-        % lambda optimization was done (step 1) or not (step 2 - separate conditions)
-        data_idx=trf_config.separate_conditions+1;
-        temp=load(trf_config.trf_model_path);
-        if ismember('model',fieldnames(temp))
-            fprintf('model found in %s\n',trf_config.trf_model_path)
-            model=temp.model(data_idx,:);
-        else
-            fprintf('no model found in %s\n',trf_config.trf_model_path)
-        end
-    end
+
 end
 
