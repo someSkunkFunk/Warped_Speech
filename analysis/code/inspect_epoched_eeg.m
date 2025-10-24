@@ -1,5 +1,5 @@
 % inspect eeg
-
+function inspect_epoched_eeg(subj,config)
 subj=2;
 preprocess_config=config_preprocess(subj);
 %% load bdf
@@ -12,3 +12,4 @@ eeglab redraw
 % plot topos
 
 % plot psd
+end

@@ -21,7 +21,8 @@ defaults=struct( ...
     'conditions',[],...
     'train_params',struct('tmin_ms', -500, ...
     'tmax_ms',800, ...
-    'best_lam',0) ...
+    'best_lam',0), ...
+    'use_triggers',[] ...
     );
 fields=fieldnames(defaults);
 for ff=1:numel(fields)
@@ -32,12 +33,13 @@ end
 
 if isempty(preprocess_config)
     warning('empty preprocess_config given...')
-    disp('initializing one with defaults to get trf_config...')
-    disp('avoid this when doing actual analysis')
+    disp('initializing one with defaults to get trf_config paths...')
+    disp('but this is probably not what you want for analysis')
     preprocess_config=config_preprocess([]);
 else
     trf_config.subj=preprocess_config.subj;
     trf_config.experiment=preprocess_config.experiment;
+    trf_config.use_triggers=preprocess_config.use_triggers;
 end
 
 

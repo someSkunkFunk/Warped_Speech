@@ -430,8 +430,16 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         types=num2cell([EEG.event(:).type]-click_trigger);
         [EEG.event(:).type]=types{:};
     end
-    
-    EEG=clean_eeg_events(EEG);
+    switch preprocess_config.use_triggers
+        case 'click'
+            EEG=clean_eeg_events(EEG);
+        case 'psychportaudio'
+            % assumes trial num triggers are all present and not
+            % overlapping with click triggers (or any other triggers)
+            ;
+        otherwise
+            warning('invalid triggers chosen: %s',preprocess_config.use_triggers)
+    end
     preprocessed_eeg.trials = [EEG.event.type];
     % why did aaron choose 100 in particular rather than preprocess_config.n_trials to
     % begin with?
@@ -453,6 +461,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         missing_trials=setdiff(preprocessed_eeg.trials,expected_trials);
         valid_trials=ismember(expected_trials,preprocessed_eeg.trials);
         cond=cond(valid_trials);
+        disp('missing trials detected:')
+        disp(missing_trials)
     end
     % remove repeated trials from EEG structure first, if any
     has_false_start=check_restart(preprocessed_eeg.trials);

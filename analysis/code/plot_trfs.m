@@ -4,8 +4,8 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-subjs=[2:7,9:22];
-% subjs=[98];
+% subjs=[2:7,9:22];
+subjs=[98];
 plot_chns='all';
 n_subjs=numel(subjs);
 plot_config.show_individual_weights=true;
@@ -139,7 +139,7 @@ end
 t_seek=[100 250]; %ms range within which to find peaks
 time_range_idx=find(avg_models(1).t>t_seek(1)&avg_models(1).t<t_seek(2));
 % filter peaks by prominence
-prom_thresh=0;
+% prom_thresh=0;
 t_range=avg_models(1).t(time_range_idx);
 n_electrodes=size(avg_models(1).w,3);
 % time range considered "reliable" evoked response
@@ -147,15 +147,20 @@ evoked_tlims=[0, 400];
 evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
     avg_models(1).t<evoked_tlims(2));
 pk_locs=cell(numel(configs(end).trf_config.conditions),n_electrodes);
+pk_locs_config=struct('MinPeakProminence',0,'MinPeakHeight_std_threh',2);
+disp('looking for peaky electrodes with params:')
+disp(pk_locs_config)
 for cc=1:numel(configs(end).trf_config.conditions)
     w_=squeeze(avg_models(cc).w(1,time_range_idx,:));
     w_=w_';
     % filter peaks by std of weights (in 0->400 ms time range)  
     w_std_=squeeze(std(avg_models(cc).w(1,evoked_range_idx,:),[],2));
+    
     for ee=1:n_electrodes
+        fprintf('electrode #%d...\n',ee)
         [~, locs_]=findpeaks(w_(ee,:), ...
-            'MinPeakProminence',prom_thresh, ...
-            'MinPeakHeight',2*w_std_(ee));
+            'MinPeakProminence',pk_locs_config.MinPeakProminence, ...
+            'MinPeakHeight',pk_locs_config.MinPeakHeight_std_thresh*w_std_(ee));
         % proms_=proms_/std(proms_);
         % pk_locs{cc,ee}=locs_(proms_>prom_thresh);
         if any(locs_)

@@ -8,13 +8,14 @@ clear trf_config preprocess_config
 overwrite=false;
 % when config fields are structured, run with option below as true - will
 % igonore overwrite (assumes saved file exists)
-update_configs=false;
+update_configs=true;
+
 
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
-
-trf_config.separate_conditions=true;
+preprocess_config.use_triggers='psychportaudio';
+trf_config.separate_conditions=false;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
