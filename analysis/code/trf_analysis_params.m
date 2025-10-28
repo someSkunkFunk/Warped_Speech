@@ -14,7 +14,7 @@ update_configs=false;
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
-preprocess_config.use_triggers='psychportaudio';
+preprocess_config.use_triggers='click';
 trf_config.separate_conditions=false;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
@@ -79,4 +79,5 @@ if exist("trf_config_","var")
 end
 
 trf_config=config_trf(trf_config,preprocess_config);
+global boxdir_mine
 loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);

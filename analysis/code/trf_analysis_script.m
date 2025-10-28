@@ -3,8 +3,8 @@ clc
 %NOTES:
 
 % TODO 3: look at reg trf (does it exist??)
-for subj=[2:7,9:22]
-% for subj=98
+% for subj=[2:7,9:22]
+for subj=[9, 12, 96, 97, 98]
 % for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
@@ -114,11 +114,11 @@ end
 %%
 if do_nulltest && ~preload_stats_null
     %note this is dumb and clunky but avoids error when model is preloaded
-    if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
+    if ~trf_config.separate_conditions&&~isfield(trf_config.train_params,'best_lam')
         % otherwise it gets set in trf_analysis_params
-        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+        trf_config.train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
     end
-    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params);
+    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
     % error('stuff below should take place in save_checkpoint...')
     % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
     % save(trf_config.model_metric_path,'stats_null','-append')
@@ -197,8 +197,8 @@ function nulltest_fig_helper(r_null,r_obs,plot_chn,tit_str)
     title(tit_str)
 end
 
-function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
-% stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_param)
+function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
+% stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
 %TODO: prettify params
     disp('running permutation test...')
     msg = 0;
@@ -207,7 +207,7 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
     tmin_ms=trf_config.tmin_ms;
     tmax_ms=trf_config.tmax_ms;
     conditions=unique(preprocessed_eeg.cond)';
-    best_lam=train_params.best_lam;
+    best_lam=trf_config.train_params.best_lam;
 
     for n_perm = 1:n_permutations
         if ~mod(n_perm,50)
@@ -420,19 +420,31 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % using click trigger since it is more accurate (and sometimes trial 
     % number trigger overlaps with click trigger) - should validate that
     % this is retroactively compatible with subjs 2-22
-    function EEG=clean_eeg_events(EEG)
+    function EEG=clean_eeg_events(EEG,ntrials)
         click_trigger=2048;
         all_trigg=[EEG.event(:).type];
         % keep only triggers corresponding with sound clicks
-        click_trigg_idx=find(all_trigg>click_trigger);
+        click_trigg_idx=find(all_trigg>=click_trigger);
+        % note: this assumes all trials have a click
         EEG.event=[EEG.event(click_trigg_idx)];
-        % renumber their types to match trial number
-        types=num2cell([EEG.event(:).type]-click_trigger);
+        if sum(all_trigg(click_trigg_idx)>click_trigger)==ntrials&& ...
+                max(all_trigg)==click_trigger+ntrials
+            % all clicks overlap with psychaudio triggers
+            % renumber their types to match trial number
+            types=num2cell([EEG.event(:).type]-click_trigger);            
+        elseif numel(click_trigg_idx)==ntrials&& ...
+                all(all_trigg(click_trigg_idx)==click_trigger)
+            % all psychaudio toolbox triggers don't overlap with clicks,
+            % and don't need to be correted
+            types=num2cell(1:ntrials);
+        else
+            error('trials are missing or  something')
+        end
         [EEG.event(:).type]=types{:};
     end
     switch preprocess_config.use_triggers
         case 'click'
-            EEG=clean_eeg_events(EEG);
+            EEG=clean_eeg_events(EEG,preprocess_config.n_trials);
         case 'psychportaudio'
             % assumes trial num triggers are all present and not
             % overlapping with click triggers (or any other triggers)
@@ -467,6 +479,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % remove repeated trials from EEG structure first, if any
     has_false_start=check_restart(preprocessed_eeg.trials);
     if has_false_start
+        warning('false starts detected... attempting to fix')
         [EEG,cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_eeg);
     end
 
