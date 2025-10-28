@@ -4,7 +4,9 @@ clc
 
 % TODO 3: look at reg trf (does it exist??)
 % for subj=[2:7,9:22]
-for subj=[9, 12, 96, 97, 98]
+% for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
+% successfully for all conditions
+for subj=[12, 96:98]
 % for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
@@ -131,23 +133,23 @@ end
 
 %%
 if do_nulltest
-    nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
+    nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
 end
 end
 %% Helpers
-function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
-% nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
+function nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
+% nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
 
 fav_chn_idx=85;
 subj=trf_config.subj;
-if trf_config.separate_conditions
-    % conditions=unique(preprocessed_eeg.cond)';
-    % conditions={' - fast - ',' - original - ',' - slow - '};
-    conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions);
-else
-    conditions={''};
-end
-
+% if trf_config.separate_conditions
+%     % conditions=unique(preprocessed_eeg.cond)';
+%     % conditions={' - fast - ',' - original - ',' - slow - '};
+%     conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions);
+% else
+%     conditions={''};
+% end
+conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions,'UniformOutput',false);
 %TODO: double-check averaging across trials correctly in separate
 %conditions case (especially once it contains multiple versions in last dimension)
 disp('cc indexing below might need double checking...')
@@ -155,7 +157,7 @@ disp('cc indexing below might need double checking...')
 %select correct sub-structures out during load_checkpoint... i think
 %cc_trials_idx below comes from first array dimension referenccing
 %individual trials, not our configs
-best_lam=train_params.best_lam;
+best_lam=trf_config.train_params.best_lam;
 for cc=1:length(conditions)
     if trf_config.separate_conditions
     % for cc=conditions
@@ -172,12 +174,12 @@ for cc=1:length(conditions)
     end
     % note: at this point, r_obs be chns-by-1 vector in either case
     [~,best_chn_idx]=max(r_obs);
-tit_str_temp=sprintf(['subj %d%sbest chn (%d) permutation ' ...
+tit_str_temp=sprintf(['subj %d %s best chn (%d) permutation ' ...
     'test - \\lambda %.3g'],subj,conditions{cc},best_chn_idx,best_lam);
 nulltest_fig_helper(r_null,r_obs,best_chn_idx,tit_str_temp)
 clear tit_str_temp
 
-tit_str_temp=sprintf(['subj %d%sfav chn (%d) permutation ' ...
+tit_str_temp=sprintf(['subj %d %s fav chn (%d) permutation ' ...
     'test - \\lambda %.3g'],subj,conditions{cc},fav_chn_idx,best_lam);
 nulltest_fig_helper(r_null,r_obs,fav_chn_idx,tit_str_temp)
 clear tit_str_temp
