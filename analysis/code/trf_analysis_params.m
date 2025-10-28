@@ -7,8 +7,8 @@
 clear trf_config preprocess_config 
 overwrite=false;
 % when config fields are structured, run with option below as true - will
-% igonore overwrite (assumes saved file exists)
-update_configs=true;
+% ignore overwrite (assumes saved file exists)
+update_configs=false;
 
 
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
