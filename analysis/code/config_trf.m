@@ -41,7 +41,7 @@ else
     trf_config.experiment=preprocess_config.experiment;
     trf_config.use_triggers=preprocess_config.use_triggers;
 end
-
+trf_config.preprocess_config=preprocess_config;
 
 if trf_config.separate_conditions
     switch trf_config.experiment
