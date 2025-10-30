@@ -13,12 +13,19 @@ function data=load_checkpoint(config)
     % config_str=jsonencode(config);
     % config_hash=char(upper(DataHash(config_str)));
     config_hash=char(upper(DataHash(config)));
-    config_match_idx=find(strcmp({registry.hash},config_hash),1);
+    config_match_idx=find(strcmp({registry.hash},config_hash));
 
     if isempty(config_match_idx)
         warning('no matching file found for config below in existing registry.')
         disp(config)
         data=[];
+    elseif length(config_match_idx)>1
+        %TODO: we accidentally saved redundant entires.... need to remedy
+        %this by consolidating files with the same hash - and pruning the
+        %registry. I _THINK_ we probably can just use save with append flag
+        % to consolidate the variables in a single file... but should
+        % VERIFY this is true before moving forward with it
+        error('fix this shit')
     else
         file=registry(config_match_idx).file;
         data=load(file);
