@@ -4,7 +4,7 @@
 
 clear, close all
 % todo: add highpass (and optional lowpass?) filter before detrending
-subj=97;
+subj=98;
 preprocess_config.subj=subj;
 preprocess_config=config_preprocess(preprocess_config);
 
@@ -15,6 +15,9 @@ inspect_config=config_inspect(inspect_config);
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 % load in the data
 EEG=pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
+% plot mastoids sum before filtering
+figure, plot(EEG.data(129,:)+EEG.data(130,:))
+title('mastoids sum before filtering + detrending')
 % filter the data
 if ~isempty(inspect_config.highpass)
     fprintf('hp filtering the shit Fc=%d...\n',inspect_config.highpass)
@@ -29,7 +32,8 @@ if inspect_config.detrend
     EEG.data=data_';
     clear data_
 end
-
+figure, plot(EEG.data(129,:)+EEG.data(130,:))
+title('mastoids sum after filtering')
 [ALLEEG, EEG, CURRENTSET]=eeg_store([],EEG,1);
 if isnumeric(inspect_config.chns)
     if ~isrow(inspect_config.chns)
