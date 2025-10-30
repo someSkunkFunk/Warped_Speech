@@ -6,9 +6,9 @@ clc
 % for subj=[2:7,9:22]
 % for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
 % successfully for all conditions
-% for subj=[12, 96:98]
+for subj=[12, 96:98]
 
-for subj=[98]
+% for subj=[98]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
@@ -59,9 +59,7 @@ clear pp_checkpoint_
 % disp('rescaling trf vars...')
 
 %% TRF ANALYSIS
-%TODO: replace all instances of load_checkpoint with appropriate 
-% registry-validated loading
-%function
+
 %% check if variables for current config can be preloaded
 
 % function starts here...
@@ -429,6 +427,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         % keep only triggers corresponding with sound clicks
         click_trigg_idx=find(all_trigg>=click_trigger);
         % note: this assumes all trials have a click
+
+        %sometimes click precedes
         EEG.event=[EEG.event(click_trigg_idx)];
         if sum(all_trigg(click_trigg_idx)>click_trigger)==ntrials&& ...
                 max(all_trigg)==click_trigger+ntrials

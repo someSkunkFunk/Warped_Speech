@@ -68,14 +68,13 @@ end
 
 %%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=config_preprocess(preprocess_config);
-if subj==98
-    disp('overwriting subj 98 reference to single mastoid')
-    % try referencing to a single mastoid... (since they seem inverted...)
-    half_ref_idx_=find(strcmp(preprocess_config.opts(1:2:end),'ref'));
-    preprocess_config.opts(half_ref_idx_*2)={[130]};
-    clear half_ref_idx_
-
-end
+% if subj==98
+%     disp('overwriting subj 98 reference to single mastoid')
+%     % try referencing to a single mastoid... (since they seem inverted...)
+%     half_ref_idx_=find(strcmp(preprocess_config.opts(1:2:end),'ref'));
+%     preprocess_config.opts(half_ref_idx_*2)={[130]};
+%     clear half_ref_idx_
+% end
 
 if exist("trf_config_","var")
     % load best_lambda from condition-agnostic crossvalidation with same
