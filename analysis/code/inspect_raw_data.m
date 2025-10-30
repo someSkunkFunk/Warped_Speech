@@ -4,7 +4,7 @@
 
 clear, close all
 % todo: add highpass (and optional lowpass?) filter before detrending
-subj=98;
+subj=96;
 preprocess_config.subj=subj;
 preprocess_config=config_preprocess(preprocess_config);
 
@@ -14,6 +14,18 @@ inspect_config.highpass=1; % consider going higher...? but also maybe the proble
 inspect_config=config_inspect(inspect_config);
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 % load in the data
+if inspect_config.skip_rereference
+    disp('updating preprocess config to skip reference...')
+    half_ref_idx_=find(strcmp(preprocess_config.opts(1:2:end),'ref'));
+    preprocess_config.opts(half_ref_idx_*2)=[];
+    preprocess_config.opts(half_ref_idx_*2-1)=[];
+    clear half_ref_idx_
+    % this doesn't actually matter but just so reading the config doesnt
+    % throw me off...
+    preprocess_config.ref='none';
+    preprocess_config.refI=[];
+    disp(preprocess_config)
+end
 EEG=pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
 % plot mastoids sum before filtering
 figure, plot(EEG.data(129,:)+EEG.data(130,:))
@@ -65,7 +77,8 @@ function config=config_inspect(config)
     defaults=struct('chns', 1:130, ... todo: add option to plot mastoids first
         'show_biosig',false, ...
         'detrend',true, ...
-        'highpass',[] ...
+        'highpass',[], ...
+        'skip_rereference',true...
         );
     fields=fieldnames(defaults);
     for ff=1:numel(fields)
