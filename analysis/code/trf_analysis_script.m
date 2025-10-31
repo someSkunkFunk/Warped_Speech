@@ -422,6 +422,10 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % number trigger overlaps with click trigger) - should validate that
     % this is retroactively compatible with subjs 2-22
     function EEG=clean_eeg_events(EEG,ntrials)
+        %TODO: make this function cover both click and psychport audio
+        %cases
+        % for subj 6 - there are no click triggers we can use but the
+        % psychaudio trigger definitely overlaps with a 2048 we could use!
         click_trigger=2048;
         all_trigg=[EEG.event(:).type];
         % keep only triggers corresponding with sound clicks

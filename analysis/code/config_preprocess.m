@@ -24,6 +24,13 @@ for ff=1:numel(fields)
         preprocess_config.(fields{ff})=defaults.(fields{ff});
     end
 end
+if preprocess_config.subj<7&&strcmp(preprocess_config.use_triggers,'click')
+    warning(['click triggers selected for subj %d but subjs 6 and below ' ...
+        'dont have click triggers, thus force-changing trigger mode to ' ...
+        'psychportaudio.'],preprocess_config.subj)
+    preprocess_config.use_triggers='psychportaudio';
+    
+end
 %% stuff that might change depending on context
 
 
