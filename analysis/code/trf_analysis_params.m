@@ -4,6 +4,7 @@
 %load_checkpoint uses saved config to match to correct file.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% NOTES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % need this to avoid conflicts when looping over subjects
+disp('setting trf_analysis_params...')
 clear trf_config preprocess_config 
 overwrite=false;
 % when config fields are structured, run with option below as true - will
