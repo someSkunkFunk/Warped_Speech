@@ -46,26 +46,47 @@ function pruned_registry=prune_repeat_hashes(registry,repeats)
 % timestamp - then removes all but the entry with latest timestamp from
 % registry
 registry_fields=fieldnames(registry);
+all_hashes=unique({registry.hash});
+
 %TODO: preallocate outputregistry, starting with non-repeat entries
 %populated - use number of unique hashes as length of output registry
-pruned_registry=cell2struct(size(registry_fields),registry_fields,)
-
-    for rep_hash=repeats
-        match_idx=find(strcmp(rep_hash,{registry.hash}));
-        fprintf(['making sure that n=%d entries with\n' ...
-            '%s hash are fully equivalent.\n'],length(match_idx),rep_hash{:})
-        subregistry=rmfield(registry(match_idx),'timestamp');
-        match_m=false(size(subregistry));
-        match_m(1)=true;
-        % note: there must be a way to avoid a loop here...
-        for ss=2:length(subregistry)
-            match_m(ss)=isequal(subregistry(ss),subregistry(1));
-        end
-        if all(match_m)
-            rep_timestamps=cellfun(@(x) datetime(x),{subregistry.timestamp});
-            latest_rep_timestamp=max(rep_timestamps);
+pruned_registry=cell2struct(cell([length(registry_fields), ...
+    length(all_hashes)]),registry_fields,1);
+non_repeats=setdiff(all_hashes,repeats);
+    for hh=1:length(all_hashes)
+        hash=all_hashes(hh);
+        match_idx=find(strcmp(hash,{registry.hash}));
+        if ismember(hash,non_repeats)
+            if length(match_idx)>1
+                error('wtf.')
+            else
+                pruned_registry(hh)=registry(match_idx);
+            end
+        elseif ismember(hash,repepats)
+            if length(match_idx)==1
+                error('wtf.')
+            else
+                fprintf(['making sure that n=%d entries with\n' ...
+                    '%s hash are fully equivalent.\n'],length(match_idx),rep_hash{:})
+                subregistry=rmfield(registry(match_idx),'timestamp');
+                match_m=false(size(subregistry));
+                match_m(1)=true;
+                % note: there must be a way to avoid a loop here...
+                for ss=2:length(subregistry)
+                    match_m(ss)=isequal(subregistry(ss),subregistry(1));
+                end
+                if all(match_m)
+                    rep_timestamps=cellfun(@(x) datetime(x),{subregistry.timestamp});
+                    latest_rep_timestamp=max(rep_timestamps);
+                    pruned_registry(hh)=subregistry(find)
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    %TODO: keep oldest timestamp of this repeated hash.
+                else
+                    error('didnt expect this case and thus unaccounted for...')
+                end
+            end
         else
-            error('didnt expect this case and thus unaccounted for...')
+            error('idk.')
         end
        dum=[]; 
     end
