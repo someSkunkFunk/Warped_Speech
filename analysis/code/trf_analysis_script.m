@@ -422,43 +422,46 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % number trigger overlaps with click trigger) - should validate that
     % this is retroactively compatible with subjs 2-22
     function EEG=clean_eeg_events(EEG,ntrials)
-        %TODO: make this function cover both click and psychport audio
-        %cases
-        % for subj 6 - there are no click triggers we can use but the
-        % psychaudio trigger definitely overlaps with a 2048 we could use!
-        click_trigger=2048;
         all_trigg=[EEG.event(:).type];
-        % keep only triggers corresponding with sound clicks
-        click_trigg_idx=find(all_trigg>=click_trigger);
-        % note: this assumes all trials have a click
-
-        %sometimes click precedes
-        EEG.event=[EEG.event(click_trigg_idx)];
-        if sum(all_trigg(click_trigg_idx)>click_trigger)==ntrials&& ...
-                max(all_trigg)==click_trigger+ntrials
-            % all clicks overlap with psychaudio triggers
-            % renumber their types to match trial number
-            types=num2cell([EEG.event(:).type]-click_trigger);            
-        elseif numel(click_trigg_idx)==ntrials&& ...
-                all(all_trigg(click_trigg_idx)==click_trigger)
-            % all psychaudio toolbox triggers don't overlap with clicks,
-            % and don't need to be correted
-            types=num2cell(1:ntrials);
-        else
-            error('trials are missing or  something')
+        switch preprocess_config.use_triggers
+            case 'click'
+                click_trigger=2048;
+                % keep only triggers corresponding with sound clicks
+                click_trigg_idx=find(all_trigg>=click_trigger);
+                % note: this assumes all trials have a click
+                EEG.event=[EEG.event(click_trigg_idx)];
+                %sometimes click trigger precedes trial trigger - 
+                % need to check if that is the case and handle it
+                % differently
+                if sum(all_trigg(click_trigg_idx)>click_trigger)==ntrials&& ...
+                        max(all_trigg)==click_trigger+ntrials
+                    % all clicks overlap with psychaudio triggers
+                    % renumber their types to match trial number
+                    types=num2cell([EEG.event(:).type]-click_trigger);            
+                elseif numel(click_trigg_idx)==ntrials&& ...
+                        all(all_trigg(click_trigg_idx)==click_trigger)
+                    % all psychaudio toolbox triggers don't overlap with clicks,
+                    % and don't need to be correted
+                    types=num2cell(1:ntrials);
+                else
+                    error('trials are missing or  something')
+                end
+                [EEG.event(:).type]=types{:};
+            case 'psychportaudio'
+                % assumes trial num triggers are all present and not
+                % overlapping with click triggers (or any other triggers)
+                % TODO: cover case for subj 6 where trial trigger is missing...
+                % for subj 6 - there are no click triggers we can use but the
+                % psychaudio trigger definitely overlaps with a 2048 we could use!
+                warning('subj 6 has a missing trial trigger this doesnt account for')
+                ;
+            otherwise
+                warning('invalid triggers chosen: %s',preprocess_config.use_triggers)
         end
-        [EEG.event(:).type]=types{:};
+        
     end
-    switch preprocess_config.use_triggers
-        case 'click'
-            EEG=clean_eeg_events(EEG,preprocess_config.n_trials);
-        case 'psychportaudio'
-            % assumes trial num triggers are all present and not
-            % overlapping with click triggers (or any other triggers)
-            ;
-        otherwise
-            warning('invalid triggers chosen: %s',preprocess_config.use_triggers)
-    end
+    EEG=clean_eeg_events(EEG,preprocess_config.n_trials);
+   
     preprocessed_eeg.trials = [EEG.event.type];
     % why did aaron choose 100 in particular rather than preprocess_config.n_trials to
     % begin with?

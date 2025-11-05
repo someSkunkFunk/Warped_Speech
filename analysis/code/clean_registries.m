@@ -1,7 +1,7 @@
 %% clean registries
 % function clean_registries(subjs)
-subjs=[2];
-for subj=subjs
+
+for subj=[2:7,9:22]
     fprintf('cleaning registry for subj %d...\n',subj)
     trf_analysis_params
     % map each registry to a unique matfpth
@@ -18,10 +18,16 @@ for subj=subjs
     if isempty(pp_repeats)
         disp('no repeated hashes found')
     else
-        pp_registry_pruned=prune_repeat_hashes(pp_registry,pp_repeats);
+        pruned_pp_registry=prune_repeat_hashes(pp_registry,pp_repeats);
         %TODO: validate repeats are identical, delete registry entries with
         % old timestamps, save pruned registry to regitry file.
-        error('need to save updated result still')
+        % save updated registry - note we copied this from save checkpoint
+        % which probably means we ought to instead make it it's own
+        % independent function in case this process changes
+        fid=fopen(trf_registry_file,'w');
+        fwrite(fid,jsonencode(pruned_pp_registry),'char');
+        fclose(fid);
+        fprintf('Updated registry at %s.\n',pp_registry_file);
     end
 
     disp('cleaning trf registry...')
@@ -30,11 +36,17 @@ for subj=subjs
     if isempty(trf_repeats)
         disp('no repeated hashes found.')
     else
-        trf_registry_pruned=prune_repeat_hashes(trf_registry,trf_repeats);
-        error('need to save updated result still')
+        pruned_trf_registry=prune_repeat_hashes(trf_registry,trf_repeats);
+        % save updated registry - note we copied this from save checkpoint
+        % which probably means we ought to instead make it it's own
+        % independent function in case this process changes
+        fid=fopen(trf_registry_file,'w');
+        fwrite(fid,jsonencode(pruned_trf_registry),'char');
+        fclose(fid);
+        fprintf('Updated registry at %s.\n',trf_registry_file);
+        % error('need to save updated result still')
     end
     
-    dum=[];
 
 
 
@@ -55,20 +67,20 @@ pruned_registry=cell2struct(cell([length(registry_fields), ...
 non_repeats=setdiff(all_hashes,repeats);
     for hh=1:length(all_hashes)
         hash=all_hashes(hh);
-        match_idx=find(strcmp(hash,{registry.hash}));
+        hash_match_idx=find(strcmp(hash,{registry.hash}));
         if ismember(hash,non_repeats)
-            if length(match_idx)>1
-                error('wtf.')
+            if length(hash_match_idx)>1
+                error('%s hash categorized into non-repeats but multiple entries match.',hash)
             else
-                pruned_registry(hh)=registry(match_idx);
+                pruned_registry(hh)=registry(hash_match_idx);
             end
-        elseif ismember(hash,repepats)
-            if length(match_idx)==1
-                error('wtf.')
+        elseif ismember(hash,repeats)
+            if length(hash_match_idx)==1
+                error('%s hash categorized into repeats but only a single entry matches.',hash)
             else
                 fprintf(['making sure that n=%d entries with\n' ...
-                    '%s hash are fully equivalent.\n'],length(match_idx),rep_hash{:})
-                subregistry=rmfield(registry(match_idx),'timestamp');
+                    '%s hash are fully equivalent.\n'],length(hash_match_idx),hash{:})
+                subregistry=rmfield(registry(hash_match_idx),'timestamp');
                 match_m=false(size(subregistry));
                 match_m(1)=true;
                 % note: there must be a way to avoid a loop here...
@@ -76,11 +88,13 @@ non_repeats=setdiff(all_hashes,repeats);
                     match_m(ss)=isequal(subregistry(ss),subregistry(1));
                 end
                 if all(match_m)
-                    rep_timestamps=cellfun(@(x) datetime(x),{subregistry.timestamp});
+                    rep_timestamps=cellfun(@(x) datetime(x),{registry(hash_match_idx).timestamp});
                     latest_rep_timestamp=max(rep_timestamps);
-                    pruned_registry(hh)=subregistry(find)
-                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                    %TODO: keep oldest timestamp of this repeated hash.
+                    % if they're all equivalent, can just assing the first
+                    % one and the overwrite it's timestamp
+                    entry=subregistry(1);
+                    entry.timestamp=latest_rep_timestamp;
+                    pruned_registry(hh)=entry;
                 else
                     error('didnt expect this case and thus unaccounted for...')
                 end
@@ -88,7 +102,7 @@ non_repeats=setdiff(all_hashes,repeats);
         else
             error('idk.')
         end
-       dum=[]; 
+       
     end
 end
 function repeated_hashes=find_repeat_hashes(registry)
