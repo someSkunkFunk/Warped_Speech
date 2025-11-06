@@ -42,7 +42,11 @@ function save_checkpoint(data,config,overwrite)
     
     %if no matching registry exits, or file associated with registry 
     % is missing current variable, save and register
-    missing_var=~ismember(varname,{whos('-file',mat_fpth).name});
+    if isfile(mat_fpth)
+        missing_var=~ismember(varname,{whos('-file',mat_fpth).name});
+    else
+        missing_var=false;
+    end
     if isempty(config_match_idx)||missing_var||overwrite
         disp('original registry:')
         disp(registry)

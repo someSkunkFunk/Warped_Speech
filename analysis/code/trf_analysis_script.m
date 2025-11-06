@@ -449,24 +449,28 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                     for ii=1:length(click_latencies)
                         % get delay relative to overlap trigger
                         click_delays=click_latencies(ii)-overlap_latencies;
+                        % overlapping triggers should be 1 sample adjacent
+                        % from each other
+                        late_clicks=click_delays<=1&click_delays>0;
+                        early_clicks=click_delays>=-1&click_delays<0;
                         % clicks that are a sample late are no good
-                        if any(click_delays==1) 
+                        if any(late_clicks) 
                             % ^ note that we're assuming at most one such
                             % case is possible
                             rm_click_mask(ii)=true;
                         % clicks that are a sample early mean overlap
                         % trigger is no good
-                        elseif any(click_delays==-1)
+                        elseif any(early_clicks)
                         % ^ note that we're assuming at most one such
                         % case is possible
-                            rm_overlap_mask(click_latencies==-1)=true;
+                            rm_overlap_mask(early_clicks)=true;
                         end
                     end
                     overlap_trigg_idx(rm_overlap_mask)=[];
                     click_trigg_idx(rm_click_mask)=[];
-                    keep_triggs=sort([overlap_trigg_idx,click_trick_idx]);
+                    keep_triggs=sort([overlap_trigg_idx,click_trigg_idx]);
                     % check we have correct number of trials now
-                    if ~sum(numel(overlap_trigg_idx),numel(click_trigg_idx))==ntrials
+                    if (numel(overlap_trigg_idx)+numel(click_trigg_idx))~=ntrials
                         error('number of trials is incorrect?')
                     end
                     EEG.event=[EEG.event(keep_triggs)];
@@ -476,13 +480,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                         % number
                         types(types==0)=find(types==0);
                     end
-            
-
-                % NOTE: i think i may need a separate condition to handle
-                % insances where t and 2048 don't overlap at all, but this
-                % should ideally be included in the above case, we just
-                % need to change the conditions
-                
+                % NOTE: should validate this works as expected when
+                % triggers dont overlap at all
                 end
                 % % note: this assumes all trials have a click
                 % EEG.event=[EEG.event(click_trigg_idx)];
@@ -502,6 +501,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                 % else
                 %     error('trials are missing or  something')
                 % end
+                types=num2cell(types);
                 [EEG.event(:).type]=types{:};
             case 'psychportaudio'
                 % assumes trial num triggers are all present and not
@@ -522,9 +522,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         end
     end
     % verify number of events matches number of trials
-    if length(EEG.event)~=ntrials
-        warning('number of trials is incorrect.')
-    end
+    
     EEG=clean_eeg_events(EEG,preprocess_config.n_trials);
    
     preprocessed_eeg.trials = [EEG.event.type];
