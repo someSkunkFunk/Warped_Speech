@@ -434,7 +434,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                 if length(click_trigg_idx)==ntrials&&isempty(overlap_trigg_idx)        
                     % best-case, just keep those
                     EEG.event=[EEG.event(click_trigg_idx)];
-                    types=num2cell(1:ntrials);
+                    types=1:ntrials;
+                    
                 else%if length(overlap_trigg_idx)==ntrials&&length(click_trigg_idx)<ntrials
                     % note: muted case expression above because some
                     % triggers may not overlap at all in which case n
@@ -507,8 +508,6 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                 % else
                 %     error('trials are missing or  something')
                 % end
-                types=num2cell(types);
-                [EEG.event(:).type]=types{:};
             case 'psychportaudio'
                 % assumes trial num triggers are all present and not
                 % overlapping with click triggers (or any other triggers)
@@ -526,6 +525,10 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
             otherwise
                 warning('invalid triggers chosen: %s',preprocess_config.use_triggers)
         end
+        % replace trigger values with trial numbers (assuming no missing
+        % trials)
+        types=num2cell(types);
+        [EEG.event(:).type]=types{:};
     end
     % verify number of events matches number of trials
     
