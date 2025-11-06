@@ -11,11 +11,16 @@ preprocess_config=config_preprocess(preprocess_config);
 inspect_config=[];
 inspect_config.show_biosig=true;
 inspect_config.highpass=1; % consider going higher...? but also maybe the problem could be low freq stuff....
+inspect_config.lowpass=15;
+inspect_config.downsample=[];
+inspect_config.fs=128; % only relevant if downsampling
 inspect_config=config_inspect(inspect_config);
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
 % load in the data
 if inspect_config.skip_rereference
     disp('updating preprocess config to skip reference...')
+    % opts is a 'varname', varvalue paired-cell, so have to do this
+    % "skipping" indexing
     half_ref_idx_=find(strcmp(preprocess_config.opts(1:2:end),'ref'));
     preprocess_config.opts(half_ref_idx_*2)=[];
     preprocess_config.opts(half_ref_idx_*2-1)=[];
@@ -30,14 +35,33 @@ EEG=pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
 % plot mastoids sum before filtering
 figure, plot(EEG.data(129,:)+EEG.data(130,:))
 title('mastoids sum before filtering + detrending')
-% filter the data
+%% filter + downsample the data
+
+%NOTE: to replicate pop_downsample vs noAA error, we should keep the order
+%of operations used in each case the ssame - namely, pop_downsample was
+%used before additional filtering, while noAA was applied after filtering
+%(because we were banking on lowpass filt being sufficient antialias)
+if ~isempty(inspect_config.downsample)&&strcmp(inspect_config.downsample,'pop')
+    disp('downsampling using pop_resample')
+    EEG=pop_resample(EEG,inspect_config.fs);
+end
+
 if ~isempty(inspect_config.highpass)
     fprintf('hp filtering the shit Fc=%d...\n',inspect_config.highpass)
     hd_hp=getHPFilt(EEG.srate,inspect_config.highpass);
     EEG.data=filtfilthd(hd_hp,EEG.data')';
 end
+if ~isempty(inspect_config.lowpass)
+    fprintf('lp filtering the shit Fc=%d...\n',inspect_config.lowpass)
+    hd_lp=getLPFilt(EEG.srate,inspect_config.lowpass);
+    EEG.data=filtfilthd(hd_lp,EEG.data')';
+end
 
-% detrend data
+if ~isempty(inspect_config.downsample)&&strcmp(inspect_config.downsample,'noAA')
+    disp('downsampling using noAA.')
+    EEG=pop_downsample_noAA(EEG,inspect_config.fs);
+end
+%% detrend data
 if inspect_config.detrend
     disp('detrending data...')
     data_=detrend(EEG.data');
@@ -78,6 +102,9 @@ function config=config_inspect(config)
         'show_biosig',false, ...
         'detrend',true, ...
         'highpass',[], ...
+        'lowpass',[],...
+        'downsample',[],...,
+        'fs',[],...
         'skip_rereference',true...
         );
     fields=fieldnames(defaults);
