@@ -3,8 +3,8 @@
 % really
 
 clear, close all
-% todo: add highpass (and optional lowpass?) filter before detrending
-subj=6;
+% todo: add optional lowpass?
+subj=96;
 preprocess_config.subj=subj;
 preprocess_config=config_preprocess(preprocess_config);
 
