@@ -1,12 +1,12 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 %NOTES:
-
+% n_trials is sortof redundant now that m is a part of preprocess_config...
 % TODO 3: look at reg trf (does it exist??)
 % for subj=[2:7,9:22]
 % for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
 % successfully for all conditions
-for subj=[96:98]
+for subj=[96]
 
 % for subj=[98]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
@@ -335,6 +335,7 @@ function [EEG, cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_e
     % stupid loop because idk how to assign multiple struct array
     % vals otherwise
     for rm_trial=1:false_start_end_ii
+        % is this actually valid??
         EEG.event(rm_trial).type=3000;
     end
     %TODO: verify what line below does
@@ -355,7 +356,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
             'output fs (%d Hz)'],preprocess_config.bpfilter(2),round(preprocess_config.fs/2))
     end
     EEG = pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
-    load(preprocess_config.paths.behfile,'m')
+    m=preprocess_config.m;
     % m_=unique(m(:,1:2)','rows','sorted');
     % m_=m(:,1:2)';
     m_=[all(m(:,1)==1),all(m(:,2)==0)];
@@ -450,7 +451,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                         % get delay relative to overlap trigger
                         click_delays=click_latencies(ii)-overlap_latencies;
                         % overlapping triggers should be 1 sample adjacent
-                        % from each other
+                        % from each other...
                         late_clicks=click_delays<=1&click_delays>0;
                         early_clicks=click_delays>=-1&click_delays<0;
                         % clicks that are a sample late are no good
@@ -469,17 +470,22 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                     overlap_trigg_idx(rm_overlap_mask)=[];
                     click_trigg_idx(rm_click_mask)=[];
                     keep_triggs=sort([overlap_trigg_idx,click_trigg_idx]);
-                    % check we have correct number of trials now
-                    if (numel(overlap_trigg_idx)+numel(click_trigg_idx))~=ntrials
-                        error('number of trials is incorrect?')
-                    end
                     EEG.event=[EEG.event(keep_triggs)];
                     types=[EEG.event.type]-click_trigger;
-                    if any(types==0)
-                        % by now their index should match their trial
-                        % number
-                        types(types==0)=find(types==0);
+                    
+                    % check we have correct number of trials now
+                    if (numel(overlap_trigg_idx)+numel(click_trigg_idx))~=ntrials
+                        error(['number of trials is incorrect, could be due,' ...
+                            'to restart. Check m file and fix before trying again.\n'])
+                    else
+                        if any(types==0)
+                            % by now their index should match their trial
+                            % number
+                            types(types==0)=find(types==0);
+                        end
+                    
                     end
+                    
                 % NOTE: should validate this works as expected when
                 % triggers dont overlap at all
                 end
