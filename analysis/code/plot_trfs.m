@@ -5,7 +5,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 % subjs=[2:7,9:22];
-subjs=[98];
+subjs=[9,12];
 plot_chns='all';
 n_subjs=numel(subjs);
 plot_config.show_individual_weights=true;
@@ -147,7 +147,7 @@ evoked_tlims=[0, 400];
 evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
     avg_models(1).t<evoked_tlims(2));
 pk_locs=cell(numel(configs(end).trf_config.conditions),n_electrodes);
-pk_locs_config=struct('MinPeakProminence',0,'MinPeakHeight_std_threh',2);
+pk_locs_config=struct('MinPeakProminence',0,'MinPeakHeight_std_thresh',2);
 disp('looking for peaky electrodes with params:')
 disp(pk_locs_config)
 for cc=1:numel(configs(end).trf_config.conditions)
@@ -208,7 +208,7 @@ figure
 topoplot([],chanlocs,'electrodes','on','style','blank', ...
     'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
 title('electrodes with distinct peaks')
-%% visualize difference in latency across conditions
+%% visualize difference in latency acrossl conditions
 pk_latencies=nan(numel(configs(end).trf_config.conditions),n_single_peak_electrodes);
 for cc=1:numel(configs(end).trf_config.conditions)
     pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
