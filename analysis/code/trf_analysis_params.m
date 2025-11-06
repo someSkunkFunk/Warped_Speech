@@ -16,7 +16,7 @@ update_configs=false;
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
@@ -69,6 +69,7 @@ end
 
 %%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=config_preprocess(preprocess_config);
+trf_config=config_trf(trf_config,preprocess_config);
 % if subj==98
 %     disp('overwriting subj 98 reference to single mastoid')
 %     % try referencing to a single mastoid... (since they seem inverted...)
@@ -86,6 +87,6 @@ if exist("trf_config_","var")
     clear trf_config_ S_
 end
 
-trf_config=config_trf(trf_config,preprocess_config);
+
 global boxdir_mine
 loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);
