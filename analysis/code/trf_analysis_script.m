@@ -25,7 +25,7 @@ if update_configs
     end
     disp('updating trf config')
     update_rehash_config(trf_config)
-    disp('done.')
+    disp('done.')  
     continue
 end
 %% check if data exists already...

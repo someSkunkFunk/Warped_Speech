@@ -16,14 +16,14 @@ update_configs=false;
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
 % probably it's just to train a model with a particular hard-coded lam 
 % value in which case we'd set lam_range as well probably...?
 
-do_nulltest=true;
+do_nulltest=false;
 
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
