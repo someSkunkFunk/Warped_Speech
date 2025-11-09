@@ -4,15 +4,15 @@
 
 clear, close all
 % todo: add optional lowpass?
-subj=96;
+subj=9;
 preprocess_config.subj=subj;
 preprocess_config=config_preprocess(preprocess_config);
 
 inspect_config=[];
 inspect_config.show_biosig=true;
 inspect_config.highpass=1; % consider going higher...? but also maybe the problem could be low freq stuff....
-inspect_config.lowpass=15;
-inspect_config.downsample=[];
+inspect_config.lowpass=[];
+inspect_config.downsample='noAA';
 inspect_config.fs=128; % only relevant if downsampling
 inspect_config=config_inspect(inspect_config);
 [ALLEEG EEG CURRENTSET ALLCOM] = eeglab;
@@ -32,7 +32,8 @@ if inspect_config.skip_rereference
     disp(preprocess_config)
 end
 EEG=pop_biosig(preprocess_config.paths.bdffile,preprocess_config.opts{:});
-% plot mastoids sum before filtering
+% plot mastoids sum before filtering - to check if they're average
+% referenced or not (will be zero if so)
 figure, plot(EEG.data(129,:)+EEG.data(130,:))
 title('mastoids sum before filtering + detrending')
 %% filter + downsample the data

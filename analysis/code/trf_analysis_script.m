@@ -570,6 +570,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % delayed_EEG=add_speech_delay(EEG,preprocess_config)
         % shift trial starts by 1 second (speech_delay value in expriment script)      
         n_delay_samples=preprocess_config.stim_delay_time*EEG.srate; 
+        disp('**** NOTE THA THIS FUNCTION ONLY MAKES SENSE IF NOT USING CLICKS AND SPEECH DELAY TIME WAS ACTUALLY ADDED')
+        
         fprintf('adding %0.2fs /%d samples\n',preprocess_config.stim_delay_time,n_delay_samples)
     
         % TODO: ASK AARON HOW TO DO THIS WITHOUT LOOPS FOR THE LOVE OF
@@ -602,8 +604,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         EEG.data=[EEG.data, zeros(preprocess_config.nchan,ns_pad)];
     end
 
-    
-    
+    disp('copying eeg pre-epoching to compate plots')
+    pre_EEG=EEG; % debugging coppy
     EEG = pop_epoch(EEG, ...
         num2cell(preprocessed_eeg.trials),[0 preprocess_config.epoch_dur]);
 

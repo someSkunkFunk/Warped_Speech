@@ -25,6 +25,14 @@ for ff=1:numel(fields)
         preprocess_config.(fields{ff})=defaults.(fields{ff});
     end
 end
+if preprocess_config.subj>22
+    preprocess_config.experiment='reg-irreg';
+elseif preprocess_config.subj>0&&preprocess_config.subj<=22
+    preprocess_config.experiment='fast-slow';
+else
+    error('undefined experiment?')
+end
+
 if preprocess_config.subj<7&&strcmp(preprocess_config.use_triggers,'click')
     warning(['click triggers selected for subj %d but subjs 6 and below ' ...
         'dont have click triggers, thus force-changing trigger mode to ' ...
@@ -45,6 +53,22 @@ switch preprocess_config.ref
         preprocess_config.refI=ref;
 end
 preprocess_config.opts = {'channels',1:(preprocess_config.nchan+2),'importannot','off','ref',preprocess_config.refI};
+
+
+%%%%NOTE: WHEN USING CLICK TRIGGERS, WE CAN IGNORE THE SPEECH DELAY ADDED
+%%%%BY NOISYSPEECH FUNCTION 
+switch preprocess_config.use_triggers
+    case 'click'
+        % no speech delay!
+        preprocess_config.stim_delay_time=[];
+    case 'psychportaudio'
+        % note even in this case we'd want to avoid adding stim-delay time
+        % for subjects without noise
+    otherwise
+        error('what trigger did you mean by %s?',preprocess_config.use_triggers)
+
+end
+
 
 %%%%%%%%%%%%%%%%%%%%%% PATHS TO IGNORE IN REGISTRY %%%%%%%%%%%%%%%%%%%%%%%%
 

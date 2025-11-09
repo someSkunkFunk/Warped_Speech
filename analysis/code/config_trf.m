@@ -24,24 +24,28 @@ defaults=struct( ...
     'best_lam',0), ...
     'use_triggers',[] ...
     );
-fields=fieldnames(defaults);
-for ff=1:numel(fields)
-    if ~isfield(trf_config,fields{ff})||isempty(trf_config.(fields{ff}))
-        trf_config.(fields{ff})=defaults.(fields{ff});
-    end
-end
-
 if isempty(preprocess_config)
     warning('empty preprocess_config given...')
     disp('initializing one with defaults to get trf_config paths...')
     disp('but this is probably not what you want for analysis')
     preprocess_config=config_preprocess([]);
-else
-    trf_config.subj=preprocess_config.subj;
-    trf_config.experiment=preprocess_config.experiment;
-    trf_config.use_triggers=preprocess_config.use_triggers;
 end
 trf_config.preprocess_config=preprocess_config;
+
+fields=fieldnames(defaults);
+for ff=1:numel(fields)
+    if ~isfield(trf_config,fields{ff})||isempty(trf_config.(fields{ff}))
+        if isfield(preprocess_config,fields{ff})
+            % copy redundant fields
+            trf_config.(fields{ff})=preprocess_config.(fields{ff});
+        else
+            trf_config.(fields{ff})=defaults.(fields{ff});
+        end
+    end
+end
+
+
+
 
 if trf_config.separate_conditions
     switch trf_config.experiment

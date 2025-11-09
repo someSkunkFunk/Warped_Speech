@@ -6,7 +6,7 @@
 % need this to avoid conflicts when looping over subjects
 disp('setting trf_analysis_params...')
 clear trf_config preprocess_config 
-overwrite=false;
+overwrite=true;
 % when config fields are structured, run with option below as true - will
 % ignore overwrite (assumes saved file exists)
 update_configs=false;
@@ -16,7 +16,7 @@ update_configs=false;
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=true;
+trf_config.separate_conditions=false;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but

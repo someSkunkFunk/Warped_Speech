@@ -195,56 +195,62 @@ pk_counts=cellfun(@numel, pk_locs);
 cond_pkcounts_match=all(pk_counts==pk_counts(1,:),1);
 fprintf('all electrodes have same num of peaks? ->%d\n',all(cond_pkcounts_match))
 single_pk_electrodes=cond_pkcounts_match&pk_counts(1,:)==1;
-single_pk_electrodes_idx=find(single_pk_electrodes);
 n_single_peak_electrodes=sum(single_pk_electrodes);
 fprintf('number of electrodes with single peak across conditions:%d\n', ...
     n_single_peak_electrodes)
-% check that number of peaks matches across conditions for each electrode
-max_pkcount=max(pk_counts(:));
-fprintf('max peakcount: %d\n',max_pkcount)
-%% topo of electrodes with distinct peak
+if any(single_pk_electrodes)
+    single_pk_electrodes_idx=find(single_pk_electrodes);
 
-figure
-topoplot([],chanlocs,'electrodes','on','style','blank', ...
-    'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
-title('electrodes with distinct peaks')
-%% visualize difference in latency acrossl conditions
-pk_latencies=nan(numel(configs(end).trf_config.conditions),n_single_peak_electrodes);
-for cc=1:numel(configs(end).trf_config.conditions)
-    pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
+
+    % check that number of peaks matches across conditions for each electrode
+    max_pkcount=max(pk_counts(:));
+    fprintf('max peakcount: %d\n',max_pkcount)
+    %% topo of electrodes with distinct peak
+    
+    figure
+    topoplot([],chanlocs,'electrodes','on','style','blank', ...
+        'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
+    title('electrodes with distinct peaks')
+    %% visualize difference in latency acrossl conditions
+    pk_latencies=nan(numel(configs(end).trf_config.conditions),n_single_peak_electrodes);
+    for cc=1:numel(configs(end).trf_config.conditions)
+        pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
+    end
+    % add jitter to minimize overlapping lines
+    rng(1);
+    yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(configs(end).trf_config.conditions),1);
+    % sort them for pretty colors
+    [~,sortI_]=sort(pk_latencies(1,:));
+    figure
+    plot(1:numel(configs(end).trf_config.conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
+    colormap(jet(n_single_peak_electrodes))
+    colororder(jet(n_single_peak_electrodes))
+    xticks(1:numel(configs(end).trf_config.conditions));
+    xticklabels(configs(end).trf_config.conditions);
+    xlabel('condition');
+    ylabel('latency (ms)')
+    title('TRF peak latency (+jitter) across conditions')
+    hold off
+    clear sortI_
+    % histograms of difference relative to og
+    diff_pk_latency=nan(numel(configs(end).trf_config.conditions)-1,n_single_peak_electrodes);
+    %dum counter
+    cc_=1;
+    diff_labels=cell(numel(configs(end).trf_config.conditions)-1);
+    for cc=1:2:numel(configs(end).trf_config.conditions)
+        diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
+        diff_labels{cc_}=sprintf('%s-%s',configs(end).trf_config.conditions{2},configs(end).trf_config.conditions{cc});
+        cc_=cc_+1;
+    end
+    clear cc_
+    figure
+    boxplot(diff_pk_latency')
+    xticklabels(diff_labels)
+    ylabel('\Delta(latency) (ms)')
+    title('difference in latency across reliable electrodes')
+else
+    disp('*****************NO PEAKS FOUND :( *****************')
 end
-% add jitter to minimize overlapping lines
-rng(1);
-yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(configs(end).trf_config.conditions),1);
-% sort them for pretty colors
-[~,sortI_]=sort(pk_latencies(1,:));
-figure
-plot(1:numel(configs(end).trf_config.conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
-colormap(jet(n_single_peak_electrodes))
-colororder(jet(n_single_peak_electrodes))
-xticks(1:numel(configs(end).trf_config.conditions));
-xticklabels(configs(end).trf_config.conditions);
-xlabel('condition');
-ylabel('latency (ms)')
-title('TRF peak latency (+jitter) across conditions')
-hold off
-clear sortI_
-% histograms of difference relative to og
-diff_pk_latency=nan(numel(configs(end).trf_config.conditions)-1,n_single_peak_electrodes);
-%dum counter
-cc_=1;
-diff_labels=cell(numel(configs(end).trf_config.conditions)-1);
-for cc=1:2:numel(configs(end).trf_config.conditions)
-    diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
-    diff_labels{cc_}=sprintf('%s-%s',configs(end).trf_config.conditions{2},configs(end).trf_config.conditions{cc});
-    cc_=cc_+1;
-end
-clear cc_
-figure
-boxplot(diff_pk_latency')
-xticklabels(diff_labels)
-ylabel('\Delta(latency) (ms)')
-title('difference in latency across reliable electrodes')
 
 %% Helpers
 
