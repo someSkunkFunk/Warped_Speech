@@ -6,7 +6,7 @@
 % need this to avoid conflicts when looping over subjects
 disp('setting trf_analysis_params...')
 clear trf_config preprocess_config 
-overwrite=true;
+overwrite=false;
 % when config fields are structured, run with option below as true - will
 % ignore overwrite (assumes saved file exists)
 update_configs=false;

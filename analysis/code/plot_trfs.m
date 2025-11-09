@@ -5,7 +5,8 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 % subjs=[2:7,9:22];
-subjs=[9,12];
+% subjs=[9,12];
+subjs=[96,98]
 plot_chns='all';
 n_subjs=numel(subjs);
 plot_config.show_individual_weights=true;

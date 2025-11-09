@@ -6,7 +6,8 @@ clc
 % for subj=[2:7,9:22]
 % for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
 % successfully for all conditions
-for subj=[9,12]
+% for subj=[9,12,96,98]
+for subj=[7,9:22]
 
 % for subj=[98]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
@@ -571,7 +572,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         % shift trial starts by 1 second (speech_delay value in expriment script)      
         n_delay_samples=preprocess_config.stim_delay_time*EEG.srate; 
         disp('**** NOTE THA THIS FUNCTION ONLY MAKES SENSE IF NOT USING CLICKS AND SPEECH DELAY TIME WAS ACTUALLY ADDED')
-        
+
         fprintf('adding %0.2fs /%d samples\n',preprocess_config.stim_delay_time,n_delay_samples)
     
         % TODO: ASK AARON HOW TO DO THIS WITHOUT LOOPS FOR THE LOVE OF

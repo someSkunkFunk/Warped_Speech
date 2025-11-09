@@ -40,8 +40,23 @@ if preprocess_config.subj<7&&strcmp(preprocess_config.use_triggers,'click')
     preprocess_config.use_triggers='psychportaudio';
     
 end
-%% stuff that might change depending on context
 
+%%%%NOTE: WHEN USING CLICK TRIGGERS, WE CAN IGNORE THE SPEECH DELAY ADDED
+%%%%BY NOISYSPEECH FUNCTION 
+% want to avoid adding stim-delay time
+% for subjects without noise- that gets fi
+switch preprocess_config.use_triggers
+    case 'click'
+        % no speech delay!
+        preprocess_config.stim_delay_time=[];
+    case 'psychportaudio'
+        % note that some subjects dont have clicks and some have both click
+        % and psychport triggers but no delay so this is actually not the
+        % most helpful
+    otherwise
+        error('what trigger did you mean by %s?',preprocess_config.use_triggers)
+
+end
 
 switch preprocess_config.ref
     case 'avg'
@@ -54,20 +69,6 @@ switch preprocess_config.ref
 end
 preprocess_config.opts = {'channels',1:(preprocess_config.nchan+2),'importannot','off','ref',preprocess_config.refI};
 
-
-%%%%NOTE: WHEN USING CLICK TRIGGERS, WE CAN IGNORE THE SPEECH DELAY ADDED
-%%%%BY NOISYSPEECH FUNCTION 
-switch preprocess_config.use_triggers
-    case 'click'
-        % no speech delay!
-        preprocess_config.stim_delay_time=[];
-    case 'psychportaudio'
-        % note even in this case we'd want to avoid adding stim-delay time
-        % for subjects without noise
-    otherwise
-        error('what trigger did you mean by %s?',preprocess_config.use_triggers)
-
-end
 
 
 %%%%%%%%%%%%%%%%%%%%%% PATHS TO IGNORE IN REGISTRY %%%%%%%%%%%%%%%%%%%%%%%%
