@@ -1,11 +1,11 @@
 clear, clc
 % use results where we automatically selected bad channels and interpolated
 % them
-force_interpBadChans=true;
+force_interpBadChans=false;
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
 % subjs=[2:7,9:22];
-subjs=3; % subj missing 1 SLOW trial
+subjs=[2:7,9:23];
 
 %TODO: put these in a config, make stuff below a function
 compute_stats_cross=true;

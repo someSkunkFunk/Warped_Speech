@@ -11,8 +11,8 @@ clc
 % for subj=[9,12,96,98]
 % for subj=[7,9:21]
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
-for subj=[2:7,9:23,96,98]
-% for subj=[23]
+% for subj=[2:7,9:23,96,98]
+for subj=[97]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
@@ -275,14 +275,24 @@ resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
 if trf_config.separate_conditions
         disp('evaluating trf models separately per condition')
+        %TODO: preallocate correct-sized model struct here
         conditions=unique(preprocessed_eeg.cond)';
-        for cc=conditions
-            cc_mask=preprocessed_eeg.cond==cc;
-            fprintf('TRF for condition %d...\n',cc)
-            model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
-                tmin_ms,tmax_ms,best_lam,'Verbose',1);
+        for cc=1:numel(trf_config.conditions)
+            % check if experiment has condition to begin with
+            if cc<=length(conditions)
+                cc_mask=preprocessed_eeg.cond==conditions(cc);
+                fprintf('TRF for condition %d...\n',trf_config.conditions{cc})
+                model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
+                    tmin_ms,tmax_ms,best_lam,'Verbose',1);
+            else
+                % assumes at least one condition exists though - fill w
+                % empty arrays
+                fprintf('Subject has no data for condition %d.\n',trf_config.conditions{cc})
+                model(1,cc)=cell2struct(cell(size(fieldnames(model(1)))), ...
+                    fieldnames(model(1)));
+            end
         end
-    else
+else
         model = mTRFtrain(stim,resp,fs,1,tmin_ms,tmax_ms,best_lam,'Verbose',1);
 end
 
@@ -455,7 +465,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
             click_latencies=[EEG.event(click_trigg_idx).latency];
             rm_click_mask=false(size(click_latencies));
             psych_latencies=[EEG.event(psych_trigg_idx).latency];
-            rm_psych_mask=false(size(psych_latencies));
+            % rm_psych_mask=false(size(psych_latencies));
         end
         switch preprocess_config.use_triggers
             case 'click'
@@ -514,20 +524,25 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                         % clean_false_starts might be able to fix the
                         % problem if it arises but if not the issue could
                         % be something else...
-                        error(['after  attempting to disentangle \n' ...
+                        warning(['after  attempting to disentangle \n' ...
                             'overlapping triggers, number of trials\n' ...
                             'is incorrect, could be due,\n' ...
                             'to restart. Since we need event index to ' ...
-                            'match trial number to correct type, this cant' ...
-                            'be fixed by clean_false_starts later... \n'])
-                    else
-                        if any(types==0)
-                            % by now remaining non-overlapping click 
-                            % triggers index should match their trial number
-                            types(types==0)=find(types==0);
-                        end
-                    
+                            'match trial number to correct type, will ' ...
+                            'assume here that las ntrials are to be kept' ...
+                            'and remove excess trials in the beginning... \n'])
+                        excess=length(EEG.event)-ntrials;
+                        EEG.event=[EEG.event(excess+1:end)];
+                        types=types(excess+1:end);
                     end
+
+                    if any(types==0)
+                        % by now remaining non-overlapping click 
+                        % triggers index should match their trial number
+                        types(types==0)=find(types==0);
+                    end
+                    
+                    
                 end
                 % replace trigger values with trial numbers (assuming no missing
                 % trials)

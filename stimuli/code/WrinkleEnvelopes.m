@@ -34,12 +34,12 @@ end
 
 pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
 stimfolder = sprintf('%s/stimuli/',boxdir_lab);
-m=[stimscale;regularity];
+stim_conditions=[stimscale;regularity];
 
 
 [env,sgram]=deal(cell(length(stimscale),ntrials));
 %%
-for cc = 3:length(m) % note: change start of loop to cc=1 after script ends
+for cc = 1:length(stim_conditions) % note: change start of loop to cc=1 after script ends
     for tt = 1:ntrials
         fprintf('**********************\n')
         fprintf('Speed = %0.2g, regularity = %0.2g, trial %d\n',stimscale(cc),regularity(cc),tt)
@@ -54,8 +54,6 @@ for cc = 3:length(m) % note: change start of loop to cc=1 after script ends
                         stimfolder,stimgroup,stimscale(cc),stimgroup,tt);
                 end
             case -1
-                % TODO: verify compressy is -1 in all other scripts so
-                % ordering is correct in output
                 audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
                     'compressy_reg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
                     pilot_stimfolder,stimgroup,tt);
@@ -70,4 +68,4 @@ for cc = 3:length(m) % note: change start of loop to cc=1 after script ends
         [env{cc,tt}, sgram{cc,tt}] = extractGCEnvelope(audiofile,fs);
     end
 end
-save(outputFile,'env','sgram','fs','stimgroup')
+save(outputFile,'env','sgram','fs','stimgroup','stim_conditions')

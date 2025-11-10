@@ -4,17 +4,22 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-% subjs=[2:7,9:22];
-% subjs=[9,12];
-subjs=[96,98]
+
+% subjs=[2:7,9:22]; % fast-slow subjs
+% subjs=[9,12]; % best subjs
+% reg-irreg subjects:
+% subjs=[23,96,98];
+subjs=[97];
 plot_chns='all';
 n_subjs=numel(subjs);
-plot_config.show_individual_weights=true;
-plot_config.show_avg_weights=true;
-plot_config.show_topos=true;
-plot_config.show_snr=false;
-plot_config.show_tuning_curves=false;
-
+script_config.show_individual_weights=true;
+script_config.show_avg_weights=true;
+script_config.show_topos=true;
+script_config.show_snr=false;
+script_config.show_tuning_curves=false;
+script_config.analyze_pk_latencies=false;
+fig_param.lw=0.25; %linewidth
+fig_param.fz=16; % fontsize
 %% Main script
 
 % preallocate
@@ -30,10 +35,14 @@ for ss=1:n_subjs
     fprintf('loading subj %d data...\n',subj)
 
     trf_analysis_params;
-    if ~plot_config.show_tuning_curves
-        close(gcf)
+    if ~script_config.show_tuning_curves
+        handles=findall(0,'type','figure');
+        if ~isempty(handles)
+            close(handles(end-1:end))
+        end
+        
     end
-    clear do_nulltest
+    clear do_nulltest handles
     % TODO: make function
     S_=load_checkpoint(trf_config);
     model_=S_.model;
@@ -55,25 +64,27 @@ for ss=1:n_subjs
     clear preprocess_config trf_config
 end
 
-if plot_config.show_topos
+if script_config.show_topos
     load(loc_file);
 end
 %% plot weights for individual subject
-if plot_config.show_individual_weights
+if script_config.show_individual_weights
     for ss=1:n_subjs
         for cc=1:numel(configs(ss).trf_config.conditions)
             title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
                     num2str(plot_chns),configs(ss).trf_config.conditions{cc});
             % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
             figure
-            mTRFplot(ind_models(ss,cc),'trf','all',plot_chns);
+            h_=mTRFplot(ind_models(ss,cc),'trf','all',plot_chns);
             title(title_str_)
-            clear title_str_
+            title(title_str_,'FontSize',fig_param.fz)
+            set(h_,'LineWidth',fig_param.lw)
+            clear title_str_ h_
         end
     end
 end
 %% Plot subj-averaged weights
-if plot_config.show_avg_weights
+if script_config.show_avg_weights
     t_lims_=[-400 600];
     ylims_=[-.5 .7];
     avg_models=construct_avg_models(ind_models);
@@ -81,16 +92,16 @@ if plot_config.show_avg_weights
          title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
                 num2str(plot_chns),configs(end).trf_config.conditions{cc});
         figure
-        h=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
-        title(title_str,'FontSize',16)
-        set(h,'LineWidth',0.25)
+        h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
+        title(title_str,'FontSize',fig_param.fz)
+        set(h_,'LineWidth',fig_param.lw)
         xlim(t_lims_)
         ylim(ylims_)
     end
-    clear t_lims_
+    clear t_lims_ h_
 end
 %% estimate snr overall
-if numel(subjs)>1&&plot_config.show_snr
+if numel(subjs)>1&&script_config.show_snr
     snr=estimate_snr(avg_models);
     for cc=1:3
         fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
@@ -117,9 +128,9 @@ end
 
 % note: we should perhaps generate a topo-movie across entire timeframe..
 
-if plot_config.show_topos
+if script_config.show_topos
     topo_latencies=[54 164]; % in ms
-    if plot_config.show_avg_weights && n_subjs>1
+    if script_config.show_avg_weights && n_subjs>1
         for tt=1:numel(topo_latencies)
             for cc_topo=1:numel(configs(end).trf_config.conditions)
                 % finding time closest to those latencies to plot
@@ -136,123 +147,126 @@ if plot_config.show_topos
 end
 %% TRF component latency analysis
 %% plot average TRF peak latencies across electrodes - use findpeaks 
-% within range of post onset latencies
-t_seek=[100 250]; %ms range within which to find peaks
-time_range_idx=find(avg_models(1).t>t_seek(1)&avg_models(1).t<t_seek(2));
-% filter peaks by prominence
-% prom_thresh=0;
-t_range=avg_models(1).t(time_range_idx);
-n_electrodes=size(avg_models(1).w,3);
-% time range considered "reliable" evoked response
-evoked_tlims=[0, 400];
-evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
-    avg_models(1).t<evoked_tlims(2));
-pk_locs=cell(numel(configs(end).trf_config.conditions),n_electrodes);
-pk_locs_config=struct('MinPeakProminence',0,'MinPeakHeight_std_thresh',2);
-disp('looking for peaky electrodes with params:')
-disp(pk_locs_config)
-for cc=1:numel(configs(end).trf_config.conditions)
-    w_=squeeze(avg_models(cc).w(1,time_range_idx,:));
-    w_=w_';
-    % filter peaks by std of weights (in 0->400 ms time range)  
-    w_std_=squeeze(std(avg_models(cc).w(1,evoked_range_idx,:),[],2));
-    
-    for ee=1:n_electrodes
-        fprintf('electrode #%d...\n',ee)
-        [~, locs_]=findpeaks(w_(ee,:), ...
-            'MinPeakProminence',pk_locs_config.MinPeakProminence, ...
-            'MinPeakHeight',pk_locs_config.MinPeakHeight_std_thresh*w_std_(ee));
-        % proms_=proms_/std(proms_);
-        % pk_locs{cc,ee}=locs_(proms_>prom_thresh);
-        if any(locs_)
-            pk_locs{cc,ee}=locs_;
-        end
-    end
-    clear w_ locs_ proms_ w_std_
-end
-% conditions={'fast','og','slow'};
-
-for cc=1:numel(configs(end).trf_config.conditions)
-    title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-            num2str(plot_chns),configs(end).trf_config.conditions{cc});
-    figure
-    mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
-    hold on
-    for ee=1:n_electrodes
-        locs_=pk_locs{cc,ee};
-        % trim pre-onset stuff first, then index peaks
-        pks_t_=avg_models(1,cc).t(time_range_idx);
-        pks_t_=pks_t_(locs_);
-        pks_w_=squeeze(avg_models(1,cc).w(1,time_range_idx,ee));
-        pks_w_=pks_w_(locs_);
-        stem(pks_t_,pks_w_);
-        clear locs_
-    end
-    xlim(evoked_tlims)
-    title(title_str)
-end
-% check that there is one peak per electrode/condition
-pk_counts=cellfun(@numel, pk_locs);
-cond_pkcounts_match=all(pk_counts==pk_counts(1,:),1);
-fprintf('all electrodes have same num of peaks? ->%d\n',all(cond_pkcounts_match))
-single_pk_electrodes=cond_pkcounts_match&pk_counts(1,:)==1;
-n_single_peak_electrodes=sum(single_pk_electrodes);
-fprintf('number of electrodes with single peak across conditions:%d\n', ...
-    n_single_peak_electrodes)
-if any(single_pk_electrodes)
-    single_pk_electrodes_idx=find(single_pk_electrodes);
-
-
-    % check that number of peaks matches across conditions for each electrode
-    max_pkcount=max(pk_counts(:));
-    fprintf('max peakcount: %d\n',max_pkcount)
-    %% topo of electrodes with distinct peak
-    
-    figure
-    topoplot([],chanlocs,'electrodes','on','style','blank', ...
-        'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
-    title('electrodes with distinct peaks')
-    %% visualize difference in latency acrossl conditions
-    pk_latencies=nan(numel(configs(end).trf_config.conditions),n_single_peak_electrodes);
+if script_config.analyze_pk_latencies
+    % within range of post onset latencies
+    t_seek=[100 250]; %ms range within which to find peaks
+    time_range_idx=find(avg_models(1).t>t_seek(1)&avg_models(1).t<t_seek(2));
+    % filter peaks by prominence
+    % prom_thresh=0;
+    t_range=avg_models(1).t(time_range_idx);
+    n_electrodes=size(avg_models(1).w,3);
+    % time range considered "reliable" evoked response
+    evoked_tlims=[0, 400];
+    evoked_range_idx=find(avg_models(1).t>evoked_tlims(1)& ...
+        avg_models(1).t<evoked_tlims(2));
+    pk_locs=cell(numel(configs(end).trf_config.conditions),n_electrodes);
+    pk_locs_config=struct('MinPeakProminence',0,'MinPeakHeight_std_thresh',2);
+    disp('looking for peaky electrodes with params:')
+    disp(pk_locs_config)
     for cc=1:numel(configs(end).trf_config.conditions)
-        pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
+        w_=squeeze(avg_models(cc).w(1,time_range_idx,:));
+        w_=w_';
+        % filter peaks by std of weights (in 0->400 ms time range)  
+        w_std_=squeeze(std(avg_models(cc).w(1,evoked_range_idx,:),[],2));
+        
+        for ee=1:n_electrodes
+            fprintf('electrode #%d...\n',ee)
+            [~, locs_]=findpeaks(w_(ee,:), ...
+                'MinPeakProminence',pk_locs_config.MinPeakProminence, ...
+                'MinPeakHeight',pk_locs_config.MinPeakHeight_std_thresh*w_std_(ee));
+            % proms_=proms_/std(proms_);
+            % pk_locs{cc,ee}=locs_(proms_>prom_thresh);
+            if any(locs_)
+                pk_locs{cc,ee}=locs_;
+            end
+        end
+        clear w_ locs_ proms_ w_std_
     end
-    % add jitter to minimize overlapping lines
-    rng(1);
-    yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(configs(end).trf_config.conditions),1);
-    % sort them for pretty colors
-    [~,sortI_]=sort(pk_latencies(1,:));
-    figure
-    plot(1:numel(configs(end).trf_config.conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
-    colormap(jet(n_single_peak_electrodes))
-    colororder(jet(n_single_peak_electrodes))
-    xticks(1:numel(configs(end).trf_config.conditions));
-    xticklabels(configs(end).trf_config.conditions);
-    xlabel('condition');
-    ylabel('latency (ms)')
-    title('TRF peak latency (+jitter) across conditions')
-    hold off
-    clear sortI_
-    % histograms of difference relative to og
-    diff_pk_latency=nan(numel(configs(end).trf_config.conditions)-1,n_single_peak_electrodes);
-    %dum counter
-    cc_=1;
-    diff_labels=cell(numel(configs(end).trf_config.conditions)-1);
-    for cc=1:2:numel(configs(end).trf_config.conditions)
-        diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
-        diff_labels{cc_}=sprintf('%s-%s',configs(end).trf_config.conditions{2},configs(end).trf_config.conditions{cc});
-        cc_=cc_+1;
+    % conditions={'fast','og','slow'};
+    
+    for cc=1:numel(configs(end).trf_config.conditions)
+        title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
+                num2str(plot_chns),configs(end).trf_config.conditions{cc});
+        figure
+        h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
+        set(h_,'LineWidth',fig_param.lw)
+        hold on
+        for ee=1:n_electrodes
+            locs_=pk_locs{cc,ee};
+            % trim pre-onset stuff first, then index peaks
+            pks_t_=avg_models(1,cc).t(time_range_idx);
+            pks_t_=pks_t_(locs_);
+            pks_w_=squeeze(avg_models(1,cc).w(1,time_range_idx,ee));
+            pks_w_=pks_w_(locs_);
+            stem(pks_t_,pks_w_);
+            clear locs_
+        end
+        xlim(evoked_tlims)
+        title(title_str,'FontSize',fig_param.fz)
+        clear h_
     end
-    clear cc_
-    figure
-    boxplot(diff_pk_latency')
-    xticklabels(diff_labels)
-    ylabel('\Delta(latency) (ms)')
-    title('difference in latency across reliable electrodes')
-else
-    disp('*****************NO PEAKS FOUND :( *****************')
+    % check that there is one peak per electrode/condition
+    pk_counts=cellfun(@numel, pk_locs);
+    cond_pkcounts_match=all(pk_counts==pk_counts(1,:),1);
+    fprintf('all electrodes have same num of peaks? ->%d\n',all(cond_pkcounts_match))
+    single_pk_electrodes=cond_pkcounts_match&pk_counts(1,:)==1;
+    n_single_peak_electrodes=sum(single_pk_electrodes);
+    fprintf('number of electrodes with single peak across conditions:%d\n', ...
+        n_single_peak_electrodes)
+    if any(single_pk_electrodes)
+        single_pk_electrodes_idx=find(single_pk_electrodes);
+    
+    
+        % check that number of peaks matches across conditions for each electrode
+        max_pkcount=max(pk_counts(:));
+        fprintf('max peakcount: %d\n',max_pkcount)
+        %% topo of electrodes with distinct peak
+        
+        figure
+        topoplot([],chanlocs,'electrodes','on','style','blank', ...
+            'plotchans',single_pk_electrodes_idx,'emarker',{'o','r',5,1});
+        title('electrodes with distinct peaks')
+        %% visualize difference in latency acrossl conditions
+        pk_latencies=nan(numel(configs(end).trf_config.conditions),n_single_peak_electrodes);
+        for cc=1:numel(configs(end).trf_config.conditions)
+            pk_latencies(cc,:)=t_range([pk_locs{cc,single_pk_electrodes_idx}]);
+        end
+        % add jitter to minimize overlapping lines
+        rng(1);
+        yjitter=(1000/avg_models(1).fs)*repmat(rand([1,n_single_peak_electrodes]),numel(configs(end).trf_config.conditions),1);
+        % sort them for pretty colors
+        [~,sortI_]=sort(pk_latencies(1,:));
+        figure
+        plot(1:numel(configs(end).trf_config.conditions),pk_latencies(:,sortI_)+yjitter(:,sortI_))
+        colormap(jet(n_single_peak_electrodes))
+        colororder(jet(n_single_peak_electrodes))
+        xticks(1:numel(configs(end).trf_config.conditions));
+        xticklabels(configs(end).trf_config.conditions);
+        xlabel('condition');
+        ylabel('latency (ms)')
+        title('TRF peak latency (+jitter) across conditions')
+        hold off
+        clear sortI_
+        % histograms of difference relative to og
+        diff_pk_latency=nan(numel(configs(end).trf_config.conditions)-1,n_single_peak_electrodes);
+        %dum counter
+        cc_=1;
+        diff_labels=cell(numel(configs(end).trf_config.conditions)-1);
+        for cc=1:2:numel(configs(end).trf_config.conditions)
+            diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
+            diff_labels{cc_}=sprintf('%s-%s',configs(end).trf_config.conditions{2},configs(end).trf_config.conditions{cc});
+            cc_=cc_+1;
+        end
+        clear cc_
+        figure
+        boxplot(diff_pk_latency')
+        xticklabels(diff_labels)
+        ylabel('\Delta(latency) (ms)')
+        title('difference in latency across reliable electrodes')
+    else
+        disp('*****************NO PEAKS FOUND :( *****************')
+    end
 end
-
 %% Helpers
 
 function snr_plot(snr_per_subj)
