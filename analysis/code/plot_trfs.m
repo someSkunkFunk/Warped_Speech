@@ -8,13 +8,13 @@ close all
 % subjs=[2:7,9:22]; % fast-slow subjs
 % subjs=[9,12]; % best subjs
 % reg-irreg subjects:
-% subjs=[23,96,98];
-subjs=[97];
+subjs=[23,96,97,98];
+% subjs=[97];
 plot_chns='all';
 n_subjs=numel(subjs);
 script_config.show_individual_weights=true;
 script_config.show_avg_weights=true;
-script_config.show_topos=true;
+script_config.show_topos=false;
 script_config.show_snr=false;
 script_config.show_tuning_curves=false;
 script_config.analyze_pk_latencies=false;
@@ -71,15 +71,20 @@ end
 if script_config.show_individual_weights
     for ss=1:n_subjs
         for cc=1:numel(configs(ss).trf_config.conditions)
-            title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
-                    num2str(plot_chns),configs(ss).trf_config.conditions{cc});
-            % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
-            figure
-            h_=mTRFplot(ind_models(ss,cc),'trf','all',plot_chns);
-            title(title_str_)
-            title(title_str_,'FontSize',fig_param.fz)
-            set(h_,'LineWidth',fig_param.lw)
-            clear title_str_ h_
+            model_=ind_models(ss,cc);
+            if ~isempty(model_.w)
+                title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
+                        num2str(plot_chns),configs(ss).trf_config.conditions{cc});
+                % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
+                figure
+                h_=mTRFplot(model_,'trf','all',plot_chns);
+                title(title_str_)
+                title(title_str_,'FontSize',fig_param.fz)
+                set(h_,'LineWidth',fig_param.lw)
+            else
+                fprintf('nothing to plot for %s\n', configs(ss).trf_config.conditions{cc})
+            end
+            clear title_str_ h_ model_
         end
     end
 end
@@ -89,14 +94,19 @@ if script_config.show_avg_weights
     ylims_=[-.5 .7];
     avg_models=construct_avg_models(ind_models);
     for cc=1:numel(configs(end).trf_config.conditions)
-         title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(plot_chns),configs(end).trf_config.conditions{cc});
-        figure
-        h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
-        title(title_str,'FontSize',fig_param.fz)
-        set(h_,'LineWidth',fig_param.lw)
-        xlim(t_lims_)
-        ylim(ylims_)
+        model_=avg_models(1,cc);
+        if ~isempty(model_.w)
+            title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
+                    num2str(plot_chns),configs(end).trf_config.conditions{cc});
+            figure
+            h_=mTRFplot(model_,'trf','all',plot_chns);
+            title(title_str,'FontSize',fig_param.fz)
+            set(h_,'LineWidth',fig_param.lw)
+            xlim(t_lims_)
+            ylim(ylims_)
+        else
+            fprintf('nothing to plot for %s\n',configs(ss).trf_config.conditions{cc})
+        end
     end
     clear t_lims_ h_
 end
@@ -298,20 +308,31 @@ end
 function avg_model=construct_avg_models(ind_models)
     [n_subjs,n_conditions]=size(ind_models);
     [~,n_weights,n_chans]=size(ind_models(1).w);
-    W_stack=nan(n_subjs,n_weights,n_chans);
+    
     avg_model=struct();
     model_fields=fieldnames(ind_models(1,1));
-    fprintf(['NOTE: avg model below will only have correct average weights',...
+    warning(['NOTE: avg model below will only have correct average weights',...
     'other fields which may vary at individual subject level could',...
     'be incorrect...\n'])
     for cc=1:n_conditions
+        W_stack=nan(n_subjs,n_weights,n_chans);
         for ss=1:n_subjs
-            W_stack(ss,:,:)=ind_models(ss,cc).w;
+            if ~isempty(ind_models(ss,cc).w)
+                W_stack(ss,:,:)=ind_models(ss,cc).w;
+            else
+                warning('no weights for ss=%d, cc=%d',ss,cc)
+            end
         end
         for ff=1:numel(model_fields)
             ff_field=model_fields{ff};
             if strcmp(ff_field,'w')
-                avg_model(1,cc).(ff_field)=mean(W_stack,1) ;
+                if all(isnan(W_stack))
+                    avg_model(1,cc).(ff_field)=[];
+                else
+                    % can still compute mean weights if not all the
+                    % subjects are missing conditioins
+                    avg_model(1,cc).(ff_field)=mean(W_stack,1,"omitnan") ;
+                end
             elseif strcmp(ff_field,'b')
                 % safe to ignore bias... I think?
                 continue
