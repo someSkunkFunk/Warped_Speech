@@ -16,7 +16,7 @@ update_configs=false;
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
@@ -84,7 +84,7 @@ if exist("trf_config_","var")
     % preprocessing params
     trf_config_=config_trf(trf_config_,preprocess_config);
     S_=load_checkpoint(trf_config_);
-    trf_config.train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
+    train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
     clear trf_config_ S_
 end
 

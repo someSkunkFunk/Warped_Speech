@@ -11,8 +11,8 @@ clc
 % for subj=[9,12,96,98]
 % for subj=[7,9:21]
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
-% for subj=[2:7,9:23,96,98]
-for subj=[23]
+for subj=[2:7,9:23,96,98]
+% for subj=[23]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
@@ -120,8 +120,6 @@ if ~trf_config.separate_conditions
     % note if we want to crossvalidate with manual lam value this will
     % cause bug
     train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
-else
-    plot_lambda_tuning_curve(stats_obs,trf_config);
 end
 if ~preload_model
     model=train_model(stim,preprocessed_eeg,trf_config,train_params);
@@ -147,11 +145,11 @@ end
 
 %%
 if do_nulltest
-    nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
+    nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
 end
 end
 %% Helpers
-function nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
+function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
 % nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
 
 fav_chn_idx=85;
@@ -174,13 +172,10 @@ disp('cc indexing below might need double checking...')
 best_lam=train_params.best_lam;
 for cc=1:length(conditions)
     if trf_config.separate_conditions
-    % for cc=conditions
-        % [best_lam,~,best_chn_idx]=get_best_lam(stats_obs(1,cc),trf_config);
     r_null=squeeze(mean([stats_null(1,cc,:).r],1));
     r_obs=squeeze(mean(stats_obs(1,cc,:).r,1));
 
     else
-    % [best_lam,best_lam_idx,best_chn_idx]=get_best_lam(stats_obs,trf_config);
         best_lam_idx=find(trf_config.lam_range==best_lam);
         r_null=squeeze(mean([stats_null.r],1));
         r_obs=squeeze(mean(stats_obs.r(:,best_lam_idx,:),1));
