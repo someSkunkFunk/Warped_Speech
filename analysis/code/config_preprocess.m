@@ -33,7 +33,8 @@ else
     error('undefined experiment?')
 end
 
-if preprocess_config.subj<7&&strcmp(preprocess_config.use_triggers,'click')
+if (preprocess_config.subj<7||preprocess_config.subj==22)&& ...
+    strcmp(preprocess_config.use_triggers,'click')
     warning(['click triggers selected for subj %d but subjs 6 and below ' ...
         'dont have click triggers, thus force-changing trigger mode to ' ...
         'psychportaudio.'],preprocess_config.subj)

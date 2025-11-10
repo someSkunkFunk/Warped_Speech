@@ -4,7 +4,7 @@ function save_checkpoint(data,config,overwrite)
         config (1,1) struct
         overwrite (1,1) logical=false;
     end
-    warning('I think overwrite param is causing repeated entries to registry being recorded... we should fix that...')
+    % warning('I think overwrite param is causing repeated entries to registry being recorded... we should fix that...')
     % record var name in outer scope so we can reference it when loading
     varname=inputname(1);
     data_.(varname)=data;
@@ -48,6 +48,9 @@ function save_checkpoint(data,config,overwrite)
         missing_var=false;
     end
     if isempty(config_match_idx)||missing_var||overwrite
+        if overwrite
+            warning('overwrite set to true... ensure code will do what is intended...')
+        end
         disp('original registry:')
         disp(registry)
         fprintf('saving %s\nto %s\nfor subj %02d\n(config hash:%s)\n', ...

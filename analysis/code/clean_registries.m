@@ -1,6 +1,7 @@
 %% clean registries
 % function clean_registries(subjs)
-
+% TODO: add a bit where it deletes registry entries/hashes without an
+% existing mat file
 for subj=[2:7,9:22]
     fprintf('cleaning registry for subj %d...\n',subj)
     trf_analysis_params

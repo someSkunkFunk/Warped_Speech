@@ -2,13 +2,16 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 %NOTES:
 % n_trials is sortof redundant now that m is a part of preprocess_config...
-% TODO 3: look at reg trf (does it exist??)
+% TODO: could benefit from dedicated function to check EEGlab structure
+% events make sense... or could make it a point to visually inspect each
+% subject
 % for subj=[2:7,9:22]
 % for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
 % successfully for all conditions
 % for subj=[9,12,96,98]
-for subj=[7,9:22]
-
+% for subj=[7,9:21]
+% for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
+for subj=[2:7,9:23,96,98]
 % for subj=[98]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
@@ -51,6 +54,7 @@ if isempty(pp_checkpoint_)
     save_checkpoint(preprocessed_eeg,preprocess_config,overwrite)
     preload_preprocessed=false;
 else
+    disp('found existing preprocessed data - loading')
     preprocessed_eeg=pp_checkpoint_.preprocessed_eeg;
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
     preload_preprocessed=true;
@@ -70,17 +74,21 @@ preload_model=false;
 %% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
 
 if ~isempty(trf_checkpoint_)
+    disp('loading trf checkpoint data...')
     if isfield(trf_checkpoint_,'stats_obs')
         stats_obs=trf_checkpoint_.stats_obs;
         preload_stats_obs=true;
-    end
-    if isfield(trf_checkpoint_,'stats_null')
-        stats_null=trf_checkpoint_.stats_null;
-        preload_stats_null=true;
+        disp('stats_obs preloaded.')
     end
     if isfield(trf_checkpoint_,'model')
         model=trf_checkpoint_.model;
         preload_model=true;
+        disp('model preloaded.')
+    end
+    if isfield(trf_checkpoint_,'stats_null')        
+        stats_null=trf_checkpoint_.stats_null;
+        preload_stats_null=true;
+        disp('stats_null preloaded.')
     end
 else
     disp('no data preloaded for trf checkpoint with trf_config:')
@@ -100,7 +108,9 @@ disp('rescaling trf vars.')
 if (~preload_stats_obs && trf_config.crossvalidate)
     stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
     % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
-    save_checkpoint(stats_obs,trf_config,overwrite);
+   %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
+   %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
+   %%%%%SAVE_CHECKPOINT
 end
 
 %%
@@ -110,7 +120,8 @@ if ~preload_model
         trf_config.train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
     end
     model=train_model(stim,preprocessed_eeg,trf_config);
-    
+    %%% NOTE: USING 
+    save_checkpoint(stats_obs,trf_config,overwrite);
     save_checkpoint(model,trf_config,overwrite);
 end
 %%
@@ -424,20 +435,46 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     % number trigger overlaps with click trigger) - should validate that
     % this is retroactively compatible with subjs 2-22
     function EEG=clean_eeg_events(EEG,ntrials)
+        fix_overlap=false;
         all_triggs=[EEG.event(:).type];
+        click_trigger=2048;
+        % keep only triggers corresponding with sound clicks that
+        % don't overlap with other triggers
+        click_trigg_idx=find(all_triggs==click_trigger);
+        overlap_trigg_idx=find((all_triggs>click_trigger)& ...
+            (all_triggs<=ntrials+click_trigger));
+        psych_trigg_idx=find(all_triggs<=ntrials);
+        if any(overlap_trigg_idx)
+            warning(['%d triggers overlap with click trigger, ' ...
+                'will attempt to disentangle them but double check ' ...
+                'result.'],numel(overlap_trigg_idx))
+            fix_overlap=true;
+            overlap_latencies=[EEG.event(overlap_trigg_idx).latency];
+            rm_overlap_mask=false(size(overlap_latencies));
+            click_latencies=[EEG.event(click_trigg_idx).latency];
+            rm_click_mask=false(size(click_latencies));
+            psych_latencies=[EEG.event(psych_trigg_idx).latency];
+            rm_psych_mask=false(size(psych_latencies));
+        end
         switch preprocess_config.use_triggers
             case 'click'
-                click_trigger=2048;
-                % keep only triggers corresponding with sound clicks that
-                % don't overlap with other triggers
-                click_trigg_idx=find(all_triggs==click_trigger);
-                overlap_trigg_idx=find(all_triggs>click_trigger);
+                disp('removing events unrelated to click triggers...')
+                if isempty(click_trigg_idx)&&isempty(overlap_trigg_idx)
+                    error('no click triggers found - check events')
+                elseif sum([numel(click_trigg_idx),numel(overlap_trigg_idx)])<ntrials
+                    
+                    error(['there are less click triggers than specified \n' ...
+                        'number of trials:\n' ...
+                        '%d clicks, vs %d trials expected'], ...
+                        sum(numel(click_trigger),numel(overlap_trigg_idx)),ntrials)
+                end
+                
                 if length(click_trigg_idx)==ntrials&&isempty(overlap_trigg_idx)        
                     % best-case, just keep those
                     EEG.event=[EEG.event(click_trigg_idx)];
                     types=1:ntrials;
                     
-                else%if length(overlap_trigg_idx)==ntrials&&length(click_trigg_idx)<ntrials
+                elseif fix_overlap
                     % note: muted case expression above because some
                     % triggers may not overlap at all in which case n
                     % overlap will be less than ntrials but we still want
@@ -445,10 +482,6 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                     % overlaps with if it occurs before the overlapped
                     % trigger or keep the overlapped trigger if click
                     % registers after it
-                    overlap_latencies=[EEG.event(overlap_trigg_idx).latency];
-                    rm_overlap_mask=false(size(overlap_latencies));
-                    click_latencies=[EEG.event(click_trigg_idx).latency];
-                    rm_click_mask=false(size(click_latencies));
                     for ii=1:length(click_latencies)
                         % get delay relative to overlap trigger
                         click_delays=click_latencies(ii)-overlap_latencies;
@@ -477,39 +510,30 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                     
                     % check we have correct number of trials now
                     if (numel(overlap_trigg_idx)+numel(click_trigg_idx))~=ntrials
-                        error(['number of trials is incorrect, could be due,' ...
-                            'to restart. Check m file and fix before trying again.\n'])
+                        % clean_false_starts might be able to fix the
+                        % problem if it arises but if not the issue could
+                        % be something else...
+                        error(['after  attempting to disentangle \n' ...
+                            'overlapping triggers, number of trials\n' ...
+                            'is incorrect, could be due,\n' ...
+                            'to restart. Since we need event index to ' ...
+                            'match trial number to correct type, this cant' ...
+                            'be fixed by clean_false_starts later... \n'])
                     else
                         if any(types==0)
-                            % by now their index should match their trial
-                            % number
+                            % by now remaining non-overlapping click 
+                            % triggers index should match their trial number
                             types(types==0)=find(types==0);
                         end
                     
                     end
-                    
-                % NOTE: should validate this works as expected when
-                % triggers dont overlap at all
                 end
-                % % note: this assumes all trials have a click
-                % EEG.event=[EEG.event(click_trigg_idx)];
-                % %sometimes click trigger precedes trial trigger - 
-                % % need to check if that is the case and handle it
-                % % differently
-                % if sum(all_trigg(click_trigg_idx)>click_trigger)==ntrials&& ...
-                %         max(all_trigg)==click_trigger+ntrials
-                %     % all clicks overlap with psychaudio triggers
-                %     % renumber their types to match trial number
-                %     types=num2cell([EEG.event(:).type]-click_trigger);            
-                % elseif numel(click_trigg_idx)==ntrials&& ...
-                %         all(all_trigg(click_trigg_idx)==click_trigger)
-                %     % all psychaudio toolbox triggers don't overlap with clicks,
-                %     % and don't need to be correted
-                %     types=num2cell(1:ntrials);
-                % else
-                %     error('trials are missing or  something')
-                % end
+                % replace trigger values with trial numbers (assuming no missing
+                % trials)
+                types=num2cell(types);
+                [EEG.event(:).type]=types{:};
             case 'psychportaudio'
+                disp('removing events unrelated to psychportaudio triggers...')
                 % assumes trial num triggers are all present and not
                 % overlapping with click triggers (or any other triggers)
                 % TODO: cover case for subj 6 where trial trigger is missing...
@@ -520,16 +544,25 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                 %1. remove triggers below ntrials and above 2048
                 % if any above 2048 and below ntrials less than ntrials,
                 % replace large one with missing trial numbers
-                error('new version of function doesnt cover this yet...')
-                warning('subj 6 has a missing trial trigger this doesnt account for')
-                ;
+
+                %also needs to handle case where experiment restarts
+                % if fix_overlap
+                %     % this just removes events with trigger value greater
+                %     % than 
+                %     rm_overlap_mask=~ismember(all_triggs(overlap_trigg_idx)-click_trigger,1:ntrials);
+                % end
+                types_renum=num2cell([EEG.event(overlap_trigg_idx).type]-click_trigger);
+                [EEG.event(overlap_trigg_idx).type]=types_renum{:};
+                keep_triggs=sort([overlap_trigg_idx,psych_trigg_idx]);
+                EEG.event=[EEG.event(keep_triggs)];
+                % seems like sometimes there's overlapping triggers that
+                % follow... need to remove them while
+                double_triggs=find(diff([EEG.event.type])==0)+1;
+                EEG.event(double_triggs)=[];
             otherwise
                 warning('invalid triggers chosen: %s',preprocess_config.use_triggers)
         end
-        % replace trigger values with trial numbers (assuming no missing
-        % trials)
-        types=num2cell(types);
-        [EEG.event(:).type]=types{:};
+
     end
     % verify number of events matches number of trials
     
