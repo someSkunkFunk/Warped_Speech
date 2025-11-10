@@ -11,8 +11,8 @@ clc
 % for subj=[9,12,96,98]
 % for subj=[7,9:21]
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
-for subj=[2:7,9:23,96,98]
-% for subj=[98]
+% for subj=[2:7,9:23,96,98]
+for subj=[23]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
@@ -106,7 +106,8 @@ disp('rescaling trf vars.')
 
 %%
 if (~preload_stats_obs && trf_config.crossvalidate)
-    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config);
+    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params);
+    save_checkpoint(stats_obs,trf_config,overwrite);
     % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
    %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
    %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
@@ -114,22 +115,24 @@ if (~preload_stats_obs && trf_config.crossvalidate)
 end
 
 %%
+if ~trf_config.separate_conditions
+    % otherwise it gets set in trf_analysis_params
+    % note if we want to crossvalidate with manual lam value this will
+    % cause bug
+    train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
+else
+    plot_lambda_tuning_curve(stats_obs,trf_config);
+end
 if ~preload_model
-    if ~trf_config.separate_conditions
-        % otherwise it gets set in trf_analysis_params
-        trf_config.train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
-    end
-    model=train_model(stim,preprocessed_eeg,trf_config);
-    %%% NOTE: USING 
-    save_checkpoint(stats_obs,trf_config,overwrite);
+    model=train_model(stim,preprocessed_eeg,trf_config,train_params);
     save_checkpoint(model,trf_config,overwrite);
 end
 %%
 if do_nulltest && ~preload_stats_null
     %note this is dumb and clunky but avoids error when model is preloaded
-    if ~trf_config.separate_conditions&&~isfield(trf_config.train_params,'best_lam')
+    if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
         % otherwise it gets set in trf_analysis_params
-        trf_config.train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
     end
     stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
     % error('stuff below should take place in save_checkpoint...')
@@ -168,7 +171,7 @@ disp('cc indexing below might need double checking...')
 %select correct sub-structures out during load_checkpoint... i think
 %cc_trials_idx below comes from first array dimension referenccing
 %individual trials, not our configs
-best_lam=trf_config.train_params.best_lam;
+best_lam=train_params.best_lam;
 for cc=1:length(conditions)
     if trf_config.separate_conditions
     % for cc=conditions
@@ -210,7 +213,7 @@ function nulltest_fig_helper(r_null,r_obs,plot_chn,tit_str)
     title(tit_str)
 end
 
-function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
+function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
 % stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
 %TODO: prettify params
     disp('running permutation test...')
@@ -220,7 +223,7 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
     tmin_ms=trf_config.tmin_ms;
     tmax_ms=trf_config.tmax_ms;
     conditions=unique(preprocessed_eeg.cond)';
-    best_lam=trf_config.train_params.best_lam;
+    best_lam=train_params.best_lam;
 
     for n_perm = 1:n_permutations
         if ~mod(n_perm,50)
@@ -265,14 +268,14 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
     end
 end
 
-function model=train_model(stim,preprocessed_eeg,trf_config)
-% model=train_model(stim,preprocessed_eeg,model_lam,trf_config)
+function model=train_model(stim,preprocessed_eeg,trf_config,train_params)
+% model=train_model(stim,preprocessed_eeg,model_lam,trf_config,train_params)
 disp('training model with params:')
-disp(trf_config.train_params)
+disp(train_params)
 
-tmin_ms=trf_config.train_params.tmin_ms;
-tmax_ms=trf_config.train_params.tmax_ms;
-best_lam=trf_config.train_params.best_lam;
+tmin_ms=train_params.tmin_ms;
+tmax_ms=train_params.tmax_ms;
+best_lam=train_params.best_lam;
 resp=preprocessed_eeg.resp;
 fs=preprocessed_eeg.fs;
 if trf_config.separate_conditions
@@ -300,14 +303,17 @@ else
 end
 end
 
-function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config)
+function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params)
 % stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config)
 
 resp=preprocessed_eeg.resp;
 if trf_config.do_lambda_optimization
     cv_lam=trf_config.lam_range;
 else
-    cv_lam=trf_config.train_params.best_lam;
+    warning('is this really what you want crossval_wrapper to do?')
+    % NOTE: feeling like lambda optimization is a pointless parametr and
+    % more cumbersome than needed
+    cv_lam=train_params.best_lam;
 end
 fs=preprocessed_eeg.fs;
 tmin_ms=trf_config.tmin_ms;

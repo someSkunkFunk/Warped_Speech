@@ -24,6 +24,7 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 % value in which case we'd set lam_range as well probably...?
 
 do_nulltest=false;
+train_params=struct('tmin_ms', -500,'tmax_ms',800);
 
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
