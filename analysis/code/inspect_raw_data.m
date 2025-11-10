@@ -3,8 +3,7 @@
 % really
 
 clear, close all
-% todo: add optional lowpass?
-subj=22;
+subj=23;
 preprocess_config.subj=subj;
 preprocess_config=config_preprocess(preprocess_config);
 
