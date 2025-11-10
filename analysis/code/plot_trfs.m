@@ -8,7 +8,7 @@ close all
 % subjs=[2:7,9:22]; % fast-slow subjs
 % subjs=[9,12]; % best subjs
 % reg-irreg subjects:
-subjs=[23,96,97,98];
+subjs=[96,97,98];
 % subjs=[97];
 plot_chns='all';
 n_subjs=numel(subjs);

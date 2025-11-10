@@ -12,7 +12,7 @@ clc
 % for subj=[7,9:21]
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
 % for subj=[2:7,9:23,96,98]
-for subj=[97]
+for subj=[23]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 %% setup analysis
@@ -281,7 +281,7 @@ if trf_config.separate_conditions
             % check if experiment has condition to begin with
             if cc<=length(conditions)
                 cc_mask=preprocessed_eeg.cond==conditions(cc);
-                fprintf('TRF for condition %d...\n',trf_config.conditions{cc})
+                fprintf('TRF for condition %s...\n',trf_config.conditions{cc})
                 model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
                     tmin_ms,tmax_ms,best_lam,'Verbose',1);
             else
