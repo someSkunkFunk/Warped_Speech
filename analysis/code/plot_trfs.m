@@ -4,11 +4,12 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-
-% subjs=[2:7,9:22]; % fast-slow subjs
-% subjs=[9,12]; % best subjs
+% fast-slow subjs:
+subjs=[2:7,9:22]; 
+% best fast-slow subjs: 
+% subjs=[9,12]; 
 % reg-irreg subjects:
-subjs=[23,96,97,98];
+% subjs=[23,96,97,98];
 % subjs=[97];
 plot_chns='all';
 n_subjs=numel(subjs);
