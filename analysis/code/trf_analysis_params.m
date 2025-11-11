@@ -85,6 +85,13 @@ if exist("trf_config_","var")
     trf_config_=config_trf(trf_config_,preprocess_config);
     S_=load_checkpoint(trf_config_);
     train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
+    if ~script_config.show_tuning_curves
+        handles_=findall(0,'type','figure');
+        if ~isempty(handles_)
+            close(handles_(end-1:end))
+        end
+        clear handles_
+    end
     clear trf_config_ S_
 end
 

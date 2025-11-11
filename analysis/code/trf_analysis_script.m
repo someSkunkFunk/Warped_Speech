@@ -15,7 +15,10 @@ clc
 for subj=[23]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
+
 %% setup analysis
+script_config=[];
+script_config.show_tuning_curves=true;
 trf_analysis_params;
 if update_configs
     disp('**********UPDATING CONFIGS - NOT RUNNING ANALYSIS SCRIPT***********')

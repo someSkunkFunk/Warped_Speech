@@ -7,7 +7,7 @@ plots_config.show_ind_subj=false;
 subjs=[2:7,9:22];
 % subjs=[2]
 script_config.show_tuning_curves=false;
-script_config.compute_cross_stats=true;
+script_config.compute_cross_stats=false;
 script_config.overwrite_stats_cross=false;
 % trim end of trials for og/slow to match number of samples in fast trials
 script_config.trim_stimuli=true;
@@ -26,17 +26,8 @@ if script_config.compute_cross_stats
     for subj=subjs
         fprintf('computing stats_cross for subj %d...\n',subj)
         % load saved model
-        do_lambda_optimization=false;
         trf_analysis_params;
-        %NOTE: consider moving this to trf_analysis_params since it just
-        %hides tuning curves when we dont want to see them in any script
-        %and make script_config part of trf_analysis
-        if ~script_config.show_tuning_curves
-            handles=findall(0,'type','figure');
-            if ~isempty(handles)
-                close(handles(end-1:end))
-            end 
-        end
+        clear do_nulltest
         trf_=load_checkpoint(trf_config);
         if ~isfield(trf_,'stats_cross_cv')||script_config.overwrite_stats_cross
             % load preprocessed data/stimuli
@@ -46,7 +37,7 @@ if script_config.compute_cross_stats
             stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
             [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
                 trf_config);
-            cond=preprocessed_eeg.cond;
+            cond_labels=preprocessed_eeg.cond;
             resp=preprocessed_eeg.resp';
 
             if script_config.trim_stimuli
@@ -57,13 +48,13 @@ if script_config.compute_cross_stats
         
             if fair
                 best_lam=train_params.best_lam;
-                shuff=randperm(numel(cond));
-                cond=cond(shuff);
+                shuff=randperm(numel(cond_labels));
+                cond_labels=cond_labels(shuff);
                 resp=resp(shuff);
                 stim=stim(shuff);
                 % NOTE: can undo the shuffling at the end if trial-level information is
                 % relevant for our statistical test by doing cond(shuff)=cond;
-                n_trials=numel(cond);
+                n_trials=numel(cond_labels);
                 n_electrodes=size(resp{1},2);
                 %initialize variables
                 % each col means score from model trained on cond 1,2,3
@@ -76,9 +67,9 @@ if script_config.compute_cross_stats
                     % run LOOCV one condition at a time
                     % note: some subjects missing trials so we can't assume all
                     % conditions have equal number of folds
-                    n_folds=sum(cond==cc);
-                    cc_trials=find(cond==cc);
-                    cross_trials=find(cond~=cc);
+                    n_folds=sum(cond_labels==cc);
+                    cc_trials=find(cond_labels==cc);
+                    cross_trials=find(cond_labels~=cc);
                     for k=1:n_folds
                         % split condition-specific trials into train,test
                         fprintf('%d of %d folds...\n',k,n_folds)
@@ -132,6 +123,7 @@ if script_config.compute_cross_stats
         else
             disp('existing stats_cross found')
         end
+        clear trf_
     end
 end
 %% setup r-values for stats
@@ -141,51 +133,38 @@ if script_config.get_all_subj_Rcs
     n_cond=3;
     n_subjs=numel(subjs);
     all_subj_Rcs=nan(n_subjs,n_cond,n_cond,n_electrodes);
-    % subjs=2;
     do_lambda_optimization=false;
     for ss=1:numel(subjs)
         subj=subjs(ss);
         % load saved model
         fprintf('fetching subj %d Rcs...\n',subj);
-        if force_interpBadChans
-            preprocess_config=config_preprocess2(subj);
-            trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
-        else
-            preprocess_config=config_preprocess(subj);
-            trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
-        end
-        clear preprocess_config
-        if ~ismember('Rcs',who("-file",trf_config.model_metric_path))||script_config.overwrite_Rcs
+        % load saved model
+        trf_analysis_params;
+        clear do_nulltest
+        trf_=load_checkpoint(trf_config);
+        if ~isfield(trf_,'Rcs')||script_config.overwrite_Rcs
             fprintf('compiling subj %d Rcs...\n',subj);
             % load preprocessed data/stimuli
-            preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-            preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
-            cond=preprocessed_eeg.cond;
-            clear preprocessed_eeg
-            stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
-            stats_cross_cv=stats_cross_cv.stats_cross_cv;
-            %
+            pp_=load_checkpoint(preprocess_config);
+            exp_cond_=pp_.preprocessed_eeg.cond;
+            clear preprocessed_eeg pp_
+            stats_cross_cv=trf_.stats_cross_cv;
             % [R_ff,R_fo,R_fs,...
             % R_of, R_oo, R_os,...
             % R_sf,R_so,R_ss]
-            Rcs=compile_rvals(stats_cross_cv,cond,script_config.avg_cross_trials_rcross);
+            Rcs=compile_rvals(stats_cross_cv,exp_cond_,script_config.avg_cross_trials_rcross);
             fprintf('saving Rcs for subj %d...\n',subj);
-            save(trf_config.model_metric_path,"Rcs","-append")
+            save_checkpoint(Rcs,trf_config,script_config.overwrite_Rcs)
         else
             fprintf('loading from saved file...\n')
             load(trf_config.model_metric_path,"Rcs")
         end
-        clear trf_config
+        clear trf_ exp_cond_
         all_subj_Rcs(ss,:,:,:)=Rcs; 
     end
 end
-%% debug
-cond=preprocessed_eeg.cond;
-script_config.avg_cross_trials_rcross=true;
-Rcs=compile_rvals(stats_cross_cv,cond,script_config.avg_cross_trials_rcross);
 
-%%
-cond={'fast','og','slow'};
+cond_labels=trf_config.conditions;
 % arrange r_cross/r_within - note: we can probably do this more cleanly
 % with indexing instead of this function
 [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
@@ -193,21 +172,22 @@ cond={'fast','og','slow'};
 
 %% load chanlocs
 global boxdir_mine
-loc_file=sprintf("%s/analysis/128chanlocs.mat",boxdir_mine);
+loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);
 load(loc_file);
 
 %% oostenveld permutation test of within vs cross prediction accuracies
 
-%% generate permuted distribution of contrast maps
+%% generate permuted distribution of contrast maps (preallocate mem)
 % note: some permutations are redundant with this contrast calculation so we
 % could make it more efficient by ignoring those...
 D_config=[]; % use defaults - difference is default (to compare results)
-D_config.metric='raw_diff';
+D_config.metric='percent_change'; %options are percent_change or raw_diff
+D_config.comparison='separate'; % separate or lumped
 disp(D_config)
 %TODO: check 2-way comparisons against R_cross
 [D_obs,D_config]=get_D(R_within,R_cross,D_config);
 n_comp=size(D_obs,1);
-%%
+%
 % todo: use wrapper function here? oostveld or something?
 n_perm=6000;
 % n_perm=1;
@@ -263,7 +243,7 @@ for dd=1:n_comp
         figure
         topoplot(T_obs(dd,cc,:),chanlocs);
         colorbar
-        title(sprintf('t-statistic for %s',cond{cc}))
+        title(sprintf('t-statistic for %s',cond_labels{cc}))
     end
 end
 
@@ -276,7 +256,7 @@ if plots_config.show_ind_subj
                 topoplot(D_obs(dd,ss,cc,:),chanlocs);
                 colorbar
                 title(sprintf('subj %d R_{within}-mean(R_{cross}) - %s',...
-                    subjs(ss),cond{cc}))
+                    subjs(ss),cond_labels{cc}))
             end
         end
     end
@@ -287,7 +267,7 @@ end
 
 % T_obs: across subjects
 for dd=1:n_comp
-        pretty_scat(squeeze(T_obs(dd,:,:)),1);
+    pretty_scat(squeeze(T_obs(dd,:,:)),1);
     % there must be a way to do the same plot in one line - also we want to add
     % lines i think
     % figure
@@ -301,7 +281,7 @@ for dd=1:n_comp
             ylabel('tstat(% \Delta(R_{within}, mean(R_{cross}))) ')
     end
     xticks(1:3)
-    xticklabels(cond)
+    xticklabels(cond_labels)
     hold off
 end
 % D_obs: individual subject
@@ -316,7 +296,7 @@ if plots_config.show_ind_subj
         xlabel('condition')
         ylabel('R_{within}-mean(R_{cross})')
         xticks(1:n_cond)
-        xticklabels(cond)
+        xticklabels(cond_labels)
         hold off
     end
 end
@@ -333,7 +313,7 @@ title('all subj & all electrodes')
 xlabel('condition')
 ylabel('R_{within}')
 xticks(1:n_cond)
-xticklabels(cond)
+xticklabels(cond_labels)
 hold off
 
 %rcross
@@ -351,15 +331,15 @@ cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))=cross_train_idx(off_dia
 
 cross_ids=cell(size(off_diag_pairs,1),1);
 for pp=1:n_cross
-    cross_ids{pp}=sprintf('%s,%s',cond{off_diag_pairs(pp,1)},cond{off_diag_pairs(pp,2)});
+    cross_ids{pp}=sprintf('%s,%s',cond_labels{off_diag_pairs(pp,1)},cond_labels{off_diag_pairs(pp,2)});
 end
-% figure
-% for pp=1:n_cross
-%     R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
-%     R_=R_(:);
-%     scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
-%     hold on
-% end
+figure
+for pp=1:n_cross
+    R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
+    R_=R_(:);
+    scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
+    hold on
+end
 % TODO: pretty scat does not reproduce the same result as above, which I'm
 % pretty certain is correct
 pretty_scat(reshape(R_cross,n_subjs,n_cross,n_electrodes),2)
@@ -385,14 +365,14 @@ if plots_config.show_ind_subj
         xlabel('condition')
         ylabel('R_{within}')
         xticks(1:n_cond)
-        xticklabels(cond)
+        xticklabels(cond_labels)
         hold off
     end
     
     %rcross
     for ss=1:n_subjs
         for pp=1:n_cross
-            cross_ids{pp}=sprintf('%s,%s',cond{off_diag_pairs(pp,1)},cond{off_diag_pairs(pp,2)});
+            cross_ids{pp}=sprintf('%s,%s',cond_labels{off_diag_pairs(pp,1)},cond_labels{off_diag_pairs(pp,2)});
         end
         figure
         for pp=1:n_cross
@@ -453,7 +433,7 @@ for dd=1:n_comp
         xlabel('cluster mass')
         ylabel('probability')
         legend('cdf',sprintf('crit mass: %0.1f',crit_mass(cc)))
-        title(sprintf('%s null',cond{cc}))
+        title(sprintf('%s null',cond_labels{cc}))
         hold off
         clear Fmass_null_ F_null_
     end
@@ -468,7 +448,7 @@ for cc=1:n_cond
 
     
     fprintf('for %s, any clusters observed above %0.2f threshold? %d\n', ...
-        cond{cc},crit_p,...
+        cond_labels{cc},crit_p,...
         any(sig_clusts_))
     if any(sig_clusts_)
         for sc=1:numel(sig_clusts_)
@@ -480,7 +460,7 @@ for cc=1:n_cond
             %just show locations
             topoplot([],chanlocs,'electrodes','on','style','blank', ...
                 'plotchans', clusts_{sc},'emarker',{'o','b',10,1});
-            title(sprintf('test cond:%s, cluster %d of %d',cond{cc},sc,numel(sig_clusts_)))
+            title(sprintf('test cond:%s, cluster %d of %d',cond_labels{cc},sc,numel(sig_clusts_)))
             clear clust_ts
 
         end

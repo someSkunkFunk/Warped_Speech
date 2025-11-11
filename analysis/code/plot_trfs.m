@@ -51,13 +51,7 @@ for ss=1:n_subjs
     fprintf('loading subj %d data...\n',subj)
 
     trf_analysis_params;
-    if ~script_config.show_tuning_curves
-        handles=findall(0,'type','figure');
-        if ~isempty(handles)
-            close(handles(end-1:end))
-        end 
-    end
-    clear do_nulltest handles
+    clear do_nulltest 
     % TODO: make function
     S_=load_checkpoint(trf_config);
     model_=S_.model;
