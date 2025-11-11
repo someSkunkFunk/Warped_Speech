@@ -13,14 +13,26 @@ subjs=[2:7,9:22];
 % subjs=[97];
 plot_chns='all';
 n_subjs=numel(subjs);
-script_config.show_individual_weights=true;
+script_config.show_individual_weights=false;
 script_config.show_avg_weights=true;
 script_config.show_topos=false;
 script_config.show_snr=false;
 script_config.show_tuning_curves=false;
 script_config.analyze_pk_latencies=false;
-fig_param.lw=0.25; %linewidth
-fig_param.fz=16; % fontsize
+
+%%% TODO: improve PSDs to include
+%%% TODO: add GFP plots
+
+trf_fig_param.lw=0.25; %linewidth
+trf_fig_param.fz=16; % fontsize
+% fast is red, black is slow, green is og
+trf_fig_param.condition_colors=struct('fast',[1 0 0],'original',[62 143 48]./253, ...
+    'slow',[0 0 0]);
+
+%%%%%%TODO: filter be prediction accuracy across trials... or maybe peak latency... 
+trf_fig_param.r_thresh=[]; % leave empty if all chns should be kept for sbj-averaged plot
+%%%%%%%%TODO: optionally stack the plots instead of using different figures
+
 %% Main script
 
 % preallocate
@@ -47,6 +59,9 @@ for ss=1:n_subjs
     % TODO: make function
     S_=load_checkpoint(trf_config);
     model_=S_.model;
+    if ~isempty(trf_fig_param.r_thresh)
+        rs_=S_.stats_obs.r;
+    end
     clear S_
     if ss==1
         %preallocate
@@ -54,6 +69,9 @@ for ss=1:n_subjs
         sz_=[size(model_),size(model_fields_)];
         sz_(1)=n_subjs;
         ind_models=cell2struct(cell(sz_),model_fields_,3);
+        if ~isempty(trf_fig_param.r_thresh)
+            % sz_=[size(rs_),size(rs_)]
+        end
         clear model_fields_ sz_
     end
     ind_models(ss,:)=model_;
@@ -64,7 +82,7 @@ for ss=1:n_subjs
     configs(ss).trf_config=trf_config;
     clear preprocess_config trf_config
 end
-
+experiment_conditions=configs(end).trf_config.conditions;
 if script_config.show_topos
     load(loc_file);
 end
@@ -80,8 +98,8 @@ if script_config.show_individual_weights
                 figure
                 h_=mTRFplot(model_,'trf','all',plot_chns);
                 title(title_str_)
-                title(title_str_,'FontSize',fig_param.fz)
-                set(h_,'LineWidth',fig_param.lw)
+                title(title_str_,'FontSize',trf_fig_param.fz)
+                set(h_,'LineWidth',trf_fig_param.lw)
             else
                 fprintf('nothing to plot for %s\n', configs(ss).trf_config.conditions{cc})
             end
@@ -98,11 +116,12 @@ if script_config.show_avg_weights
         model_=avg_models(1,cc);
         if ~isempty(model_.w)
             title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                    num2str(plot_chns),configs(end).trf_config.conditions{cc});
+                    num2str(plot_chns),experiment_conditions{cc});
             figure
             h_=mTRFplot(model_,'trf','all',plot_chns);
-            title(title_str,'FontSize',fig_param.fz)
-            set(h_,'LineWidth',fig_param.lw)
+            title(title_str,'FontSize',trf_fig_param.fz)
+            set(h_,'LineWidth',trf_fig_param.lw, ...
+                'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
             xlim(t_lims_)
             ylim(ylims_)
         else
@@ -111,15 +130,15 @@ if script_config.show_avg_weights
     end
     clear t_lims_ h_
 end
-%% estimate snr overall
-if numel(subjs)>1&&script_config.show_snr
-    snr=estimate_snr(avg_models);
-    for cc=1:3
-        fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
-    end
-end
+% %% estimate snr overall
+% if numel(subjs)>1&&script_config.show_snr
+%     snr=estimate_snr(avg_models);
+%     for cc=1:3
+%         fprintf('condition %d rms snr estimate: %0.3f\n',cc,snr(cc))
+%     end
+% end
 %% estimate snr per subject (simplified)
-if n_subjs>1
+if n_subjs>1&&script_config.show_snr
     snr_per_subj=nan(n_subjs,3);
     for ss=1:n_subjs
         subset_avg_model=construct_avg_models(ind_models(1:ss,:));
@@ -197,10 +216,10 @@ if script_config.analyze_pk_latencies
     
     for cc=1:numel(configs(end).trf_config.conditions)
         title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(plot_chns),configs(end).trf_config.conditions{cc});
+                num2str(plot_chns),experiment_conditions{cc});
         figure
         h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
-        set(h_,'LineWidth',fig_param.lw)
+        set(h_,'LineWidth',trf_fig_param.lw)
         hold on
         for ee=1:n_electrodes
             locs_=pk_locs{cc,ee};
@@ -213,7 +232,7 @@ if script_config.analyze_pk_latencies
             clear locs_
         end
         xlim(evoked_tlims)
-        title(title_str,'FontSize',fig_param.fz)
+        title(title_str,'FontSize',trf_fig_param.fz)
         clear h_
     end
     % check that there is one peak per electrode/condition
@@ -265,7 +284,7 @@ if script_config.analyze_pk_latencies
         diff_labels=cell(numel(configs(end).trf_config.conditions)-1);
         for cc=1:2:numel(configs(end).trf_config.conditions)
             diff_pk_latency(cc_,:)=pk_latencies(2,:)-pk_latencies(cc,:);
-            diff_labels{cc_}=sprintf('%s-%s',configs(end).trf_config.conditions{2},configs(end).trf_config.conditions{cc});
+            diff_labels{cc_}=sprintf('%s-%s',experiment_conditions{2},experiment_conditions{cc});
             cc_=cc_+1;
         end
         clear cc_
