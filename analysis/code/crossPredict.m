@@ -1,73 +1,62 @@
 clear, clc
 % use results where we automatically selected bad channels and interpolated
 % them
-force_interpBadChans=false;
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
 % subjs=[2:7,9:22];
-subjs=[2:7,9:23];
-
-%TODO: put these in a config, make stuff below a function
-compute_stats_cross=true;
-overwrite_stats_cross=false;
+subjs=[2:7,9:22];
+% subjs=[2]
+script_config.show_tuning_curves=false;
+script_config.compute_cross_stats=true;
+script_config.overwrite_stats_cross=false;
 % trim end of trials for og/slow to match number of samples in fast trials
-trim_stimuli=true; % todo: move to compute_stats_cross config
-
-% todo: move to script_config for computing Rcs ("r-values for stats")
-get_rcross=true;
-avg_cross_trials_rcross=true;
+script_config.trim_stimuli=true;
+script_config.get_all_subj_Rcs=true;
+script_config.avg_cross_trials_rcross=true;
 % note: not sure how to interpret non-averaged results so code really just
 % assumes avg_cross_trials is true
-overwrite_Rcs=false;
+script_config.overwrite_Rcs=false;
 
 %% compute stats_cross... or stats_cross_fair
-% false does the unfair comparison we originally devised which gives
-% stats_cross - true crossvalidates so that all scores are based on unseen
-% data
 
-
-
-if compute_stats_cross
+if script_config.compute_cross_stats
     fair=true;
-    %todo: include an override variable
-
     % for reproducibility
     rng(1);
     for subj=subjs
-        fprintf('starting subj %d\n',subj)
+        fprintf('computing stats_cross for subj %d...\n',subj)
         % load saved model
         do_lambda_optimization=false;
-        if force_interpBadChans
-            preprocess_config=config_preprocess2(subj);
-            trf_config=config_trf2(subj,do_lambda_optimization,preprocess_config);
-        else
-            preprocess_config=config_preprocess(subj);
-            trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
+        trf_analysis_params;
+        %NOTE: consider moving this to trf_analysis_params since it just
+        %hides tuning curves when we dont want to see them in any script
+        %and make script_config part of trf_analysis
+        if ~script_config.show_tuning_curves
+            handles=findall(0,'type','figure');
+            if ~isempty(handles)
+                close(handles(end-1:end))
+            end 
         end
-        if ~any(ismember({'stats_cross','stats_cross_cv'}, ...
-                who("-file",trf_config.model_metric_path)))||overwrite_stats_cross
+        trf_=load_checkpoint(trf_config);
+        if ~isfield(trf_,'stats_cross_cv')||script_config.overwrite_stats_cross
             % load preprocessed data/stimuli
-            preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-            preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
-            stim=load_stim_cell(trf_config.preprocess_config,preprocessed_eeg);
+            % preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
+            pp_=load_checkpoint(preprocess_config);
+            preprocessed_eeg=pp_.preprocessed_eeg;
+            stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
             [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-                trf_config,preprocess_config);
+                trf_config);
             cond=preprocessed_eeg.cond;
-            % note: idk why we didn't just save both resp and sim as col vectors to
-            % begin with..
             resp=preprocessed_eeg.resp';
-            if trim_stimuli
+
+            if script_config.trim_stimuli
                 min_ns=min(cellfun('size',stim,1));
                 stim=cellfun(@(x) x(1:min_ns),stim,'UniformOutput',false);
                 resp=cellfun(@(x) x(1:min_ns,:),resp,'UniformOutput',false);
             end
         
             if fair
-                % do this janky load procedure just to get best lambda
-                saved_trf_config=load(trf_config.trf_model_path,"trf_config");
-                saved_trf_config=saved_trf_config.trf_config(1,1);
-                best_lam=saved_trf_config.best_lam;
-        
+                best_lam=train_params.best_lam;
                 shuff=randperm(numel(cond));
                 cond=cond(shuff);
                 resp=resp(shuff);
@@ -96,8 +85,8 @@ if compute_stats_cross
                         test_trial=cc_trials(k);
                         train_trials=cc_trials(cc_trials~=test_trial);
                         temp_model=mTRFtrain(stim(train_trials),resp(train_trials), ...
-                            preprocess_config.fs,1,trf_config.cv_tmin_ms, ...
-                            trf_config.cv_tmax_ms,best_lam);
+                            preprocess_config.fs,1,trf_config.tmin_ms, ...
+                            trf_config.tmax_ms,best_lam);
         
                         [~,temp_stats]=mTRFpredict([stim(test_trial);stim(cross_trials)] ...
                             ,[resp(test_trial);resp(cross_trials)],temp_model);
@@ -115,49 +104,38 @@ if compute_stats_cross
                 stats_cross_cv.r(shuff,shuff,:)=stats_cross_cv.r;
                 stats_cross_cv.err(shuff,shuff,:)=stats_cross_cv.err;
                 %save to file
-                fprintf('saving result to %s\n',trf_config.model_metric_path)
-                save(trf_config.model_metric_path,'stats_cross_cv','-append')
-        
+                save_checkpoint(stats_cross_cv,trf_config,script_config.overwrite_stats_cross)
             else
-                disp('DONT DO THIS')
-                % this comparison didn't hold out data so is unfair
-                model_data=load(trf_config.trf_model_path,"model");
-                stats_data=load(trf_config.model_metric_path,"stats_obs");
-            
-                stats_obs=stats_data.stats_obs(2,:); clear stats_data
-                model=model_data.model(2,:); clear model_data
-                
-                
-                %
-                conditions_=1:3;
-                % r_cross=zeros(3,3,size(r_obs,2));
-                stats_cross=cell2struct(cell(2,1),fieldnames(stats_obs));
-                
-                % train_condition, predict_condition, electrodes
-                for cc=conditions_
-                    % copy paste same-condition r values from nulldistribution file
-                    % r_cross(cc,cc,:)=stats_obs.r(cc,:);
-                    stats_cross(cc,cc)=stats_obs(cc); % assumes 1D struct array...
-                    for icc=conditions_(conditions_~=cc)
-                
-                        [~,stats_cross(cc,icc)]=mTRFpredict(stim(cond==cc),resp(cond==cc),model(icc));
-                        % r_cross(cc,icc,:)=STATS.r;
-                        % clear STATS
-                    end
-                end
-                clear cc 
-                fprintf('saving cross-prediction results for subj %d\n',subj)
-                save(trf_config.model_metric_path,"stats_cross","-append")
-                fprintf('result saved.\n')
+                error('DONT DO THIS')
+                % % this comparison didn't hold out data so is unfair
+                % model_data=load(trf_config.trf_model_path,"model");
+                % stats_data=load(trf_config.model_metric_path,"stats_obs");
+                % stats_obs=stats_data.stats_obs(2,:); clear stats_data
+                % model=model_data.model(2,:); clear model_data
+                % conditions_=1:3;
+                % stats_cross=cell2struct(cell(2,1),fieldnames(stats_obs));
+                % 
+                % % train_condition, predict_condition, electrodes
+                % for cc=conditions_
+                %     % copy paste same-condition r values from nulldistribution file
+                %     % r_cross(cc,cc,:)=stats_obs.r(cc,:);
+                %     stats_cross(cc,cc)=stats_obs(cc); % assumes 1D struct array...
+                %     for icc=conditions_(conditions_~=cc)
+                %         [~,stats_cross(cc,icc)]=mTRFpredict(stim(cond==cc),resp(cond==cc),model(icc));
+                %     end
+                % end
+                % clear cc 
+                % fprintf('saving cross-prediction results for subj %d\n',subj)
+                % save(trf_config.model_metric_path,"stats_cross","-append")
+                % fprintf('result saved.\n')
             end
+        else
+            disp('existing stats_cross found')
         end
-        % clear
     end
 end
 %% setup r-values for stats
-
-
-if get_rcross 
+if script_config.get_all_subj_Rcs 
     % note: can't figure out how to pre-a
     n_electrodes=128; % how to avoid hardcoding? does it even matter?
     n_cond=3;
@@ -177,7 +155,7 @@ if get_rcross
             trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
         end
         clear preprocess_config
-        if ~ismember('Rcs',who("-file",trf_config.model_metric_path))||overwrite_Rcs
+        if ~ismember('Rcs',who("-file",trf_config.model_metric_path))||script_config.overwrite_Rcs
             fprintf('compiling subj %d Rcs...\n',subj);
             % load preprocessed data/stimuli
             preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
@@ -190,7 +168,7 @@ if get_rcross
             % [R_ff,R_fo,R_fs,...
             % R_of, R_oo, R_os,...
             % R_sf,R_so,R_ss]
-            Rcs=compile_rvals(stats_cross_cv,cond,avg_cross_trials_rcross);
+            Rcs=compile_rvals(stats_cross_cv,cond,script_config.avg_cross_trials_rcross);
             fprintf('saving Rcs for subj %d...\n',subj);
             save(trf_config.model_metric_path,"Rcs","-append")
         else
@@ -203,8 +181,8 @@ if get_rcross
 end
 %% debug
 cond=preprocessed_eeg.cond;
-avg_cross_trials_rcross=true;
-Rcs=compile_rvals(stats_cross_cv,cond,avg_cross_trials_rcross);
+script_config.avg_cross_trials_rcross=true;
+Rcs=compile_rvals(stats_cross_cv,cond,script_config.avg_cross_trials_rcross);
 
 %%
 cond={'fast','og','slow'};
@@ -696,7 +674,7 @@ end
 % % are tested 25 times on the same trial for each train condition, so aren't
 % % really independent... averaging out might be the best way to deal with
 % % that
-% avg_cross_trials_rcross=true;
+% script_config.avg_cross_trials_rcross=true;
 % if run_welchtest 
 %     subjs=[2:7,9:22];
 %     for subj=subjs
@@ -714,7 +692,7 @@ end
 %             stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
 %             stats_cross_cv=stats_cross_cv.stats_cross_cv;
 %             fprintf('running Welch ttest...\n');
-%             [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials_rcross);
+%             [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,script_config.avg_cross_trials_rcross);
 %             fprintf('saving Welch ttest result...\n')
 %             save(trf_config.model_metric_path,"wttf","wtts","-append")
 %         end

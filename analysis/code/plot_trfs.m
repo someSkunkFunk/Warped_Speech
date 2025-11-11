@@ -6,7 +6,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 close all
 % fast-slow subjs:
 subjs=[2:7,9:22];
-subjs=[2:3]
+% subjs=[2:3]
 % best fast-slow subjs: 
 % subjs=[9,12]; 
 % reg-irreg subjects:
@@ -23,17 +23,19 @@ script_config.analyze_pk_latencies=false;
 
 %%% TODO: improve PSDs to include
 %%% TODO: add GFP plots
-
+trf_fig_param.t_lims=[-100 500];
+trf_fig_param.ylims=[-.5 .6];
 trf_fig_param.lw=0.25; %linewidth
-trf_fig_param.fz=16; % fontsize
+trf_fig_param.fz=20; % fontsize
+trf_fig_param.title_fz=28;
 % fast is red, black is slow, green is og
-trf_fig_param.condition_colors=struct('fast',[1 0 0],'original',[62 143 48]./253, ...
-    'slow',[0 0 0]);
-
-%%%%%%TODO: filter be prediction accuracy across trials... or maybe peak latency... 
-trf_fig_param.r_thresh=[0.01]; % leave empty if all chns should be kept for sbj-averaged plot
+trf_fig_param.condition_colors=struct('slow',[255 33 33]./321,'original',[62 143 48]./253, ...
+    'fast',[0 0 0]);
+trf_fig_param.r_thresh=[0.025]; % leave empty if all chns should be kept for sbj-averaged plot
 %%%%%%%%TODO: optionally stack the plots instead of using different figures
-
+trf_fig_param.stack=true;
+% x y width height - set to inches in figure
+trf_fig_param.pos=[0 0 8 8];
 %% Main script
 
 % preallocate
@@ -53,8 +55,7 @@ for ss=1:n_subjs
         handles=findall(0,'type','figure');
         if ~isempty(handles)
             close(handles(end-1:end))
-        end
-        
+        end 
     end
     clear do_nulltest handles
     % TODO: make function
@@ -96,6 +97,11 @@ if ~isempty(trf_fig_param.r_thresh)
     fprintf('filtering chns based on r_thresh=%0.3f...\n',trf_fig_param.r_thresh)   
     % average out subjects
     chns_m=squeeze(mean(rs,1))>trf_fig_param.r_thresh;
+    disp('chns remaining:')
+    disp(sum(chns_m,2));
+    if any(sum(chns_m,2)==0)
+        warning('empty chns array will cause mtrfplot to show all the channels')
+    end
 end
 %% plot weights for individual subject
 if script_config.show_individual_weights
@@ -127,32 +133,52 @@ if script_config.show_individual_weights
 end
 %% Plot subj-averaged weights
 if script_config.show_avg_weights
-    t_lims_=[-400 600];
-    ylims_=[-.5 .7];
     avg_models=construct_avg_models(ind_models);
     for cc=1:numel(configs(end).trf_config.conditions)
         model_=avg_models(1,cc);
         if ~isempty(model_.w)
-            title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                    num2str(plot_chns_str),experiment_conditions{cc});
-            figure
+
+            if cc>1&&trf_fig_param.stack
+                % skip adding fig
+            else
+                figure('Units','inches','Position',trf_fig_param.pos)
+            end
+
             if isempty(trf_fig_param.r_thresh)
                 h_=mTRFplot(model_,'trf','all',plot_chns_str);
             else
                 h_=mTRFplot(model_,'trf','all',find(chns_m(cc,:)));
             end
-            title(title_str,'FontSize',trf_fig_param.fz)
             set(h_,'LineWidth',trf_fig_param.lw, ...
                 'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
-            xlim(t_lims_)
-            ylim(ylims_)
+            if cc>1&&trf_fig_param.stack
+                % skip adding title
+            elseif trf_fig_param.stack
+                % add title once
+                title_str=sprintf('subj-avg TRF - chns: %s ',num2str(plot_chns_str));
+                title(title_str,'FontSize',trf_fig_param.title_fz)
+            else
+                title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
+                    num2str(plot_chns_str),experiment_conditions{cc});
+                title(title_str,'FontSize',trf_fig_param.fz)
+            end
+            xlim(trf_fig_param.t_lims)
+            ylim(trf_fig_param.ylims)
+            ylabel('Amplitude (a.u.)')
+            grid off
+            set(gca,'FontSize',trf_fig_param.fz)
+            if trf_fig_param.stack,hold on,end
         else
             % useful for pilot subjects that only listen to a single
             % condition...
             fprintf('nothing to plot for %s\n',configs(ss).trf_config.conditions{cc})
         end
     end
-    clear t_lims_ h_
+    if trf_fig_param.stack
+        hold off
+        legend_helper(gca,experiment_conditions,trf_fig_param.condition_colors)
+    end
+    clear  h_
 end
 % %% estimate snr overall
 % if numel(subjs)>1&&script_config.show_snr
@@ -322,6 +348,16 @@ if script_config.analyze_pk_latencies
     end
 end
 %% Helpers
+function legend_helper(ax,color_labels,color_rgbs)
+    % condition_colors is struct with condition names 
+    line_objs=cell2struct(cell(size(color_labels))',color_labels);
+    legend_lines=[];
+    for ff=1:numel(color_labels)
+        line_objs.(color_labels{ff})=findobj(ax,'Type','Line','Color',color_rgbs.(color_labels{ff}));
+        legend_lines(ff)=line_objs.(color_labels{ff})(1);
+    end
+    legend(legend_lines,color_labels);
+end
 
 function snr_plot(snr_per_subj)
     [n_subjs,n_cond]=size(snr_per_subj);
