@@ -5,13 +5,14 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 % fast-slow subjs:
-subjs=[2:7,9:22]; 
+subjs=[2:7,9:22];
+subjs=[2:3]
 % best fast-slow subjs: 
 % subjs=[9,12]; 
 % reg-irreg subjects:
 % subjs=[23,96,97,98];
 % subjs=[97];
-plot_chns='all';
+plot_chns_str='all';
 n_subjs=numel(subjs);
 script_config.show_individual_weights=false;
 script_config.show_avg_weights=true;
@@ -30,7 +31,7 @@ trf_fig_param.condition_colors=struct('fast',[1 0 0],'original',[62 143 48]./253
     'slow',[0 0 0]);
 
 %%%%%%TODO: filter be prediction accuracy across trials... or maybe peak latency... 
-trf_fig_param.r_thresh=[]; % leave empty if all chns should be kept for sbj-averaged plot
+trf_fig_param.r_thresh=[0.01]; % leave empty if all chns should be kept for sbj-averaged plot
 %%%%%%%%TODO: optionally stack the plots instead of using different figures
 
 %% Main script
@@ -60,7 +61,8 @@ for ss=1:n_subjs
     S_=load_checkpoint(trf_config);
     model_=S_.model;
     if ~isempty(trf_fig_param.r_thresh)
-        rs_=S_.stats_obs.r;
+        rs_=squeeze(mean([S_.stats_obs(:).r],1));
+        % gives conditions-by-chns
     end
     clear S_
     if ss==1
@@ -70,12 +72,15 @@ for ss=1:n_subjs
         sz_(1)=n_subjs;
         ind_models=cell2struct(cell(sz_),model_fields_,3);
         if ~isempty(trf_fig_param.r_thresh)
-            % sz_=[size(rs_),size(rs_)]
+            sz_=[n_subjs, size(rs_)];
+            rs=nan(sz_);
         end
         clear model_fields_ sz_
     end
-    ind_models(ss,:)=model_;
-    clear model_
+    ind_models(ss,:)=model_; clear model_
+    if ~isempty(trf_fig_param.r_thresh)
+        rs(ss,:,:)=rs_; clear rs_
+    end
     % function ends here
     
     configs(ss).preprocess_config=preprocess_config;
@@ -86,6 +91,12 @@ experiment_conditions=configs(end).trf_config.conditions;
 if script_config.show_topos
     load(loc_file);
 end
+% determine which channels to keep based on r_thresh
+if ~isempty(trf_fig_param.r_thresh)
+    fprintf('filtering chns based on r_thresh=%0.3f...\n',trf_fig_param.r_thresh)   
+    % average out subjects
+    chns_m=squeeze(mean(rs,1))>trf_fig_param.r_thresh;
+end
 %% plot weights for individual subject
 if script_config.show_individual_weights
     for ss=1:n_subjs
@@ -93,10 +104,17 @@ if script_config.show_individual_weights
             model_=ind_models(ss,cc);
             if ~isempty(model_.w)
                 title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
-                        num2str(plot_chns),configs(ss).trf_config.conditions{cc});
+                        num2str(plot_chns_str),configs(ss).trf_config.conditions{cc});
                 % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
                 figure
-                h_=mTRFplot(model_,'trf','all',plot_chns);
+                %NOTE: could filter chns here too but not a priority atm -
+                %should do so on individual subject basis though probably?
+                % if isempty(trf_fig_param.r_thresh)
+                h_=mTRFplot(model_,'trf','all',plot_chns_str);
+                % else
+                %     fprintf(['filtering channels plotted based ' ...
+                %         'on r_thresh=%d...\n'],r_thresh)
+                % end
                 title(title_str_)
                 title(title_str_,'FontSize',trf_fig_param.fz)
                 set(h_,'LineWidth',trf_fig_param.lw)
@@ -116,15 +134,21 @@ if script_config.show_avg_weights
         model_=avg_models(1,cc);
         if ~isempty(model_.w)
             title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                    num2str(plot_chns),experiment_conditions{cc});
+                    num2str(plot_chns_str),experiment_conditions{cc});
             figure
-            h_=mTRFplot(model_,'trf','all',plot_chns);
+            if isempty(trf_fig_param.r_thresh)
+                h_=mTRFplot(model_,'trf','all',plot_chns_str);
+            else
+                h_=mTRFplot(model_,'trf','all',find(chns_m(cc,:)));
+            end
             title(title_str,'FontSize',trf_fig_param.fz)
             set(h_,'LineWidth',trf_fig_param.lw, ...
                 'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
             xlim(t_lims_)
             ylim(ylims_)
         else
+            % useful for pilot subjects that only listen to a single
+            % condition...
             fprintf('nothing to plot for %s\n',configs(ss).trf_config.conditions{cc})
         end
     end
@@ -216,9 +240,9 @@ if script_config.analyze_pk_latencies
     
     for cc=1:numel(configs(end).trf_config.conditions)
         title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(plot_chns),experiment_conditions{cc});
+                num2str(plot_chns_str),experiment_conditions{cc});
         figure
-        h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns);
+        h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns_str);
         set(h_,'LineWidth',trf_fig_param.lw)
         hold on
         for ee=1:n_electrodes
