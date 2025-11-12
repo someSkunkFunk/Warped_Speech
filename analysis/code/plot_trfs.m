@@ -24,15 +24,22 @@ script_config.analyze_pk_latencies=false;
 %%% TODO: improve PSDs to include
 %%% TODO: add GFP plots
 trf_fig_param.t_lims=[-100 500];
+%fastslow
 trf_fig_param.ylims=[-.5 .6];
+%regirreg
+trf_fig_param.ylims=[-1 1];
 trf_fig_param.lw=2; %linewidth in plot
 trf_fig_param.leg_lw=6; % linewidth in legend
 trf_fig_param.fz=28; % fontsize
 trf_fig_param.title_fz=28;
 % fast is red, black is slow, green is og
 trf_fig_param.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55]./206, ...
-    'fast',[0 0 0]);
+    'fast',[0 0 0],'reg',[255 0 0]./255, ...
+    'irreg',[0 0 0]);
+% for fast slow
 trf_fig_param.r_thresh=[0.03]; % leave empty if all chns should be kept for sbj-averaged plot
+% for reg-irreg
+trf_fig_param.r_thresh=[];
 %%%%%%%%TODO: optionally stack the plots instead of using different figures
 trf_fig_param.stack=true;
 % x y width height - set to inches in figure
@@ -59,6 +66,20 @@ for ss=1:n_subjs
     if ~isempty(trf_fig_param.r_thresh)
         rs_=squeeze(mean([S_.stats_obs(:).r],1));
         % gives conditions-by-chns, unless conditions missing
+        if size(rs_,1)~=length(trf_config.conditions)
+            % expand rs_ to proper size first... actually not sure what
+            % exactly to do here.. issue is that with only a sinngle
+            % condition rs_ becomes a col vector so conditions axis is
+            % flipped... maybe can just transpose it
+            if size(rs_,1)==length(rs_)
+                rs_=rs_';
+            end
+            rs_=repmat(rs_,[3,1]);
+            missing_cond=find(cellfun(@(x) isempty(x),{S_.stats_obs.r}));
+            for ci=missing_cond
+                rs_(ci,:)=nan;
+            end
+        end
     end
     clear S_
     if ss==1
