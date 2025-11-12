@@ -12,7 +12,7 @@ clc
 % for subj=[7,9:21]
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
 % for subj=[2:7,9:23,96,98]
-for subj=[23]
+for subj=[97]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -36,9 +36,15 @@ if update_configs
     continue
 end
 %% check if data exists already...
-if overwrite 
-    pp_checkpoint_=[];
-    trf_checkpoint_=[];
+if overwrite
+    if trf_config.separate_conditions
+        %dont need to overwrite pp
+        pp_checkpoint_=load_checkpoint(preprocess_config);
+        trf_checkpoint_=[];
+    else
+        pp_checkpoint_=[];
+        trf_checkpoint_=[];
+    end
 else
     pp_checkpoint_=load_checkpoint(preprocess_config);
     trf_checkpoint_=load_checkpoint(trf_config);
@@ -335,10 +341,21 @@ if trf_config.separate_conditions
         % 1.5,1,.67 time compress factor or smallest to largest time
         
         conditions=unique(preprocessed_eeg.cond)';
-        for cc=conditions
-            cc_mask=preprocessed_eeg.cond==cc;
-            stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
-                tmin_ms,tmax_ms,cv_lam,'Verbose',0);
+        %conditions might not all be there - check trf_config for full list
+        for cc=1:numel(trf_config.conditions)
+            % check if condition present in experiment
+            if cc<=length(conditions)
+                fprintf('getting stats_obs for %s\n',trf_config.conditions{cc})
+                cc_mask=preprocessed_eeg.cond==cc;
+                stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
+                    tmin_ms,tmax_ms,cv_lam,'Verbose',0);
+            else
+                % assumes at least one condition present (note we used same
+                % approach in filing model missing condtiiions %TODO:
+                % functionalize?
+                warning('no data for %s... filling w empties\n',trf_config.conditions{cc})
+                stats_obs(1,cc)=cell2struct(cell(size(fieldnames(stats_obs(1)))),fieldnames(stats_obs(1)));
+            end
         end
 else
     stats_obs = mTRFcrossval(stim,resp,fs,1,tmin_ms,tmax_ms,cv_lam, ...

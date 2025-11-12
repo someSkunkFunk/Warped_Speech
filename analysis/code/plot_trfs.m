@@ -5,13 +5,13 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 % fast-slow subjs:
-subjs=[2:7,9:22];
+% subjs=[2:7,9:22];
 % subjs=[2:3]
 % best fast-slow subjs: 
 % subjs=[9,12]; 
 % reg-irreg subjects:
 % subjs=[23,96,97,98];
-% subjs=[97];
+subjs=[96:98];
 plot_chns_str='all';
 n_subjs=numel(subjs);
 script_config.show_individual_weights=false;
@@ -25,13 +25,14 @@ script_config.analyze_pk_latencies=false;
 %%% TODO: add GFP plots
 trf_fig_param.t_lims=[-100 500];
 trf_fig_param.ylims=[-.5 .6];
-trf_fig_param.lw=0.25; %linewidth
-trf_fig_param.fz=20; % fontsize
+trf_fig_param.lw=2; %linewidth in plot
+trf_fig_param.leg_lw=6; % linewidth in legend
+trf_fig_param.fz=28; % fontsize
 trf_fig_param.title_fz=28;
 % fast is red, black is slow, green is og
-trf_fig_param.condition_colors=struct('slow',[255 33 33]./321,'original',[62 143 48]./253, ...
+trf_fig_param.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55]./206, ...
     'fast',[0 0 0]);
-trf_fig_param.r_thresh=[0.025]; % leave empty if all chns should be kept for sbj-averaged plot
+trf_fig_param.r_thresh=[0.03]; % leave empty if all chns should be kept for sbj-averaged plot
 %%%%%%%%TODO: optionally stack the plots instead of using different figures
 trf_fig_param.stack=true;
 % x y width height - set to inches in figure
@@ -57,7 +58,7 @@ for ss=1:n_subjs
     model_=S_.model;
     if ~isempty(trf_fig_param.r_thresh)
         rs_=squeeze(mean([S_.stats_obs(:).r],1));
-        % gives conditions-by-chns
+        % gives conditions-by-chns, unless conditions missing
     end
     clear S_
     if ss==1
@@ -169,10 +170,15 @@ if script_config.show_avg_weights
         end
     end
     if trf_fig_param.stack
+        % otherwise title has condition name
         hold off
-        legend_helper(gca,experiment_conditions,trf_fig_param.condition_colors)
+        legend_helper(gca,experiment_conditions,trf_fig_param.condition_colors);
+        % set(lh,'LineWidth',trf_fig_param.leg_lw) % ended up not being
+        % useful since it just makes box around legend thicker
+        
     end
-    clear  h_
+
+    clear  h_ lg_
 end
 % %% estimate snr overall
 % if numel(subjs)>1&&script_config.show_snr
@@ -342,7 +348,7 @@ if script_config.analyze_pk_latencies
     end
 end
 %% Helpers
-function legend_helper(ax,color_labels,color_rgbs)
+function lh=legend_helper(ax,color_labels,color_rgbs)
     % condition_colors is struct with condition names 
     line_objs=cell2struct(cell(size(color_labels))',color_labels);
     legend_lines=[];
@@ -350,7 +356,7 @@ function legend_helper(ax,color_labels,color_rgbs)
         line_objs.(color_labels{ff})=findobj(ax,'Type','Line','Color',color_rgbs.(color_labels{ff}));
         legend_lines(ff)=line_objs.(color_labels{ff})(1);
     end
-    legend(legend_lines,color_labels);
+    lh=legend(legend_lines,color_labels);
 end
 
 function snr_plot(snr_per_subj)
