@@ -5,14 +5,16 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 % fast-slow subjs:
-% subjs=[2:7,9:22];
+subjs=[2:7,9:22];
 % subjs=[2:3]
 % best fast-slow subjs: 
 % subjs=[9,12]; 
 % reg-irreg subjects:
 % subjs=[23,96,97,98];
-subjs=[96:98];
-plot_chns_str='all';
+% subjs=[96:98];
+% for reg-irreg:
+mtrf_plot_chns=[1 97 98 65 66 87 86 85 84 83 107 62];
+% mtrf_plot_chns='all';
 n_subjs=numel(subjs);
 script_config.show_individual_weights=false;
 script_config.show_avg_weights=true;
@@ -27,7 +29,7 @@ trf_fig_param.t_lims=[-100 500];
 %fastslow
 trf_fig_param.ylims=[-.5 .6];
 %regirreg
-trf_fig_param.ylims=[-1 1];
+% trf_fig_param.ylims=[-1 1];
 trf_fig_param.lw=2; %linewidth in plot
 trf_fig_param.leg_lw=6; % linewidth in legend
 trf_fig_param.fz=28; % fontsize
@@ -37,10 +39,10 @@ trf_fig_param.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55
     'fast',[0 0 0],'reg',[255 0 0]./255, ...
     'irreg',[0 0 0]);
 % for fast slow
-trf_fig_param.r_thresh=[0.03]; % leave empty if all chns should be kept for sbj-averaged plot
+% trf_fig_param.r_thresh=[0.03]; % leave empty if all chns should be kept for sbj-averaged plot
+
 % for reg-irreg
 trf_fig_param.r_thresh=[];
-%%%%%%%%TODO: optionally stack the plots instead of using different figures
 trf_fig_param.stack=true;
 % x y width height - set to inches in figure
 trf_fig_param.pos=[0 0 8 8];
@@ -126,13 +128,13 @@ if script_config.show_individual_weights
             model_=ind_models(ss,cc);
             if ~isempty(model_.w)
                 title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
-                        num2str(plot_chns_str),configs(ss).trf_config.conditions{cc});
+                        num2str(mtrf_plot_chns),configs(ss).trf_config.conditions{cc});
                 % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
                 figure
                 %NOTE: could filter chns here too but not a priority atm -
                 %should do so on individual subject basis though probably?
                 % if isempty(trf_fig_param.r_thresh)
-                h_=mTRFplot(model_,'trf','all',plot_chns_str);
+                h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
                 % else
                 %     fprintf(['filtering channels plotted based ' ...
                 %         'on r_thresh=%d...\n'],r_thresh)
@@ -161,7 +163,7 @@ if script_config.show_avg_weights
             end
 
             if isempty(trf_fig_param.r_thresh)
-                h_=mTRFplot(model_,'trf','all',plot_chns_str);
+                h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
             else
                 h_=mTRFplot(model_,'trf','all',find(chns_m(cc,:)));
             end
@@ -171,11 +173,11 @@ if script_config.show_avg_weights
                 % skip adding title
             elseif trf_fig_param.stack
                 % add title once
-                title_str=sprintf('subj-avg TRF - chns: %s ',num2str(plot_chns_str));
+                title_str=sprintf('subj-avg TRF - chns: %s ',num2str(mtrf_plot_chns));
                 title(title_str,'FontSize',trf_fig_param.title_fz)
             else
                 title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                    num2str(plot_chns_str),experiment_conditions{cc});
+                    num2str(mtrf_plot_chns),experiment_conditions{cc});
                 title(title_str,'FontSize',trf_fig_param.fz)
             end
             xlim(trf_fig_param.t_lims)
@@ -287,9 +289,9 @@ if script_config.analyze_pk_latencies
     
     for cc=1:numel(configs(end).trf_config.conditions)
         title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                num2str(plot_chns_str),experiment_conditions{cc});
+                num2str(mtrf_plot_chns),experiment_conditions{cc});
         figure
-        h_=mTRFplot(avg_models(1,cc),'trf','all',plot_chns_str);
+        h_=mTRFplot(avg_models(1,cc),'trf','all',mtrf_plot_chns);
         set(h_,'LineWidth',trf_fig_param.lw)
         hold on
         for ee=1:n_electrodes

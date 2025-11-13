@@ -6,6 +6,8 @@
 
 clear, clc
 global boxdir_mine
+%% set params
+pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
 warp_dir='rule11_seg_textgrid_4p545Hz_0_0';
 regularity=1; %1-> irreg -1-> reg
 
@@ -14,165 +16,30 @@ medians_=median(s_intervals);
 og_median=medians_(1);
 warped_median=medians_(2);
 clear medians_
-%%
+
 hist_config=[]; %use defaults
 hist_config.normalization='count';
-rates_hist_wrapper(s_intervals(:,1),hist_config)
+hist_config.domain='time';
+
+condition_colors=struct('original',[1 150 55]./206, ...
+    'Regular',[255 0 0]./255, ...
+    'Irregular',[0 0 0]);
+%% plot og
+h=rates_hist_wrapper(s_intervals(:,1),hist_config);
 title('og')
-xlabel('peakrate (hz)')
-ylabel('count')
+set(h,'FaceColor',condition_colors.original)
 legend()
-clear hist_config
-hist_config=[]; %use defaults
-hist_config.normalization='count';
-rates_hist_wrapper(s_intervals(:,2),hist_config)
-ylabel('count')
+%% plot warped condition
+if strcmp(cond_nm,'Regular')
+    hist_config.n_bins=1;
+end
+h=rates_hist_wrapper(s_intervals(:,2),hist_config);
 title(cond_nm)
-xlabel('peakrate (hz)')
 legend()
-%%
-% fs=44100;
-% max_interval=0.75; % in s
-% p_thresh=0.105;
-% w_thresh=2.026;
-
-
 % get warp rule and normalization info from fnm
 warp_info=split(warp_dir,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
-% %% load precomputed peakRate data
-% peakRate_dir=sprintf('%s/stimuli/peakRate/',boxdir_mine);
-% % peakRate_fnm_cond='rule2_seg_bark_median_segmentNormalizedDurations';
-% peakRate_pth_cnd=fullfile(peakRate_dir,warp_nm);
-% if isfile([peakRate_pth_cnd '.mat'])
-%     load(peakRate_pth_cnd);
-%     warped_peakrate_available=true;
-% else
-%     warped_peakrate_available=false;
-% end
-% 
-% peakRate_fnm_og='og';
-% peakRate_pth_og=fullfile(peakRate_dir,peakRate_fnm_og);
-% temp_pr=load(peakRate_pth_og);
-% peakRate_og=temp_pr.peakRate;
-% 
-% 
-% % apply thresholds and stack
-% alg_intervals_og=[];
-% alg_intervals_warped=[];
-% for ss=1:numel(peakRate_og)
-%     if warped_peakrate_available
-%         temp_p_mask=peakRate(ss).prominence>p_thresh;
-%         temp_w_mask=peakRate(ss).peakwidth>w_thresh;
-% 
-%         % only care about the times
-%         temp_times=peakRate(ss).times(temp_w_mask&temp_p_mask);
-%         temp_intervals=diff(temp_times);
-%         % alg_intervals_warped=cat(1,alg_intervals_warped, ...
-%         %     temp_intervals(temp_intervals<=max_interval));
-% 
-%         alg_intervals_warped=cat(1,alg_intervals_warped, ...
-%             temp_intervals);
-%     end
-% 
-%     % rinse and repeat for og - probably bad practice but note recycling temp vars
-% 
-%     temp_p_mask=peakRate_og(ss).prominence>p_thresh;
-%     temp_w_mask=peakRate_og(ss).peakwidth>w_thresh;
-% 
-%     temp_times=peakRate_og(ss).times(temp_w_mask&temp_p_mask);
-%     temp_intervals=diff(temp_times);
-%     % alg_intervals_og=cat(1,alg_intervals_og, ...
-%     %     temp_intervals(temp_intervals<=max_interval));
-% 
-%     alg_intervals_og=cat(1,alg_intervals_og, ...
-%         temp_intervals);
-% 
-% 
-%     clear temp_p_mask temp_w_mask temp_times temp_intervals
-% 
-% 
-% 
-% end
-% % save a copy including the long pauses
-% og_intervals_including_lps=alg_intervals_og;
-% alg_intervals_og(alg_intervals_og>max_interval)=[];
-% if warped_peakrate_available
-%     alg_intervals_warped(alg_intervals_warped>max_interval)=[];
-% end
-%% load s-mat intervals
-% "C:\Users\ninet\Box\my box\LALOR LAB\oscillations project\MATLAB\Warped Speech\stimuli\wrinkle\stretchy_compressy_temp\stretchy_irreg\rule2_seg_bark_median_segment_normalized_durations"
-% smats_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/%s/%s/',boxdir_mine,cond_dir,warp_nm);
-% D=dir([smats_dir '*.mat']);
-% % arrange into column vectors
-% s_intervals_og=[];
-% s_intervals_warped=[];
-% for dd=1:numel(D)
-%     load(fullfile(smats_dir,D(dd).name),'s_temp') 
-%     % remove start/end anchorpoints
-%     s_temp([1,end],:)=[];
-%     s_intervals=diff(s_temp)./fs;
-%     s_intervals_og=cat(1,s_intervals_og,s_intervals(:,1));
-%     s_intervals_warped=cat(1,s_intervals_warped,s_intervals(:,2));
-%     clear s_temp
-% end
-% % filter out long pauses
-% s_intervals_og(s_intervals_og>max_interval)=[];
-% s_intervals_warped(s_intervals_warped>max_interval)=[];
-%% plot s-mat hists
-% 
-% %TODO: fix names so normalization info can also be readily extracted this
-% %way
-% ylims=[0 .2]; % make emptyy for no fuks given
-% hist_config_sw.bin_scale='log';
-% hist_config_sw.n_bins=50;
-% hist_config_sw.xlims=[1 34];
-% hist_config_sw.logTicks=2.^(-1:16);
-% % hist_config_sw.title=sprintf('Anchorpoints - rule%d - regularity: %d',warp_rule,regularity);
-% hist_config_sw.title=sprintf('%s speech syllable rate distribution',cond_nm);
-% hist_config_sw.bin_lims=[.5, 36];
-% 
-% hist_config_sog=hist_config_sw;
-% % hist_config_sog.title=sprintf('Anchorpoints - og');
-% hist_config_sog.title='original speech syllable rate distribution';
-% 
-% figure
-% rates_hist_wrapper(s_intervals_og,hist_config_sog);
-% if ~isempty(ylims)
-%     set(gca(),"YLim",ylims)
-% end
-% ylabel('probability')
-% figure
-% rates_hist_wrapper(s_intervals_warped,hist_config_sw);
-% ylabel('probability')
-% if ~isempty(ylims)
-%     set(gca(),"YLim",ylims)
-% end
-% include_intervals=false;
-% if include_intervals
-%      % plot the actual intervals 
-%     figure
-%     histogram(s_intervals_warped,NumBins=50)
-%     xlabel('time (s)')
-%     title(sprintf('interpeak intervals for rule %d',warp_rule))
-%     xlim([0 1]);
-% 
-%     figure
-%     histogram(s_intervals_og)
-%     xlabel('time (s)')
-%     title('og intervals distribution')
-%     xlim([0 1])
-% end
-%% plot algo hists
-% %% calculate fano-factors
-% fano_og_alg=get_fano_factor(alg_intervals_og);
-% fprintf('og, acoustic algo intervals fano factor: %0.3f\n',fano_og_alg)
-% 
-% fano_warped_smat=get_fano_factor(s_intervals_warped);
-% fprintf('warped, anchorpoint intervals fano factor: %0.3f\n',fano_warped_smat)
-% 
-% fano_warped_alg=get_fano_factor(alg_intervals_warped);
-% fprintf('warped, acoustic algo intervals fano factor: %0.3f\n',fano_warped_alg)
+set(h,'FaceColor',condition_colors.(cond_nm))
 %% Plot truncated Poisson (relevant for rule 8 only)
 show_poisson=false;
 if show_poisson
@@ -295,71 +162,44 @@ s_intervals(s_intervals(:,1)>max_interval,:)=[];
 % s_intervals_warped(s_intervals_warped>max_interval)=[];
 % s_intervals=[s_intervals_og,s_intervals_warped];
 end
-%todo: take hist part out of this to run plotting outside of function
-% function sim_uniform_rates()
-% % for comparison with rule 11 output - should be identical
-%     sim_config=hist_config_sw;
-%     sim_config.bin_scale='log';
-%     %todo: check if accounting for "too fast" makes a difference?
-%     n_sim=numel(s_intervals_warped);
-%     min_sim_rate=1/.75;
-%     max_sim_rate=8;
-%     sim_intervals=1./(min_sim_rate+(max_sim_rate-min_sim_rate).*rand(n_sim,1));
-%     figure
-%     rates_hist_wrapper(sim_intervals,sim_config)
-%     title('simulated uniform rates - single sample')
-%     ylim([0 0.2])
-% 
-% 
-%     % draw repeated random samples with each having size corresponding to
-%     % distinct continuous speech segments to asses distribution distortion
-%     long_pauses=find(og_intervals_including_lps>max_interval);
-%     % pre-allocate since we know the number of intervals should ultimately
-%     % be the same 
-%     %NOTE: it's super unclear to me how to filter out the too fast
-%     %intervalswhile using the same counting method for intervals between
-%     %long pausees but that might be the reason for the distortion... just
-%     %gonna plot the resulting distribution when we don't force fast
-%     %intervals to remain unchanged, hope it looks uniform, AND that it
-%     %still sounds intelligble while the durations remain good to compare
-%     %with reg
-%     sim_intervals_lps=nan(n_sim,1);
-%     too_fast=(1./og_intervals_including_lps)>max_sim_rate;
-%     sim_intervals_lps(too_fast)=og_intervals_including_lps(too_fast);
-%     curr_seg_start=1;
-%     for ss=1:numel(long_pauses)
-%         if ss<numel(long_pauses)
-%             % get number of intervals between long pauses
-%             n_sim_seg=long_pauses(ss+1)-long_pauses(ss)-1;
-%             if ss==1 && long_pauses(ss)~=1
-%                 n_sim_seg=long_pauses(ss)-1+n_sim_seg;
-%             end
-%         else
-%             % get number of intervals between final long pause and
-%             % remaining intervals
-%             n_sim_seg=numel(og_intervals_including_lps)-long_pauses(ss);
-%         end
-%         sim_intervals_lps(curr_seg_start:n_sim_seg+curr_seg_start-1)=1./(min_sim_rate+(max_sim_rate-min_sim_rate).*rand(n_sim_seg,1));
-%         curr_seg_start=n_sim_seg+curr_seg_start;
-%     end
-%     figure
-%     rates_hist_wrapper(sim_intervals_lps,sim_config)
-%     title('simulated uniform rates - multi sample')
-%     ylim([0 0.15])
-% end
+
 function fano=get_fano_factor(dist)
     fano=var(dist)/mean(dist);
 end
-function rates_hist_wrapper(intervals,hist_config)
-%todo: normalization
-defaults=struct('bin_scale','log', ...
+function h=rates_hist_wrapper(intervals,hist_config)
+
+freq_defaults=struct('bin_scale','log', ...
     'n_bins',50, ...
-    'bin_lims',[.5, 36], ...
-    'logTicks',2.^(-1:16), ...
+    'bin_lims',[.5, 36], ... % .5-32 Hz ish
+    'xTicks',2.^(-1:16), ... %log-scale
     'xlims',[1 34],...
-    'normalization','probability' ...
+    'xScale','log',...
+    'normalization','probability', ...
+    'domain','freq'...
+    );
+time_defaults=struct('bin_scale','lin', ...
+    'n_bins',50, ...
+    'bin_lims',[], ...
+    'xTicks',[], ...
+    'xlims',[0 1000],... % in ms
+    'xScale','lin',...
+    'normalization','probability', ...
+    'domain','time'...
     );
 % copy defaults
+if isempty(hist_config.domain)
+    error('need to choose rate or time domain for plot.')
+else
+    switch hist_config.domain
+        case 'freq'
+            defaults=freq_defaults;
+        case 'time'
+            defaults=time_defaults;
+        otherwise
+            error('hist_config.domain=%s not an option',hist_config.domain)
+    end
+
+end   
 config_fldnms=fieldnames(defaults);
 for ff=1:numel(config_fldnms)
     fld=config_fldnms{ff};
@@ -370,20 +210,66 @@ end
 bin_scale=hist_config.bin_scale;
 n_bins=hist_config.n_bins;
 bin_lims=hist_config.bin_lims;
-logTicks=hist_config.logTicks;
+xTicks=hist_config.xTicks;
 xlims=hist_config.xlims;
+xScale=hist_config.xScale;
 normalization=hist_config.normalization;
 
+
+switch hist_config.domain
+    case 'time'
+        x=intervals.*1e3;
+    case 'freq'
+        x=1./intervals;
+    otherwise
+        error('bruh.')
+end
+
+if isempty(bin_lims)
+    bin_lims=[min(x),max(x)];
+end
 switch bin_scale
     case 'log'
-        freq_bins=logspace(log10(min(bin_lims)),log10(max(bin_lims)),n_bins);% .5-32 Hz ish
+        bin_edges=logspace(log10(min(bin_lims)),log10(max(bin_lims)),n_bins);
     case 'lin'
-        freq_bins=linspace(min(bin_lims),max(bin_lims),n_bins);
+        bin_edges=linspace(min(bin_lims),max(bin_lims),n_bins);
 end
-figure
-histogram(1./intervals,freq_bins,'Normalization',normalization)
-xline(median(1./intervals),'r--','DisplayName',sprintf('median: %0.3f Hz',median(1./intervals)))
-xlabel('freq (Hz)')
-set(gca,'Xtick',logTicks,'Xscale','log','XLim',xlims)
+if numel(bin_edges)==1
+    % avoid histogram bug from ignoring ill-defined edges
+    % note the padding amount might only make sense for time
+    bin_edges=[min(x)-50 max(x)+0.50];
+end
 
+figure('Units','inches','Position',[0 0 6 6])
+if isempty(bin_edges)
+    h=histogram(x,n_bins,'Normalization',normalization);
+else
+    h=histogram(x,bin_edges,'Normalization',normalization);
+end
+
+switch hist_config.domain
+    case 'freq'
+        xline(median(x),'r--','DisplayName',sprintf('median: %0.3g ms',median(x)))
+        xlabel('freq (Hz)')
+    case 'time'
+        xline(median(x),'r--','DisplayName',sprintf('median: %0.3g ms',median(x)))
+        xlabel('time (ms)')
+    otherwise
+        error('bruh.')
+end
+switch normalization
+    case 'count'
+        ylabel('Number of syllables')
+        ylims=[0,1500];
+    otherwise
+        ylims=[0,median(x)];
+        ylabel(normalization)
+end
+fz=26;
+
+if isempty(xTicks)
+    set(gca,'Xscale',xScale,'XLim',xlims,'FontSize',fz,'YLim',ylims)
+else
+    set(gca,'Xtick',xTicks,'Xscale',xScale,'XLim',xlims,'FontSize',fz,'YLim',ylims)
+end
 end
