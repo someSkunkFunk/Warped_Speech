@@ -40,6 +40,10 @@ legend()
 warp_info=split(warp_dir,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
 set(h,'FaceColor',condition_colors.(cond_nm))
+%%
+fprintf('fano factor for %s: %0.3f\n',cond_nm,get_fano_factor(s_intervals(:,2)))
+fprintf('fano factor for og: %0.3f\n',get_fano_factor(s_intervals(:,1)))
+
 %% Plot truncated Poisson (relevant for rule 8 only)
 show_poisson=false;
 if show_poisson
@@ -164,7 +168,7 @@ s_intervals(s_intervals(:,1)>max_interval,:)=[];
 end
 
 function fano=get_fano_factor(dist)
-    fano=var(dist)/mean(dist);
+    fano=var(dist)/mean(dist)^2;
 end
 function h=rates_hist_wrapper(intervals,hist_config)
 
@@ -207,6 +211,9 @@ for ff=1:numel(config_fldnms)
         hist_config.(fld)=defaults.(fld);
     end
 end
+
+fz=26; %fontsize
+lw=4; % linewidth
 bin_scale=hist_config.bin_scale;
 n_bins=hist_config.n_bins;
 bin_lims=hist_config.bin_lims;
@@ -249,11 +256,11 @@ end
 
 switch hist_config.domain
     case 'freq'
-        xline(median(x),'r--','DisplayName',sprintf('median: %0.3g ms',median(x)))
+        xline(median(x),'r--','LineWidth',lw,'DisplayName',sprintf('median: %0.3g ms',median(x)))
         xlabel('freq (Hz)')
     case 'time'
-        xline(median(x),'r--','DisplayName',sprintf('median: %0.3g ms',median(x)))
-        xlabel('time (ms)')
+        xline(median(x),'r--','LineWidth',lw,'DisplayName',sprintf('median: %0.3g ms',median(x)))
+        xlabel('inter-syllabic interval (ms)')
     otherwise
         error('bruh.')
 end
@@ -265,7 +272,6 @@ switch normalization
         ylims=[0,median(x)];
         ylabel(normalization)
 end
-fz=26;
 
 if isempty(xTicks)
     set(gca,'Xscale',xScale,'XLim',xlims,'FontSize',fz,'YLim',ylims)

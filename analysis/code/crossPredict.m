@@ -157,7 +157,9 @@ if script_config.get_all_subj_Rcs
             save_checkpoint(Rcs,trf_config,script_config.overwrite_Rcs)
         else
             fprintf('loading from saved file...\n')
-            load(trf_config.model_metric_path,"Rcs")
+            S_=load_checkpoint(trf_config);
+            Rcs=S_.Rcs;
+            clear S_
         end
         clear trf_ exp_cond_
         all_subj_Rcs(ss,:,:,:)=Rcs; 
@@ -169,6 +171,19 @@ cond_labels=trf_config.conditions;
 % with indexing instead of this function
 [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
 % [subj X train cond X electrodes],[subj X train cond X test cond X electrodes]
+%% setup train,test pair labels
+off_diag_pairs=get_off_diag_pairs(n_cond);    
+n_cross=length(off_diag_pairs);
+ % note: off_diag_pairs refer to train condition's original index, which
+% needs to be adjusted for numerically by the fact that test condition
+% is missing... when indexing to R_cross
+cross_train_idx=off_diag_pairs(:,1);
+cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))=cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))-1;
+
+cross_ids=cell(size(off_diag_pairs,1),1);
+for pp=1:n_cross
+    cross_ids{pp}=sprintf('%s,%s',cond_labels{off_diag_pairs(pp,1)},cond_labels{off_diag_pairs(pp,2)});
+end
 
 %% load chanlocs
 global boxdir_mine
@@ -284,6 +299,16 @@ for dd=1:n_comp
     xticklabels(cond_labels)
     hold off
 end
+%% SFN PLOT HERE
+pretty_scat(reshape(T_obs,n_cross,n_electrodes),1)
+title('Scalp-EEG Crossed-Conditions Prediction Accuracy')
+xlabel('i,j (train,test)')
+ylabel('t-stat(C{i,j})')
+xticks(1:n_cross)
+xticklabels(cross_ids)
+set(gca,'FontSize',28)
+%%
+
 % D_obs: individual subject
 if plots_config.show_ind_subj
     for ss=1:n_subjs
@@ -321,27 +346,16 @@ hold off
 %% TODO: check indexing... train/test have been swapped (actually I don't think it matters here
 % also TODO: use prettier plotting code wei ching shared
 % rwithin
-off_diag_pairs=get_off_diag_pairs(n_cond);    
-n_cross=length(off_diag_pairs);
- % note: off_diag_pairs refer to train condition's original index, which
-% needs to be adjusted for numerically by the fact that test condition
-% is missing... when indexing to R_cross
-cross_train_idx=off_diag_pairs(:,1);
-cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))=cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))-1;
-
-cross_ids=cell(size(off_diag_pairs,1),1);
-for pp=1:n_cross
-    cross_ids{pp}=sprintf('%s,%s',cond_labels{off_diag_pairs(pp,1)},cond_labels{off_diag_pairs(pp,2)});
-end
 figure
 for pp=1:n_cross
     R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
     R_=R_(:);
     scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
     hold on
+    title('loop result for reference')
 end
 % TODO: pretty scat does not reproduce the same result as above, which I'm
-% pretty certain is correct
+% pretty certain is correct JK it looks fine now...??
 pretty_scat(reshape(R_cross,n_subjs,n_cross,n_electrodes),2)
 title('all subjs & all electrodes')
 xlabel('train->test')
@@ -750,37 +764,82 @@ end
 
 %% helpers
 function pretty_scat(D,cond_dim)
-% wrapper for pretty scatter plots
-% D data matrix with size sz
-% cond_dim: index of dimension corresponding to the conditions
-sz=size(D);
-n_cond=sz(cond_dim);
-if cond_dim~=numel(sz)
-    dim_ord=1:numel(sz);
-    % get permute order such that first dimension is conditions
-    % by shifting
-    % dim_ord=circshift(dim_ord,1-cond_dim);
-    dim_ord=[dim_ord(dim_ord~=cond_dim),cond_dim];
-    D=permute(D,dim_ord);
-    %update size
-    sz=size(D);
+% % wrapper for pretty scatter plots
+% % D data matrix with size sz
+% % cond_dim: index of dimension corresponding to the x-axis (train,test
+% % pairs as linear index)
+% sz=size(D);
+% n_cond=sz(cond_dim);
+% if cond_dim~=numel(sz)
+%     dim_ord=1:numel(sz);
+%     % get permute order such that first dimension is conditions
+%     % by shifting
+%     % dim_ord=circshift(dim_ord,1-cond_dim);
+%     dim_ord=[dim_ord(dim_ord~=cond_dim),cond_dim];
+%     D=permute(D,dim_ord);
+%     %update size
+%     sz=size(D);
+% end
+% 
+% % n_per_cc=prod(sz(2:end));
+% n_per_cc=prod(sz(1:end-1));
+% figure('Units','inches','Position', [0 0 8 5])
+% for cc=1:n_cond
+%     % want col vector because columns get separate color
+%     D_cc=D(1+n_per_cc*(cc-1):n_per_cc*(cc))';
+%     % D_cc=squeeze(D(cc,:));
+%     % D_cc=D_cc(:);
+%     scatter(repmat(cc,n_per_cc,1),D_cc);
+%     hold on
+%     % boxplot()
+%     % clear D_cc
+% end
+% PRETTY_SCAT  Aesthetic scatter plot with connecting lines and boxplots
+% D: data matrix (any dimension)
+% cond_dim: index of dimension corresponding to x-axis (conditions)
+
+sz = size(D);
+n_cond = sz(cond_dim);
+
+% Permute so that condition dimension is last
+if cond_dim ~= numel(sz)
+    dim_ord = 1:numel(sz);
+    dim_ord = [dim_ord(dim_ord~=cond_dim), cond_dim];
+    D = permute(D, dim_ord);
+    sz = size(D);
 end
 
-% n_per_cc=prod(sz(2:end));
-n_per_cc=prod(sz(1:end-1));
-figure
-for cc=1:n_cond
-    % want col vector because columns get separate color
-    D_cc=D(1+n_per_cc*(cc-1):n_per_cc*(cc))';
-    % D_cc=squeeze(D(cc,:));
-    % D_cc=D_cc(:);
-    scatter(repmat(cc,n_per_cc,1),D_cc);
-    hold on
-    % boxplot()
-    % clear D_cc
+n_per_cc = prod(sz(1:end-1));
+
+figure('Units','inches','Position',[0 0 8 5]); hold on
+
+% Make everything grey
+point_color = [0.5 0.5 0.5];
+line_color = [0.7 0.7 0.7];
+
+% Reshape so we can plot across conditions easily
+Dmat = reshape(D, [n_per_cc, n_cond]);
+
+% --- 1) Draw connecting lines across each row (each sample)
+for ii = 1:n_per_cc
+    plot(1:n_cond, Dmat(ii,:), '-', 'Color', line_color, 'LineWidth', 0.5);
 end
 
+% --- 2) Scatter points
+scatter(repmat(1:n_cond, n_per_cc, 1), Dmat, 15, point_color, 'filled', ...
+    'MarkerFaceAlpha', 0.6, 'MarkerEdgeColor', 'none');
+
+% --- 3) Add boxplots
+boxplot(Dmat, 'Colors', [0.2 0.2 0.2], 'Symbol', '', 'Widths', 0.4);
+
+% --- 4) Beautify axes
+set(gca, 'XTick', 1:n_cond, 'Box', 'off', 'TickDir', 'out');
+xlabel('Condition');
+ylabel('Value');
+title('Pretty scatter with lines and boxplots');
+xlim([0.5 n_cond+0.5]);
 end
+
 function [D,config]=get_D(R_within,R_cross,config)
 % R_within: subjs-by-test_conditions-by-channels
 % R_cross: subjs-by-train_conditions-by-test_conditions-by-channels

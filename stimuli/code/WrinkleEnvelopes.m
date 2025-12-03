@@ -12,17 +12,18 @@ overwrite = 0;
 %for pilot
 fs = 128; %for trfs
 % fs=441; % for coherence analysis
-stimgroup = 'wrinkle';
 
+stimgroup = 'wrinkle';
 
 if pilot
     % use for reg/irreg (pilot)
     stimscale=[1 1 1];
     regularity=[-1 0 1];
     ntrials = 75;
+    % stimgroup = 'wrinkle_wClicks'; % cant do this cuz using for file name
     outputFile=sprintf('%s/stimuli/%s/RegIrregPilotEnvelopes%dhz.mat', ...
         boxdir_mine,stimgroup,fs);
-    pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';%note: there are two folders here... but presuming we used same folder name (rule 11 with parmsm)
+    
 else
     % use for fast/slow
     stimscale = [2/3 1 3/2];
@@ -30,9 +31,11 @@ else
     ntrials = 120;
     outputFile=sprintf('%s/stimuli/%s/Envelopes%dhz.mat',boxdir_mine,stimgroup,fs);
     
+    
 end
-
-pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
+% because irreg trfs we got from folder below, we decided to re-upload
+% the exact stimuli contained in experiment computer instead    
+% pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
 stimfolder = sprintf('%s/stimuli/',boxdir_lab);
 stim_conditions=[stimscale;regularity];
 
@@ -53,19 +56,34 @@ for cc = 1:length(stim_conditions) % note: change start of loop to cc=1 after sc
                     audiofile = sprintf('%s%s/%0.2f/%s%0.3d.wav', ...
                         stimfolder,stimgroup,stimscale(cc),stimgroup,tt);
                 end
-            case -1
-                audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
-                    'compressy_reg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
-                    pilot_stimfolder,stimgroup,tt);
+            % case -1
+            %     audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
+            %         'compressy_reg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
+            %         pilot_stimfolder,stimgroup,tt);
+            % case 1
+            %     audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
+            %         'stretchy_irreg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
+            %         pilot_stimfolder,stimgroup,tt);\
             case 1
-                audiofile=sprintf(['%s/stimuli/%s/stretchy_compressy_temp/' ...
-                    'stretchy_irreg/%s/%s%0.3d.wav'],boxdir_mine,stimgroup, ...
-                    pilot_stimfolder,stimgroup,tt);
+                audiofile=sprintf('%s%s/rand/%s%0.3d.wav',stimfolder, ...
+                    stimgroup,stimgroup,tt);
+            case -1
+                audiofile=sprintf('%s%s/reg/%s%0.3d.wav',stimfolder, ...
+                    stimgroup,stimgroup,tt);
             otherwise
                 warning('invalid regularity %0.2g',regularity(cc))
         end
-        
+        %TODO: CHECK IF CLICK CHANNEL CONTAINED AND IF SO THROW OUT THE
+        %CLICK
         [env{cc,tt}, sgram{cc,tt}] = extractGCEnvelope(audiofile,fs);
     end
 end
 save(outputFile,'env','sgram','fs','stimgroup','stim_conditions')
+
+%% plot envelope from each to check result
+tt_plot=5;
+for cc=1:length(stim_conditions)
+    figure
+    plot(env{cc,tt_plot})
+    title(sprintf('trial %d, cadence %d, regularity %d',tt_plot,stim_conditions(1,cc),stim_conditions(2,cc)));
+end
