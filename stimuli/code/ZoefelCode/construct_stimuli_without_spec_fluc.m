@@ -21,7 +21,7 @@ function [speechnoise] = construct_stimuli_without_spec_fluc(wavfile, freq_down,
 
 
 %% read wav file
-[signal_orig,sr] = wavread(wavfile);
+[signal_orig,sr] = audioread(wavfile);
 signal_orig = signal_orig(:,1);
 %% normalize
 signal_orig = signal_orig./max(abs(signal_orig));

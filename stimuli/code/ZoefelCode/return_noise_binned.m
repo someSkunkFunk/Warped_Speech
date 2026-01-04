@@ -1,5 +1,3 @@
-
-
 function [fnoisen,noise] = return_noise_binned (target_spec, spec_binned, sr, datalen, numof_it, numof_bins, numof_freqs, phase_data)
 
 phases = zeros(numof_bins,1);

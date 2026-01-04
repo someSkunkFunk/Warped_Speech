@@ -1,4 +1,4 @@
-function [speech,WAVE] = return_speech_binned (data, noise, sr, numof_it, numof_freqs)
+function [speech,WAVE] = return_speech_binned(data, noise, sr, numof_it, numof_freqs)
 
 % mix in the wavelet domain
 

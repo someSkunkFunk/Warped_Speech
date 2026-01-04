@@ -1,7 +1,8 @@
 function [spl, freq] = iso226_mw(phon);
-% NOTE FROM ANDRE: this is the version downloaded from mathworks - which,
-% without careful inspection, seems generally the same as the one included
-% in Zoefel's supplementary materials
+% NOTE FROM ANDRE: this is the unadulterated original version I downloaded
+% from mathworks, which seems generally the same as what Zoefel's
+% supplementary materials contain (although I haven't taken more than a
+% brief glance at the two)
 % Generates an Equal Loudness Contour as described in ISO 226
 %
 % Usage:  [SPL FREQ] = ISO226(PHON);

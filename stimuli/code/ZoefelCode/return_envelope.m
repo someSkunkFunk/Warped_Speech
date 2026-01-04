@@ -1,4 +1,3 @@
-
 function [envelope, t, sr_env] = return_envelope (data, sr, weighted)
 % returns energy of 'data'
 % input: (1) data for which the energy should be obtained, 
