@@ -9,7 +9,10 @@ function data=load_checkpoint(config)
     registry=jsondecode(fileread(registry_file));
 
     % paths may differ by machine but doesn't matter for actual params
-    config=rmfield(config,'paths');
+    % config=rmfield(config,'paths');
+    config=remove_nested_paths_recursive(config);
+    % REMOVE NESTED PATHS 
+
     % make sure lam_range is row vector... (maybe should have a more
     % general solution to make all row vectors into column vectors for
     % consistency)
@@ -81,5 +84,41 @@ function data=load_checkpoint(config)
         fprintf(['finished loading checkpoint for ' ...
             'subj %02d (hash %s)\n'],subj,config_hash)
     end
+
+function S = remove_nested_paths_recursive(S)
+% REMOVE_NESTED_PATHS_RECURSIVE Remove all fields named 'paths' at any depth.
+%
+%   S = remove_nested_paths_recursive(S)
+%
+% Recursively traverses structs and struct arrays and removes any field
+% named 'paths', regardless of nesting depth. Non-struct fields are
+% returned unchanged.
+
+    if ~isstruct(S)
+        return
+    end
+
+    % Handle struct arrays
+    for ii = 1:numel(S)
+        fn = fieldnames(S(ii));
+        
+        % Remove 'paths' field at this level if present
+        if ismember('paths', fn)
+            S(ii) = rmfield(S(ii), 'paths');
+            fn = fieldnames(S(ii)); % refresh after removal
+        end
+
+        % Recurse into remaining fields
+        for jj = 1:numel(fn)
+            fieldname = fn{jj};
+            fieldval  = S(ii).(fieldname);
+
+            if isstruct(fieldval)
+                S(ii).(fieldname) = remove_nested_paths_recursive(fieldval);
+            end
+        end
+    end
+end
+
 end
 

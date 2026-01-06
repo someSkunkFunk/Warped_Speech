@@ -27,6 +27,9 @@ if isempty(preprocess_config)
     disp('but this is probably not what you want for analysis')
     preprocess_config=config_preprocess([]);
 end
+% remove paths from preprocess config to avoid hash errors in different
+% systems
+preprocess_config=rmfield(preprocess_config,'paths');
 trf_config.preprocess_config=preprocess_config;
 
 fields=fieldnames(defaults);

@@ -5,16 +5,16 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
 % fast-slow subjs:
-subjs=[2:7,9:22];
+% subjs=[2:7,9:22];
 % subjs=[2:3]
 % best fast-slow subjs: 
 % subjs=[9,12]; 
 % reg-irreg subjects:
-% subjs=[23,96,97,98];
+subjs=[23,96,97,98];
 % subjs=[96:98];
 % for reg-irreg:
-mtrf_plot_chns=[1 97 98 65 66 87 86 85 84 83 107 62];
-% mtrf_plot_chns='all';
+% mtrf_plot_chns=[1 97 98 65 66 87 86 85 84 83 107 62];
+mtrf_plot_chns='all';
 n_subjs=numel(subjs);
 script_config.show_individual_weights=false;
 script_config.show_avg_weights=true;
