@@ -5,9 +5,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% NOTES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % need this to avoid conflicts when looping over subjects
 disp('setting trf_analysis_params...')
-clear trf_config preprocess_config 
+clear trf_config preprocess_config trf_config_
 overwrite=true;
-
+if ~exist('script_config','var')||~isfield(script_config,'show_tuning_curves')
+    error('define a script config w show_tuning_curves at least..')
+end
 %%%%%%%%%%%%%%% params that we mostly change in fast/slow %%%%%%%%%%%%%%%%%
 
 preprocess_config.subj=subj;
@@ -67,13 +69,6 @@ end
 %%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=config_preprocess(preprocess_config);
 trf_config=config_trf(trf_config,preprocess_config);
-% if subj==98
-%     disp('overwriting subj 98 reference to single mastoid')
-%     % try referencing to a single mastoid... (since they seem inverted...)
-%     half_ref_idx_=find(strcmp(preprocess_config.opts(1:2:end),'ref'));
-%     preprocess_config.opts(half_ref_idx_*2)={[130]};
-%     clear half_ref_idx_
-% end
 
 if exist("trf_config_","var")
     % load best_lambda from condition-agnostic crossvalidation with same

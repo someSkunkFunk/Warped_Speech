@@ -112,6 +112,7 @@ preprocess_config.n_trials=length(m);
 %% put everything into a structure and disp
 % because order matters for jsonencode-based match lookup...
 preprocess_config=orderfields(preprocess_config);
+preprocess_config=columnize_row_vectors(preprocess_config);
 disp('voila preprocess_config:')
 disp(preprocess_config)
 end

@@ -13,12 +13,10 @@ function save_checkpoint(data,config,overwrite)
     if ~exist(output_dir,'dir')
         mkdir(output_dir);
     end
-    % generate unique hash for config - remove paths first to avoid extra
-    % hash ids
-    config=rmfield(config,'paths');
-    % config_str=jsonencode(config);
+    % normalize struct structure so hashes are consistent
+    config=remove_nested_paths(config);
+    config=columnize_row_vectors(config);
     % make unique hash using DataHash from fileexchange
-    % config_hash=char(upper(DataHash(config_str)));
     config_hash=char(upper(DataHash(config)));
 
     % define unique file names

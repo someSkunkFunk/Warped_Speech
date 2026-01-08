@@ -72,7 +72,10 @@ end
 
 trf_config.paths.output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,trf_config.subj);
 
+
+% column-major order for consistency
 trf_config=orderfields(trf_config);
+trf_config=columnize_row_vectors(trf_config);
 disp('voila trf_config:')
 disp(trf_config)
 % guess won't need this since function only returns trf_config
