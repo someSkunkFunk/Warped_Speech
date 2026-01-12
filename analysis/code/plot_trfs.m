@@ -99,14 +99,11 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %
 % - Refactor automatic subplot tiling out of the main weight-plotting helper
 % - Improve PSD/SNR analyses (currently simplistic RMS-based)
-% - Add global field power (GFP) plots
 % - Clean up handling of missing conditions when computing r values
 % - Make model-loading logic a standalone function
-% - Improve robustness of peak-finding (prominence, consistency checks)
 % - Consider generating TRF topo movies across time instead of fixed latencies
 % - Resolve plotting issues when conditions are plotted separately
 % - Remove assumptions that all configs except subject ID are identical
-% - Add topographical visualization of which channels are being plotted in
 % TRF plot
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
@@ -270,17 +267,18 @@ end
 
 %% Identify candidate component latencies
 % plot pre-smoothed GFP:
+gfp_plots=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
-    figure
-    plot(avg_models(cc).t,gfp(cc,:), 'Color',...
-        trf_fig_param.condition_colors.(experiment_conditions{cc}));
-    set(gca,'YLim',trf_fig_param.ylims,'XLim',trf_fig_param.t_lims)
-    title(sprintf('Pre-smoothed GFP - %s', experiment_conditions{cc}))
+    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param);
 end
 
-
 %%
+component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));
+baseline=zeros(3,1);
+% limit search range because there are edge artefacts.... but how do we
+% decide objectively what time range makes sense???? TODO!
+component_analysis_params.tbounds=[0, 500];
 for cc = 1:numel(experiment_conditions)
 
     % gfp_cc = gfp(cc,:);
@@ -291,28 +289,130 @@ for cc = 1:numel(experiment_conditions)
     % Apply light temporal smoothing
     % Decide smoothing window in ms, then convert to samples
     end
-    % ---- YOU FILL THIS IN ----
     % Define an objective threshold
     % Using same as Lalor et al. (2009) - twice the mean GFP during
     % -100ms,0ms window
     baseline_window_m=avg_models(cc).t<0 & avg_models(cc).t>-100;
-    baseline=2*mean(gfp(cc,baseline_window_m),2);
-    % ---- YOU FILL THIS IN ----
+    baseline(cc)=2*mean(gfp(cc,baseline_window_m),2);
     % Find local maxima above threshold
-    % TODO: Enforce minimum separation between peaks (did lalor et al do this?)
+    % TODO: enforce minimum separation between peaks (did lalor et al do this?)
     % also, what would be a principled way to set that minimum separation value?
-    [~,component_times{cc}]=findpeaks(gfp(cc,:),"MinPeakHeight",baseline+eps);
-    % indices
-
+    [~,component_idx{cc}]=findpeaks(gfp(cc,:), ...
+        "MinPeakHeight",baseline(cc)+eps);
+    % filter peaks so only looking in search window defined by tbounds
+    component_times{cc}=avg_models(cc).t(component_idx{cc});
+    
+    tbounds_m_=component_times{cc}<max(component_analysis_params.tbounds)&...
+        component_times{cc}>min(component_analysis_params.tbounds);
+    component_idx{cc}=component_idx{cc}(tbounds_m_);
+    component_times{cc}=component_times{cc}(tbounds_m_);
+    clear tbounds_m_
 end
 
-%% define latency windows
+%% define component latency windows
+% component start,end in ms relative to component time
+component_analysis_params.component_window_ms=[-16 16];
+% doing this somewhat arbitrarily based on the minimum size of windows
+% reported in Lalor et al. 2009 - but it would be cool to use the actual
+% microstates analysis they used to determine a better component...
+
+% apparently 10 ms window (the "minimum" size referred to above) is too 
+% small since we sampled at 128 Hz our delta is ~7.8 ms so bumping it up to
+% the average size given by window lims reported in Lalor et al 2009:
+% mean(diff([45,  61, 92, 104, 125, 170, 238])) ~32
+
+% seems the CarTool thing they used is still available, I wonder how hard
+% it is to just implement it using stuff we already have though? Does
+% mTRFToolbox not just have something we can use for this?
+
+component_windows=cell(size(experiment_conditions));
+for cc = 1:numel(experiment_conditions)
+    for kk = 1:numel(component_idx{cc})
+        t_range_ms=component_times{cc}(kk)+component_analysis_params.component_window_ms;
+        t_start_idx=find(avg_models(cc).t>min(t_range_ms),1,'first');
+        t_end_idx=find(avg_models(cc).t<max(t_range_ms),1,'last');
+        component_windows{cc}(kk,:) = [t_start_idx, t_end_idx];
+    end
+end
 
 %% extract and plot topographies
-
+component_topos=cell(size(experiment_conditions));
+for cc=1:numel(experiment_conditions)
+    for kk=1:numel(component_idx{cc})
+        win=component_windows{cc}(kk,1):component_windows{cc}(kk,2);
+        % average out the weights (TODO: do we wanna look at pre-averaged
+        % topos too?)
+        component_topos{cc}(kk,:)=squeeze(mean(avg_models(cc).w(1,win,:),2));
+    end
+end
+% plotting topos
+for cc=1:numel(experiment_conditions)
+    for kk=1:numel(component_idx{cc})
+        figure
+        topoplot(component_topos{cc}(kk,:),chanlocs)
+        title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
+    end
+end
 
 %% TODO: topographical microstate analyses
+%% stack butterly + GFP plots with component boundaries
+% as in Lalor et al 2009 Fig 4
+gfp_ylim=[0 .4];
+trf_ylim= [-.6 .6];
+baseline_color=[.85 .85 .85];
+for cc=1:numel(experiment_conditions)
+    figure('Units','inches','Position',[0 0 4.2 3])
+    
+    % Define normalized axis positions
+    ax_gfp_pos = [0.12 0.70 0.83 0.22];   
+    ax_trf_pos = [0.12 0.12 0.83 0.58];
+    
+    % --- GFP axis ---
+    ax_gfp = axes('Position', ax_gfp_pos);
+    plot(avg_models(cc).t,gfp(cc,:), ...
+        'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
+    hold(ax_gfp,"on")
+    % debug peaks
+    % findpeaks(gfp(cc,:),"MinPeakHeight",baseline(cc)+eps)
+    % add baseline indicator
+    plot(ax_gfp,trf_fig_param.t_lims,[baseline(cc), baseline(cc)],'--', ...
+        'Color',baseline_color);
+    hold(ax_gfp,"off")
+    ylabel('GFP')
+    set(ax_gfp, 'XTickLabel', [],'YLim',gfp_ylim)   % no x labels on top
+    box off
+    
+    % --- Butterfly axis ---
+    ax_trf = axes('Position', ax_trf_pos);
+    h_=plot(avg_models(cc).t, squeeze(avg_models(cc).w));   % butterfly
+    % make them all the same color within a conditon
+    set(h_,'LineWidth',trf_fig_param.lw, ...
+                'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
+    set(ax_trf, 'YLim',trf_ylim)
+    ylabel('Amplitude')
+    xlabel('Time (ms)')
+    box off
 
+    % --- Annotate Component Windows ---
+    for kk=1:size(component_windows{cc},1)
+        t1=avg_models(cc).t(min(component_windows{cc}(kk,:)));
+        t2=avg_models(cc).t(max(component_windows{cc}(kk,:)));
+        T=repmat([t1,t2],2,1);
+        % put line in gfp plot
+        hold(ax_gfp,"on");
+        plot(ax_gfp,T, gfp_ylim, '--k')
+        hold(ax_gfp,"off");
+        % put line in trf plot
+        hold(ax_trf,"on");
+        plot(ax_trf,T, trf_ylim, '--k')
+        hold(ax_trf,"off");
+    end
+    %TODO: add threshold line in GFP plots
+    % --- Synchronize ---
+    linkaxes([ax_gfp, ax_trf], 'x')
+    xlim(trf_fig_param.t_lims)
+    sgtitle(sprintf('%s Components',experiment_conditions{cc})) 
+end
 %% plot weights for individual subject
 %TODO: abstract this into a function
 if script_config.show_individual_weights
@@ -342,7 +442,7 @@ if script_config.show_individual_weights
         end
     end
 end
-%% Plot subj-averaged weights
+%% Plot Grand average butterly 
 if script_config.show_avg_weights
     for cc=1:numel(configs(end).trf_config.conditions)
         model_=avg_models(1,cc);
@@ -359,6 +459,7 @@ if script_config.show_avg_weights
             else
                 h_=mTRFplot(model_,'trf','all',find(chns_m(cc,:)));
             end
+            % make all the lines within a condition the same color
             set(h_,'LineWidth',trf_fig_param.lw, ...
                 'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
             if cc>1&&trf_fig_param.stack
@@ -567,6 +668,17 @@ end
 %     end
 % end
 %% Helpers
+function h=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
+% plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
+    h.fig=figure;
+    h.ax=axes(h.fig);
+    hold(h.ax,"on");
+    h.line=plot(avg_models(cc).t,gfp(cc,:), 'Color',...
+        trf_fig_param.condition_colors.(experiment_conditions{cc}));
+    set(h.ax,'YLim',trf_fig_param.ylims,'XLim',trf_fig_param.t_lims)
+    
+    h.title=title(h.ax,sprintf('Pre-smoothed GFP - %s', experiment_conditions{cc}));
+end
 function lh=legend_helper(ax,color_labels,color_rgbs)
     % condition_colors is struct with condition names 
     line_objs=cell2struct(cell(size(color_labels))',color_labels);
