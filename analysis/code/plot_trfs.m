@@ -108,7 +108,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-script_config.experiment='fast-slow';
+script_config.experiment='reg-irreg';
 script_config.custom_subjs=[];
 % best fast-slow subjs: 
 % subjs=[9,12]; 
@@ -273,6 +273,8 @@ for cc=1:numel(experiment_conditions)
 end
 
 %%
+% limit number of peaks to consider a component based on amplitude...
+component_analysis_params.keep_top_n=2; % leave empty if keeping all
 component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));
 baseline=zeros(3,1);
@@ -297,8 +299,12 @@ for cc = 1:numel(experiment_conditions)
     % Find local maxima above threshold
     % TODO: enforce minimum separation between peaks (did lalor et al do this?)
     % also, what would be a principled way to set that minimum separation value?
-    [~,component_idx{cc}]=findpeaks(gfp(cc,:), ...
+    [component_amplitudes,component_idx{cc}]=findpeaks(gfp(cc,:), ...
         "MinPeakHeight",baseline(cc)+eps);
+    if ~isempty(component_analysis_params.keep_top_n)
+        [~,sortI]=maxk(component_amplitudes,component_analysis_params.keep_top_n);
+        component_idx{cc}=component_idx{cc}(sortI);
+    end
     % filter peaks so only looking in search window defined by tbounds
     component_times{cc}=avg_models(cc).t(component_idx{cc});
     
@@ -354,11 +360,40 @@ for cc=1:numel(experiment_conditions)
     end
 end
 
+%% make an RGB-coded 3dscatterplot (not what we wanted)
+% % Example scalar per electrode
+% vals = randn(1, 128);   % or any quantity you care about
+% 
+% % Choose EEGLAB colormap
+% cmap = colormap('jet');   % or eeglab's default via topoplot later
+% nColors = size(cmap,1);
+% 
+% % Normalize values to [1, nColors]
+% vmin = min(vals);
+% vmax = max(vals);
+% idx = round( (vals - vmin) ./ (vmax - vmin) * (nColors-1) ) + 1;
+% 
+% % Map each electrode to RGB
+% electrode_colors = cmap(idx, :);   % [128 x 3]
+% X = [chanlocs.X];
+% Y = [chanlocs.Y];
+% Z = [chanlocs.Z];
+% 
+% scatter3(X, Y, Z, 40, electrode_colors, 'filled');
+% axis equal
+% 
+
 %% TODO: topographical microstate analyses
 %% stack butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
-gfp_ylim=[0 .4];
-trf_ylim= [-.6 .6];
+
+% for fast-slow
+% gfp_ylim=[0 .4];
+% trf_ylim= [-.6 .6];
+% for reg-irreg:
+gfp_ylim=[0 .6];
+trf_ylim= [-.9 .9];
+
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
     figure('Units','inches','Position',[0 0 4.2 3])
@@ -372,8 +407,7 @@ for cc=1:numel(experiment_conditions)
     plot(avg_models(cc).t,gfp(cc,:), ...
         'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
     hold(ax_gfp,"on")
-    % debug peaks
-    % findpeaks(gfp(cc,:),"MinPeakHeight",baseline(cc)+eps)
+    
     % add baseline indicator
     plot(ax_gfp,trf_fig_param.t_lims,[baseline(cc), baseline(cc)],'--', ...
         'Color',baseline_color);
@@ -413,6 +447,37 @@ for cc=1:numel(experiment_conditions)
     xlim(trf_fig_param.t_lims)
     sgtitle(sprintf('%s Components',experiment_conditions{cc})) 
 end
+%% make and RGB-coded topoplot
+script_config.show_rgb_topo=false;
+if script_config.show_rgb_topo
+    % map x,y,z -> r,g,b
+    X = [chanlocs.X];
+    Y = [chanlocs.Y];
+    Z = [chanlocs.Z];
+    
+    % Normalize to [0,1]
+    R = (X - min(X)) ./ (max(X) - min(X));
+    G = (Y - min(Y)) ./ (max(Y) - min(Y));
+    B = (Z - min(Z)) ./ (max(Z) - min(Z));
+    
+    RGB = [R(:), G(:), B(:)];   % 128×3
+    % N electrodes, M colormap entries
+    % Result: N×M distance matrix
+    D = squeeze(sum((RGB- permute(cmap,[3 2 1])).^2, 2));
+    [~, idx] = min(D, [], 2);   % idx is N×1
+    
+    
+    % get electrode x/y projections on scalp
+    % ex = [chanlocs.radius] .* cos([chanlocs.theta]);
+    % ey = [chanlocs.radius] .* sin([chanlocs.theta]);
+    
+    % draw head outline
+    figure; hold on
+    topoplot(idx, chanlocs, 'maplimits',[1 size(cmap,1)]);
+    colormap(cmap);
+    title("XYZ->RGB")
+end
+
 %% plot weights for individual subject
 %TODO: abstract this into a function
 if script_config.show_individual_weights

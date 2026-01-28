@@ -40,6 +40,19 @@ legend()
 warp_info=split(warp_dir,'_');
 warp_rule=sscanf(warp_info{1},'rule%d');
 set(h,'FaceColor',condition_colors.(cond_nm))
+%% plot desired reg condition (for proposal)
+%% plot warped condition
+if strcmp(cond_nm,'Regular')
+    hist_config.n_bins=1;
+end
+ideal_irreg=min(s_intervals(:,2)) + (max(s_intervals(:,2))-min(s_intervals(:,2))).*rand(size(s_intervals(:,2)));
+h=rates_hist_wrapper(ideal_irreg,hist_config);
+title(cond_nm)
+legend()
+% get warp rule and normalization info from fnm
+warp_info=split(warp_dir,'_');
+warp_rule=sscanf(warp_info{1},'rule%d');
+set(h,'FaceColor',condition_colors.(cond_nm))
 %%
 fprintf('fano factor for %s: %0.3f\n',cond_nm,get_fano_factor(s_intervals(:,2)))
 fprintf('fano factor for og: %0.3f\n',get_fano_factor(s_intervals(:,1)))
