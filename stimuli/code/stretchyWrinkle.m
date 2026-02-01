@@ -232,8 +232,8 @@ for ss=1:n_segs
     % IPI1_seg(too_fast)=IPI0_seg(too_fast);
     % slow=1./IPI0_seg<f_center;
     % fast=(1./IPI0_seg>f_center)&~too_fast;
-    slow=1./IPI0_seg<f_center;
-    fast=(1./IPI0_seg>f_center);
+    slow=(1./IPI0_seg)<f_center;
+    fast=(1./IPI0_seg)>f_center;
     % sanity-check + workaround for backwards compatability of rules that
     % affect fast vs slow rates differently:
     too_fast=(1./IPI0_seg)>hard_cutoff_hz;
@@ -380,7 +380,9 @@ for ss=1:n_segs
         end
     % skipped 6 cuz it seemed stupid
     case 7
-        % RULE 7
+        % RULE 7 map to uniform RATE distribution
+        % close to f-center in reg and with 
+        % wide lims in irreg
         switch k
             case -1
                 % reg
@@ -408,7 +410,8 @@ for ss=1:n_segs
                 IPI1_seg(~too_fast)=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(sum(~too_fast),1));
         end
     case 8
-        % RULE 8
+        % RULE 8 map to narrow RATE distribution in reg & use logrand
+        % INTERVAL distribution for irreg
         switch k
             case -1
                 % reg
@@ -447,9 +450,9 @@ for ss=1:n_segs
         end
         case 9
         % RULE 9
-        % SAME as rule 7 but less stupid (ie don't worry about being
-        % symmetric about any bullshit median, just put shit in the range
-        % we want and examine the output
+        % reg: map to narrow RATE distribution
+        % irreg: map to wide uniform INTERVAL distribution
+        % SIMILAR to rule 7 but for INTERVALS in irreg
         switch k
             case -1
                 % reg
@@ -477,7 +480,8 @@ for ss=1:n_segs
         % SAME as rule 9 but we use uniform distribution in rates rather
         % than intervals
         switch k
-            
+            % actually it looks to me like reg case here still warps the
+            % RATE distribution not the intervals directly...
             case -1
                 % reg
                 % IPI1_seg(slow)=1./(f_center-abs(jitter(1)).*rand(size(IPI0_seg(slow))));
@@ -566,8 +570,106 @@ for ss=1:n_segs
                 end
                 clear ii_ ok_ maxiter_ elongation_ok_mask_ shortening_ok_mask_
         end
+        case 12
+            % RULE 12
+            % reg: map all INTERVALS to single value 
+            % irreg: map below-median INTERVALS to bounded submedian uniform
+            % note: already computed fast/slow before switch but I don't
+            % trust it and don't wanna worry about how it affects preceding
+            % rules atm so just re-evaluating in time domain
 
+            fast=IPI0_seg>(1/f_center);
+            slow=IPI0_seg<(1/f_center);
+            switch k
+                case -1
+                    %reg
+                    IPI1_seg(~too_fast)=1/f_center;
+                case 1
+                    %irreg
+                    min_interval=1/max_stretch_rate;
+                    max_interval=1/min_stretch_rate;
+                    IPI1_seg(slow)=get_rand_intervals(min_interval,1/f_center,sum(slow));
+                    IPI1_seg(fast)=get_rand_intervals(1/f_center,max_interval,sum(fast));
+            end
+        case 13
+            % RULE 13
+            % same as 12 but distributes at-median values between the two
+            % output distributions using a biased coin flip
+            % reg: map all INTERVALS to single value 
+            % irreg: map below-median INTERVALS to bounded submedian uniform
+            % note: already computed fast/slow before switch but I don't
+            % trust it and don't wanna worry about how it affects preceding
+            % rules atm so just re-evaluating in time domain
+
+            fast=IPI0_seg>(1/f_center);
+            slow=IPI0_seg<(1/f_center);
+            switch k
+                case -1
+                    %reg
+                    IPI1_seg(~too_fast)=1/f_center;
+                case 1
+                    %irreg
+                    min_interval=1/max_stretch_rate;
+                    max_interval=1/min_stretch_rate;
+                    IPI1_seg(slow)=get_rand_intervals(min_interval,1/f_center,sum(slow));
+                    IPI1_seg(fast)=get_rand_intervals(1/f_center,max_interval,sum(fast));
+                    if any(IPI1_seg(~(fast|slow)))
+                        % "bias" determined from empirical distribution
+                        % (based on textgrid times here)
+                        % goal is to balance the output distribution by
+                        % asymetrically assigning at-median values to
+                        % output distributions
+                        disp('tie-breaking with biased flip')
+                        flips_=get_biased_flips(sum(~(fast|slow)));
+                        ipis1_=nan(n_flips,1);
+                        ipis1_(flips_)=get_rand_intervals(1/f_center,max_interval,sum(flips_));
+                        ipis1_(~flips_)=get_rand_intervals(min_interval,1/f_center,sum(~flips_));
+                        IPI1_seg(~(fast|slow))=ipis1_;
+                        clear flips_ ipis1_
+                    end     
+            end
+        case 14
+            % rule 14: make flat uniform irreg based on two uniform 
+            % distributions (for vals below/above median) determined by
+            % extrema
+            slow=IPI0_seg<(1/f_center);
+            fast=IPI0_seg>(1/f_center);
+            switch k
+                case -1
+                    %reg
+                    IPI1_seg(~too_fast)=1/f_center;
+                case 1
+                    %irreg
+                    min_interval=(1/max_stretch_rate);
+                    max_interval=(1/min_stretch_rate);
+                    mid_interval=mean([min_interval max_interval]);
+                    IPI1_seg(slow)=get_rand_intervals(min_interval, ...
+                        mid_interval,sum(slow));
+                    IPI1_seg(fast)=get_rand_intervals(mid_interval, ...
+                        max_interval,sum(fast));
+                    if any(IPI1_seg(~(fast|slow)))
+                        % "bias" determined from empirical distribution
+                        % (based on textgrid times here)
+                        % goal is to balance the output distribution by
+                        % asymetrically assigning at-median values to
+                        % output distributions
+                        disp('tie-breaking with biased flip')
+                        flips_=get_biased_flips(sum(~(fast|slow)));
+                        ipis1_=nan(n_flips,1);
+                        ipis1_(flips_)=get_rand_intervals(mid_interval, ...
+                            max_interval,sum(flips_));
+                        ipis1_(~flips_)=get_rand_intervals(min_interval, ...
+                            mid_interval,sum(~flips_));
+                        IPI1_seg(~(fast|slow))=ipis1_;
+                        clear flips_ ipis1_
+                    end    
+            end
     
+    end
+    if any(isnan(IPI1_seg))
+        % not sure how rule 12 handled median values in input... but some
+        % should have been equal apparently, and thus remained nan...
+        error('not all output times assigned.')
     end
     
     
@@ -578,7 +680,7 @@ for ss=1:n_segs
         switch k
             case -1
                 %reg
-                %round original inter-segement interval down to multiple
+                %round original inter-segment interval down to multiple
                 %of 1/f_center
                 ISI=Ifrom(seg(ss,1))-Ifrom(seg(ss-1,2));
                 ISI=(1/(f_center))*floor(ISI*f_center);
@@ -645,11 +747,29 @@ end
 % inspect_anchorpoints(wf,wf_warp,fs,s)
 end
 %% helpers
-function rand_intervals=get_rand_rate_intervals(min_stretch_rate,max_stretch_rate,n_rates)
-% generate random intervals by sampling a uniform distribution between
-% min_stretch_rate,max_stretch_rate andn taking their reciprocal
+function flips=get_biased_flips(n_flips)
+    n_above=18; % number of median vals we want flipping to above
+    n_below=277+18; % number of median vals we want to remain below
+    N=n_above+n_below; % should be 313
+    bias=n_above/N;
+    
+    probs=rand(n_flips,1);
+    flips=false(size(probs));
+    flips(probs>bias)=true;
+    
+end
+
+function rand_intervals=get_rand_intervals(min_interval,max_interval,n_intervals)
+% rand_intervals=get_rand_intervals(min_interval,max_interval,n_intervals)
+    rand_intervals=min_interval+(max_interval-min_interval).*rand(n_intervals,1);
+end
+
+function rand_rate_intervals=get_rand_rate_intervals(min_stretch_rate,max_stretch_rate,n_rates)
+% generate random INTERVALS by inverting uniform RATE distribubtion
+% sample a uniform RATE distribution between
+% min_stretch_rate,max_stretch_rate and taking their reciprocal
 % n_rates: number of random samples to generate
-    rand_intervals=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(n_rates,1));
+    rand_rate_intervals=1./(min_stretch_rate+(max_stretch_rate-min_stretch_rate).*rand(n_rates,1));
 end
 
 function syll_times=read_syll_from_textgrid(wav_fnm)
@@ -674,8 +794,6 @@ function syll_times=read_syll_from_textgrid(wav_fnm)
     % get onset/offset times
     % syll_times=TextGridStruct.segs(syll_m);
     syll_times=mean(TextGridStruct.segs(syll_m,:),2);
-
-
 end
 
 function [Ifrom, removed_pks]=manually_pick_peaks(wf,fs,Ifrom)

@@ -12,7 +12,7 @@ outputStimfolder=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp/',boxdir_mi
 % addpath(sprintf('%s/Box/my box/LALOR LAB/matlab-toolboxes/MATLAB_TSM-Toolbox_2.01/MATLAB_TSM-Toolbox_2.01',userProfile))
 % save output to my personal box location - avoid mixing files with shared
 % drive
-warp_rules=[11];
+warp_rules=[14];
 % make freqs -1, 0, or 1 to use mean median or mode
 % upper/lower quartiles: 6.358/3.940 Hz (estimated using truncated gamma
 % pdf fit to bark-derived peakRates)
@@ -29,7 +29,7 @@ conditions=[1]; % 1-> irreg (stretchy) 2-> reg (compessy)
 
 cond_nms={'stretchy_irreg','compressy_reg'};
 % center_freqs=logspace(0.4,.95,10);
-overwrite = 0;
+overwrite = 1;
 % stimgroup = {'leagues','oldman','wrinkle'};
 stimgroup = {'wrinkle'};
 % stimspeed = [0.5 2/3 3/2 2];
@@ -86,6 +86,7 @@ for warp_rule_num=warp_rules
                 warp_config.env_thresh_std=1e-3;
                 warp_config.jitter=0;
                 warp_config.sil_tol=1;
+                
                 % in Hz, rate which is considered too fast to count as new syllable from input distribution
 
                 % warp_config.hard_cutoff_hz=10;
@@ -103,8 +104,10 @@ for warp_rule_num=warp_rules
                 warp_config.wav_fnm=d(dd).name(1:end-4);
                 warp_config.elongation_thresh=3;
                 warp_config.shortening_thresh=1/4;
-                warp_config.max_stretch_rate=8;
-                warp_config.min_stretch_rate=1.5;
+                % warp_config.max_stretch_rate=8;
+                % warp_config.min_stretch_rate=1.5;
+                warp_config.min_stretch_rate=(1/.5);% SLOWEST BY DEFINITION OF PAUSES
+                warp_config.max_stretch_rate=25; % EMPIRICAL FASTEST SYLLABLE RATE: 25 
 
                 
 

@@ -1,8 +1,9 @@
 clear;
 clc;
 global boxdir_mine boxdir_lab
-
-pilot=true; % fetch reg/irreg pilot data
+config.experiment='reg irreg';
+config.pilot=0;
+pilot=false; % fetch reg/irreg pilot data
 overwrite = 0;
 % TODO: VERIFY CORRECT STIMFOLDER FOR PILOT DATA
 %TODO: RENAME OLD ENVELOPES FNMS TO EXCLUDE WRINKLE IN FNM - ADD VARIABLE
@@ -14,24 +15,21 @@ fs = 128; %for trfs
 % fs=441; % for coherence analysis
 
 stimgroup = 'wrinkle';
-
-if pilot
-    % use for reg/irreg (pilot)
-    stimscale=[1 1 1];
-    regularity=[-1 0 1];
-    ntrials = 75;
-    % stimgroup = 'wrinkle_wClicks'; % cant do this cuz using for file name
-    outputFile=sprintf('%s/stimuli/%s/RegIrregPilotEnvelopes%dhz.mat', ...
-        boxdir_mine,stimgroup,fs);
-    
-else
-    % use for fast/slow
-    stimscale = [2/3 1 3/2];
-    regularity=[0 0 0];
-    ntrials = 120;
-    outputFile=sprintf('%s/stimuli/%s/Envelopes%dhz.mat',boxdir_mine,stimgroup,fs);
-    
-    
+switch config.experiment
+    case 'reg irreg'
+        if pilot
+            % use for reg/irreg (pilot)
+            stimscale=[1 1 1];
+            regularity=[-1 0 1];
+            ntrials = 75;
+            outputFile=sprintf('%s/stimuli/%s/RegIrregPilotEnvelopes%dhz.mat', ...
+                boxdir_mine,stimgroup,fs);
+            
+        else
+            
+            
+            
+            end
 end
 % because irreg trfs we got from folder below, we decided to re-upload
 % the exact stimuli contained in experiment computer instead    

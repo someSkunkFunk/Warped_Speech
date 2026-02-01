@@ -7,11 +7,12 @@
 clear, clc
 global boxdir_mine
 %% set params
-pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
-warp_dir='rule11_seg_textgrid_4p545Hz_0_0';
+% pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
+warp_dir='rule14_seg_textgrid_4p545Hz_0_0';
 regularity=1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
+
 medians_=median(s_intervals);
 og_median=medians_(1);
 warped_median=medians_(2);
@@ -47,7 +48,7 @@ if strcmp(cond_nm,'Regular')
 end
 ideal_irreg=min(s_intervals(:,2)) + (max(s_intervals(:,2))-min(s_intervals(:,2))).*rand(size(s_intervals(:,2)));
 h=rates_hist_wrapper(ideal_irreg,hist_config);
-title(cond_nm)
+title([cond_nm ' (ideal)'])
 legend()
 % get warp rule and normalization info from fnm
 warp_info=split(warp_dir,'_');
@@ -173,8 +174,8 @@ for dd=1:numel(D)
 end
 % filter out long pauses
 max_interval=warp_config.sil_tol;
-%note: interval should be unchanged in theory across og/warp
-s_intervals(s_intervals(:,1)>max_interval,:)=[];
+%note: long pauses should correspond across og/warp
+s_intervals(s_intervals(:,1)>=max_interval,:)=[];
 % s_intervals_og(s_intervals_og>max_interval)=[];
 % s_intervals_warped(s_intervals_warped>max_interval)=[];
 % s_intervals=[s_intervals_og,s_intervals_warped];
