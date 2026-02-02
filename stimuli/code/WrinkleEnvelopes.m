@@ -16,20 +16,27 @@ fs = 128; %for trfs
 
 stimgroup = 'wrinkle';
 switch config.experiment
-    case 'reg irreg'
-        if pilot
-            % use for reg/irreg (pilot)
+    case 'reg/irreg'
             stimscale=[1 1 1];
             regularity=[-1 0 1];
             ntrials = 75;
+        if pilot
             outputFile=sprintf('%s/stimuli/%s/RegIrregPilotEnvelopes%dhz.mat', ...
                 boxdir_mine,stimgroup,fs);
             
         else
-            
-            
-            
-            end
+            % INSERT CODE HEWHEHEEHE
+
+        end
+    case 'fast/slow'
+        stimscale = [2/3 1 3/2];
+        regularity=[0 0 0];
+        ntrials = 120;
+        if pilot
+            error('naw dawg')
+        else
+            outputFile=sprintf('%s/stimuli/%s/Envelopes%dhz.mat',boxdir_mine,stimgroup,fs);
+        end
 end
 % because irreg trfs we got from folder below, we decided to re-upload
 % the exact stimuli contained in experiment computer instead    
