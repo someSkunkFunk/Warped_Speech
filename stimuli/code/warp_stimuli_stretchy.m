@@ -106,7 +106,7 @@ for warp_rule_num=warp_rules
                 warp_config.shortening_thresh=1/4;
                 % warp_config.max_stretch_rate=8;
                 % warp_config.min_stretch_rate=1.5;
-                warp_config.min_stretch_rate=(1/.5);% SLOWEST BY DEFINITION OF PAUSES
+                warp_config.min_stretch_rate=1;% SLOWEST BY DEFINITION OF PAUSES: sil_tol
                 warp_config.max_stretch_rate=25; % EMPIRICAL FASTEST SYLLABLE RATE: 25 
 
                 

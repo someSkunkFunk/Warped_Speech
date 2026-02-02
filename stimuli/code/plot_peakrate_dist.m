@@ -8,7 +8,7 @@ clear, clc
 global boxdir_mine
 %% set params
 % pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
-warp_dir='rule14_seg_textgrid_4p545Hz_0_0';
+warp_dir='rule14_seg_textgrid_4p545Hz_0_0_0500msMax';
 regularity=1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
@@ -16,7 +16,10 @@ regularity=1; %1-> irreg -1-> reg
 medians_=median(s_intervals);
 og_median=medians_(1);
 warped_median=medians_(2);
-clear medians_
+means_=mean(s_intervals);
+og_mean=means_(1);
+warped_mean=means_(2);
+clear medians_ means_
 
 hist_config=[]; %use defaults
 hist_config.normalization='count';
