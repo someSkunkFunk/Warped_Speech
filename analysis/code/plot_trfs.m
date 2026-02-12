@@ -108,7 +108,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 %% plotting params
 % TODO: take automatic tile bs out of main weight-plotting helper function
 close all
-script_config.experiment='reg-irreg';
+script_config.experiment='fast-slow';
 script_config.custom_subjs=[];
 % best fast-slow subjs: 
 % subjs=[9,12]; 
@@ -274,7 +274,7 @@ end
 
 %%
 % limit number of peaks to consider a component based on amplitude...
-component_analysis_params.keep_top_n=2; % leave empty if keeping all
+component_analysis_params.keep_top_n=[]; % leave empty if keeping all
 component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));
 baseline=zeros(3,1);

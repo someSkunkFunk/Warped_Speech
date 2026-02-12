@@ -3,8 +3,9 @@ config=[];
 config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
 config.fs=128;
 config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
-config.irreg_maxt=500; % choose 1000, 750, or 500 ms max interval for irreg
+config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
 config.plot_individual_trials=false;
+config.model='WC'; % SL or WC
 %% select SL parameters
 % optimal parameters used by wei ching
 
@@ -21,7 +22,7 @@ sl_param.f_nat=4; % in Hz -> converted to radians when running model
 figure
 plot(t,sl_nostim(:,1)), hold on
 plot(t,sl_nostim(:,2))
-title('Stuart Landau without stimulus')
+title(sprintf('%s without stimulus',config.model))
 legend('x', 'y')
 xlabel('time (s)')
 xlim([min(t) max(t)])
@@ -32,7 +33,7 @@ plot(sl_nostim(:,1),sl_nostim(:,2))
 axis equal
 xlabel('x')
 ylabel('y')
-title('Undriven SL phase portrait')
+title(sprintf('Undriven %s phase portrait',config.model))
 %% arnold tongue
 %% phase sensitivity curve?
 %% FORCED RESPONSE CHARACTERIZATION
@@ -53,7 +54,7 @@ nenv=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
 %TODO: how to enter envelope in function form below?
 sl_responses=cell(length(nenv),2);
 for ii=1:length(nenv)
-    fprintf('running sl model for %d/%d\n',ii,length(nenv))
+    fprintf('running %s model for %d/%d\n',config.model,ii,length(nenv))
     [sl_responses{ii,:}]=run_sl_model(config,sl_param,nenv{ii});
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
@@ -61,7 +62,8 @@ if config.plot_individual_trials
     for plot_idx=1:length(nenv)
         % plot_idx=25; % should probably look at all of them eventually
         %xy plot
-        tstr_=sprintf('Stuart Landau speech response - trial %d, %04dms max',plot_idx,config.irreg_maxt);
+        tstr_=sprintf('%s speech response - trial %d, %04dms max', ...
+            config.model,plot_idx,config.irreg_maxt);
         figure
         plot(sl_responses{plot_idx,1},sl_responses{plot_idx,2})
         title(tstr_)
@@ -75,7 +77,8 @@ if config.plot_individual_trials
         axis equal
         xlabel('x')
         ylabel('y')
-        tstr_=sprintf('SL speech-phase portrait - trial %d, %04dms max',plot_idx,config.irreg_maxt);
+        tstr_=sprintf('%s speech-phase portrait - trial %d, %04dms max', ...
+            config.model,plot_idx,config.irreg_maxt);
         title(tstr_)
         
         % input-output (just x)
@@ -83,7 +86,8 @@ if config.plot_individual_trials
         plot(nenv{plot_idx},sl_responses{plot_idx,2}(:,1))
         xlabel('S(t)')
         ylabel('x(t)')
-        tstr_=sprintf('SL input-output - trial %d, %04dms max',plot_idx,config.irreg_maxt);
+        tstr_=sprintf('%s input-output - trial %d, %04dms max', ...
+            config.model,plot_idx,config.irreg_maxt);
         title(tstr_)
         clear tstr_
     end
@@ -91,10 +95,12 @@ end
 %% derive TRFs from simulated responses
 trf_config=[];
 trf_config.add_noise=false;
+trf_config.optimize_lambda=false;
 trf_config.lam_range=10.^(-3:8);
 % note: used 400ms previously but if we're looking at effects for syllables
 % up to 1000ms apart... think it makes sense to extend the range a bit
-trf_config.tlims=[0, 400];
+trf_config.cvtlims=[0, 400];
+trf_config.trtlims=[-500,800];
 % add 1/f noise to simulated responses to make them "realistic"
 % Oganian et al 2023 did this by using firls on gaussian white noise
 % they also used an snr of 1/10... not sure why
@@ -112,22 +118,31 @@ end
 %previously used std(all envelopes) for simplicity...
 trf_env=cellfun(@(x) normalize(x,"scale"), env,'UniformOutput',false);
 trf_response=cellfun(@(x) x(:,1), sl_responses(:,2),'UniformOutput',false);
-%%
-stats_obs=mTRFcrossval(trf_env,trf_response,config.fs,1, ...
-    trf_config.tlims(1),trf_config.tlims(2),trf_config.lam_range);
-
-%% plot TRFs
-% plot lambda tuning curve, select best lambda
-r_tuning_curve=mean(stats_obs.r,1);
-[~,max_lam_idx]=max(r_tuning_curve);
-best_lam=trf_config.lam_range(max_lam_idx);
-figure
-plot(trf_config.lam_range,r_tuning_curve)
-title('tuning curve')
-xlabel('\lambda')
-ylabel('r (crossvalidated)')
-% train using best lambda on entire dataset
-
+if trf_config.optimize_lambda
+    stats_obs=mTRFcrossval(trf_env,trf_response,config.fs,1, ...
+        trf_config.cvtlims(1),trf_config.cvtlims(2),trf_config.lam_range);
+    % plot TRFs
+    % plot lambda tuning curve, select best lambda
+    r_tuning_curve=mean(stats_obs.r, 1);
+    [~,max_lam_idx]=max(r_tuning_curve);
+    trf_config.best_lam=trf_config.lam_range(max_lam_idx);
+    figure
+    plot(trf_config.lam_range,r_tuning_curve)
+    title('tuning curve')
+    xlabel('\lambda')
+    ylabel('r (crossvalidated)')
+else
+    % seems unnecessary if no noise
+    trf_config.best_lam=0;
+end
+%% train using best lambda on entire dataset
+trf_model=mTRFtrain(trf_env,trf_response,config.fs,1, ...
+    trf_config.trtlims(1),trf_config.trtlims(2),trf_config.best_lam);
+%% plot model-TRF
+figure, plot(trf_model.t,trf_model.w)
+xticks(trf_config.trtlims(1):100:trf_config.trtlims(2))
+xlim([-100,trf_config.trtlims(2)])
+title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
 
 %% quantify event-based phase concentration of output across all stimuli
 
