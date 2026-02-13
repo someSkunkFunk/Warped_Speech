@@ -1,27 +1,31 @@
-% model SL response
+% model AFO-WC response to speech
 config=[];
 config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
 config.fs=128;
 config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
 config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
 config.plot_individual_trials=false;
-config.model='SL'; % always sl... oops
+
 %% select SL parameters
 % optimal parameters used by wei ching
 
-sl_param=[];
-sl_param.lambda=0.1;
-sl_param.gamma=13.83;
-sl_param.k=80;
-sl_param.f_nat=4; % in Hz -> converted to radians when running model
+wc_param=[];
+wc_param.a=10;
+wc_param.b=10;
+wc_param.c=10;
+wc_param.g=-3;
+wc_param.tau=1/17;
+wc_pram.rhoI=-7;
+wc_param.k=0.2;
 
+wc_param.sil_tol=; % some value between [0,1] representing normalized stimulus values 
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
-[t, sl_nostim]=run_sl_model(config,sl_param);
+[t, wc_nostim]=run_wc_model(config,wc_param);
 %% plot unforced model output
 figure
-plot(t,sl_nostim(:,1)), hold on
-plot(t,sl_nostim(:,2))
+plot(t,wc_nostim(:,1)), hold on
+plot(t,wc_nostim(:,2))
 title(sprintf('%s without stimulus',config.model))
 legend('x', 'y')
 xlabel('time (s)')
@@ -29,7 +33,7 @@ xlim([min(t) max(t)])
 hold off
 %% phase-portrait of unforced model output
 figure
-plot(sl_nostim(:,1),sl_nostim(:,2))
+plot(wc_nostim(:,1),wc_nostim(:,2))
 axis equal
 xlabel('x')
 ylabel('y')
@@ -47,6 +51,8 @@ load(envelopes_path,"env");
 % some cell entries intentionally left empty - only care about third row
 % anyway
 env=env(3,:);
+% rectify the envelopes
+env=cellfun(@(x) max(x,0), env);
 % normalize envelopes as in Doelling et al 2023
 nenv=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
 %%
@@ -55,23 +61,12 @@ nenv=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
 sl_responses=cell(length(nenv),2);
 for ii=1:length(nenv)
     fprintf('running %s model for %d/%d\n',config.model,ii,length(nenv))
-    [sl_responses{ii,:}]=run_sl_model(config,sl_param,nenv{ii});
+    [sl_responses{ii,:}]=run_wc_model(config,wc_param,nenv{ii});
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
 if config.plot_individual_trials
     for plot_idx=1:length(nenv)
-        % plot stimulus for current trial
-        
-        figure
-        %note: time returned by model simulation should match fs samples of
-        %stimulus because of how we defined tspan arg of ode45
-        tstr_=sprintf('normalized stimulus envelope -trial %d, %04dms max', ...
-            plot_idx,config.irreg_maxt);
-        plot(sl_responses{plot_idx,1},nenv{plot_idx})
-        xlabel('time (s)')
-        ylabel('S(t)')
-        title(tstr_)
-
+        % plot_idx=25; % should probably look at all of them eventually
         %xy plot
         tstr_=sprintf('%s speech response - trial %d, %04dms max', ...
             config.model,plot_idx,config.irreg_maxt);
@@ -93,8 +88,6 @@ if config.plot_individual_trials
         title(tstr_)
         
         % input-output (just x)
-        % NOTE: if time in sl doesn't line up with stimulus samples this is
-        % not gonna correspond right...
         figure
         plot(nenv{plot_idx},sl_responses{plot_idx,2}(:,1))
         xlabel('S(t)')
@@ -185,7 +178,7 @@ function x0=init_limit_cycle(sl_param)
     rand_theta=randn(1)*2*pi;
     x0=lim_rad.*[cos(rand_theta);sin(rand_theta)];
 end
-function [t, model_out]=run_sl_model(config,sl_param,s_data)
+function [t, model_out]=run_wc_model(config,wc_param,s_data)
 % [t, model_out]=run_sl_model(config,sl_param,input_fun)
 % arguments
 %     config (1,1) struct
@@ -194,59 +187,88 @@ function [t, model_out]=run_sl_model(config,sl_param,s_data)
 % end
 if ~exist('s_data','var')
     tspan=0:1/config.fs:config.tmax_zero_input;
-    input_fun=@(t,x) 0; % zero-function
+    % input_fun=@(t,~) 0; % zero-function
+    % define 0
 else
     % envelope was given - convert to "continuous time" for ode solver via
     % anonymous function with interp
     tspan=0:1/config.fs:(length(s_data)-1)/config.fs;
-    input_fun=@(t,~) interp1(tspan,s_data,t,"pchip",0);
 end
+% also needs "continous time" peakRate function & binary "silence or
+% not" label based on config.sil_tol (which will just be some arbitrary
+% global threshold for now....)
+% input_fun=@(t,~) interp1(tspan,s_data,t,"linear",0);
+
+function Sfeats=input_fun(t,tspan,s_data,wc_params.sil_tol)
+% returns continuous time "interpolation" of envelope, peakRate, & silence
+end
+
 %TODO: how to flexibly switch between sl and wc models?
 switch config.init
     case 'rand'
-        x0=init_rand(2); 
+        x0=init_rand(3); 
     case 'limit cycle'
         % select random values already at the limit cycle
-        x0=init_limit_cycle(sl_param);
+        warning('init_limit_cycle should be different here.')
+        x0=init_limit_cycle(wc_param);
     otherwise
         error('initialization config param not recognized.')
 end
 
 % use ode solver to get sl model output:
-[t, model_out]=ode45(@(t,x) sl_model(t,x,sl_param,input_fun),tspan,x0);
+[t, model_out]=ode45(@(t,x) wc_model(t,x,wc_param,input_fun),tspan,x0);
 end
 
-function dxdt=sl_model(t, x, sl_param, s_fun)
+function dxdt=wc_model(t, x, wc_param, s_fun)
 % dxdt=sl_model(t, x, sl_param, Sfun)
 % t: times to sample SL activity at
-% x: col vector of x and y in SL equations
-% sl_param.lambda: oscillatory "switch" parameter
-% sl_param.f_nat: natural frequency in Hz (converted to rads/s here)
-% sl_param.gamma: nonlinear gain control
-% sl_param.k: coupling parameter
+% x: col vector of E, I, rhoE
 % s_fun: stimulus input specified as a function 
+% uses sigmoid function defined in Doelling et al 2019
 
 %TODO: define some default values
-%unpack sl parameters
-lambda=sl_param.lambda;
-omega=sl_param.f_nat*2*pi;
-gamma=sl_param.gamma;
-k=sl_param.k;
-
-r2=x(1)^2+x(2)^2;
+%unpack parameters
+% synaptic coupling
+a=wc_param.a;
+b=wc_param.b;
+c=wc_param.c;
+g=wc_param.g;
+% stable inputs from distant brain areas
+rhoI=wc_param.rhoI;
+% membrane time const
+tau=wc_param.tau; 
+k=wc_param.k;
+% sigmoid used in Doelling et al 2019 
+sigmoid=@(z) 1/(1+exp(-z)); 
 S=s_fun(t,x);
+%TODO: estimate mean t more realistically/online
+mean_t=;
 
-dxdt=nan(2,1);
-% x differential equation
-dxdt(1)=lambda*x(1)-omega*x(2)-gamma*r2*x(1)+k*S;
-% y differential equation
-dxdt(2)=lambda*x(2)+omega*x(1);
+if silence(S)
+    %TODO: when does the brain know there is silence?
+    rho0=-3.4;
+else
+    % during sound
+    rho0=(0.45*mean_t/(mean_t-0.21))-3.6;
+end
+dxdt=nan(3,1);
+% E differential equation
+dxdt(1)=(1/tau).*(-x(1)+sigmoid(x(3)+c*x(1)-a*x(2)+k*S));
+% I differential equation
+dxdt(2)=(1/tau).*(-x(2)+sigmoid(rhoI+b*x(1)-g*x(2)));
+% rhoE differential equation
+dxdt(3)=-.045*(x(3)-rho0);
 end
 % plotting 
 % function h=plot_xy()
 % end
 
 %references
+% Doelling, Keith B., M. Florencia Assaneo, Dana Bevilacqua, Bijan Pesaran,
+% and David Poeppel. “An Oscillator Model Better Predicts Cortical 
+% Entrainment to Music.” Proceedings of the National Academy of Sciences 116,
+% no. 20 (2019): 10113–21. https://doi.org/10.1073/pnas.1816414116.
+%
 % Doelling, Keith B., Luc H. Arnal, and M. Florencia Assaneo. 
 % “Adaptive Oscillators Support Bayesian Prediction in Temporal 
 % Processing.” PLOS Computational Biology 19, no. 11 (2023): e1011669. 
