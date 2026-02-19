@@ -116,11 +116,11 @@ switch script_config.experiment
     case 'fast-slow'
         % fast-slow subjs:
         subjs=[2:7,9:22];
-        trf_fig_param.ylims=[-.5 .6];
+        butterfly_fig.ylims=[-.5 .6];
     case 'reg-irreg'
         % reg-irreg subjects:
         subjs=[23,96,97,98];
-        trf_fig_param.ylims=[-1 1];
+        butterfly_fig.ylims=[-1 1];
         % subjs=[96:98];
     otherwise
         warning('script_config.experiment=',script_config.experiment);
@@ -139,20 +139,22 @@ mtrf_plot_chns=normalize_channels(select_plot_chns);
 n_subjs=numel(subjs);
 script_config.show_individual_weights=false;
 script_config.show_avg_weights=true;
-script_config.show_topos=true;
+script_config.show_topos=false; % for particular latency specified in topo_fig_param
 script_config.show_snr=false;
 script_config.show_tuning_curves=false;
 script_config.analyze_pk_latencies=false;
+% params for select latency topos
+topo_fig_param.latencies=[54 164]; % in ms
+% params for butterfly with all conditions
+butterfly_fig.t_lims=[-100 500];
 
-trf_fig_param.t_lims=[-100 500];
 
-
-trf_fig_param.lw=2; %linewidth in plot
-trf_fig_param.leg_lw=6; % linewidth in legend
-trf_fig_param.fz=28; % fontsize
-trf_fig_param.title_fz=28;
+butterfly_fig.lw=2; %linewidth in plot
+butterfly_fig.leg_lw=6; % linewidth in legend
+butterfly_fig.fz=28; % fontsize
+butterfly_fig.title_fz=28;
 % fast is red, black is slow, green is og
-trf_fig_param.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55]./206, ...
+butterfly_fig.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55]./206, ...
     'fast',[0 0 0],'reg',[255 0 0]./255, ...
     'irreg',[0 0 0]);
 % r_thresh: correlation-based filter on TRF weights to show
@@ -160,17 +162,20 @@ trf_fig_param.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55
 % for fast slow
 % trf_fig_param.r_thresh=[0.03];
 % for reg-irreg
-trf_fig_param.r_thresh=[];
+butterfly_fig.r_thresh=[];
 % if false, separate TRF weight plots by condition
-trf_fig_param.stack=false;
+butterfly_fig.stack=false;
 % x y width height - set to inches in figure
-trf_fig_param.pos=[0 0 8 8];
+butterfly_fig.pos=[0 0 1.82 4.72];
 
-topo_fig_param.latencies=[54 164]; % in ms
+% params for component plots (gpf + butterfly)
+component_fig=butterfly_fig;
+
+
 
 
 %% read data & setup grand average trfs
-
+load(loc_file);
 % preallocate
 % note: all configs should be the same except for subj num and best_lam, so
 % we probably don't need to keep all these in one large super structure
@@ -188,7 +193,7 @@ for ss=1:n_subjs
     % TODO: make function
     S_=load_checkpoint(trf_config);
     model_=S_.model;
-    if ~isempty(trf_fig_param.r_thresh)
+    if ~isempty(butterfly_fig.r_thresh)
         rs_=squeeze(mean([S_.stats_obs(:).r],1));
         % gives conditions-by-chns, unless conditions missing
         if size(rs_,1)~=length(trf_config.conditions)
@@ -213,14 +218,14 @@ for ss=1:n_subjs
         sz_=[size(model_),size(model_fields_)];
         sz_(1)=n_subjs;
         ind_models=cell2struct(cell(sz_),model_fields_,3);
-        if ~isempty(trf_fig_param.r_thresh)
+        if ~isempty(butterfly_fig.r_thresh)
             sz_=[n_subjs, size(rs_)];
             rs=nan(sz_);
         end
         clear model_fields_ sz_
     end
     ind_models(ss,:)=model_; clear model_
-    if ~isempty(trf_fig_param.r_thresh)
+    if ~isempty(butterfly_fig.r_thresh)
         rs(ss,:,:)=rs_; clear rs_
     end
     % function ends here
@@ -230,14 +235,12 @@ for ss=1:n_subjs
     clear preprocess_config trf_config
 end
 experiment_conditions=configs(end).trf_config.conditions;
-if script_config.show_topos
-    load(loc_file);
-end
+
 % determine which channels to keep based on r_thresh
-if ~isempty(trf_fig_param.r_thresh)
-    fprintf('filtering chns based on r_thresh=%0.3f...\n',trf_fig_param.r_thresh)   
+if ~isempty(butterfly_fig.r_thresh)
+    fprintf('filtering chns based on r_thresh=%0.3f...\n',butterfly_fig.r_thresh)   
     % average out subjects & apply r_threshold
-    chns_m=squeeze(mean(rs,1))>trf_fig_param.r_thresh;
+    chns_m=squeeze(mean(rs,1))>butterfly_fig.r_thresh;
     disp('chns remaining:')
     disp(sum(chns_m,2));
     if any(sum(chns_m,2)==0)
@@ -245,7 +248,13 @@ if ~isempty(trf_fig_param.r_thresh)
     end
 end
 avg_models=construct_avg_models(ind_models);
-%% TRF component latency analysis
+%% microstate-based TRF component identification
+% k-means clustering based on nearby channel correlations
+% desired output: k_components x 2 cell with start, end times
+microstate_analysis=[];
+microstate_analysis.max_k=15; % max number of clusters to try
+microstate_analysis.
+%% time-based TRF component identification
 % compute GFP
 % For each condition:
 %   - collapse across electrodes
@@ -253,8 +262,8 @@ avg_models=construct_avg_models(ind_models);
 
 % doesn't seem necessary but in order to comply w Lalor et al. (2009)
 % we'll add this optional step
-component_analysis_params=[];
-component_analysis_params.smooth_gfp=false;
+time_component_analysis=[];
+time_component_analysis.smooth_gfp=false;
 
 
 %preallocate
@@ -269,25 +278,25 @@ end
 % plot pre-smoothed GFP:
 gfp_plots=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
-    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param);
+    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
 end
 
 %%
 % limit number of peaks to consider a component based on amplitude...
-component_analysis_params.keep_top_n=[]; % leave empty if keeping all
+time_component_analysis.keep_top_n=[]; % leave empty if keeping all
 component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));
 baseline=zeros(3,1);
 % limit search range because there are edge artefacts.... but how do we
 % decide objectively what time range makes sense???? TODO!
-component_analysis_params.tbounds=[0, 500];
+time_component_analysis.tbounds=[0, 500];
 for cc = 1:numel(experiment_conditions)
 
     % gfp_cc = gfp(cc,:);
     % I feel like the GFP is already quite reasonably smooth (due to
     % regularization + time-averaging inherent to TRF procedue...)
     % so we'll make this part optional and ask Ed for input
-    if component_analysis_params.smooth_gfp
+    if time_component_analysis.smooth_gfp
     % Apply light temporal smoothing
     % Decide smoothing window in ms, then convert to samples
     end
@@ -301,15 +310,15 @@ for cc = 1:numel(experiment_conditions)
     % also, what would be a principled way to set that minimum separation value?
     [component_amplitudes,component_idx{cc}]=findpeaks(gfp(cc,:), ...
         "MinPeakHeight",baseline(cc)+eps);
-    if ~isempty(component_analysis_params.keep_top_n)
-        [~,sortI]=maxk(component_amplitudes,component_analysis_params.keep_top_n);
+    if ~isempty(time_component_analysis.keep_top_n)
+        [~,sortI]=maxk(component_amplitudes,time_component_analysis.keep_top_n);
         component_idx{cc}=component_idx{cc}(sortI);
     end
     % filter peaks so only looking in search window defined by tbounds
     component_times{cc}=avg_models(cc).t(component_idx{cc});
     
-    tbounds_m_=component_times{cc}<max(component_analysis_params.tbounds)&...
-        component_times{cc}>min(component_analysis_params.tbounds);
+    tbounds_m_=component_times{cc}<max(time_component_analysis.tbounds)&...
+        component_times{cc}>min(time_component_analysis.tbounds);
     component_idx{cc}=component_idx{cc}(tbounds_m_);
     component_times{cc}=component_times{cc}(tbounds_m_);
     clear tbounds_m_
@@ -317,7 +326,7 @@ end
 
 %% define component latency windows
 % component start,end in ms relative to component time
-component_analysis_params.component_window_ms=[-16 16];
+time_component_analysis.component_window_ms=[-16 16];
 % doing this somewhat arbitrarily based on the minimum size of windows
 % reported in Lalor et al. 2009 - but it would be cool to use the actual
 % microstates analysis they used to determine a better component...
@@ -334,14 +343,14 @@ component_analysis_params.component_window_ms=[-16 16];
 component_windows=cell(size(experiment_conditions));
 for cc = 1:numel(experiment_conditions)
     for kk = 1:numel(component_idx{cc})
-        t_range_ms=component_times{cc}(kk)+component_analysis_params.component_window_ms;
+        t_range_ms=component_times{cc}(kk)+time_component_analysis.component_window_ms;
         t_start_idx=find(avg_models(cc).t>min(t_range_ms),1,'first');
         t_end_idx=find(avg_models(cc).t<max(t_range_ms),1,'last');
         component_windows{cc}(kk,:) = [t_start_idx, t_end_idx];
     end
 end
 
-%% extract and plot topographies
+%% extract and plot component topographies
 component_topos=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
     for kk=1:numel(component_idx{cc})
@@ -405,11 +414,11 @@ for cc=1:numel(experiment_conditions)
     % --- GFP axis ---
     ax_gfp = axes('Position', ax_gfp_pos);
     plot(avg_models(cc).t,gfp(cc,:), ...
-        'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
+        'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
     hold(ax_gfp,"on")
     
     % add baseline indicator
-    plot(ax_gfp,trf_fig_param.t_lims,[baseline(cc), baseline(cc)],'--', ...
+    plot(ax_gfp,butterfly_fig.t_lims,[baseline(cc), baseline(cc)],'--', ...
         'Color',baseline_color);
     hold(ax_gfp,"off")
     ylabel('GFP')
@@ -420,8 +429,8 @@ for cc=1:numel(experiment_conditions)
     ax_trf = axes('Position', ax_trf_pos);
     h_=plot(avg_models(cc).t, squeeze(avg_models(cc).w));   % butterfly
     % make them all the same color within a conditon
-    set(h_,'LineWidth',trf_fig_param.lw, ...
-                'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
+    set(h_,'LineWidth',butterfly_fig.lw, ...
+                'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
     set(ax_trf, 'YLim',trf_ylim)
     ylabel('Amplitude')
     xlabel('Time (ms)')
@@ -444,7 +453,7 @@ for cc=1:numel(experiment_conditions)
     %TODO: add threshold line in GFP plots
     % --- Synchronize ---
     linkaxes([ax_gfp, ax_trf], 'x')
-    xlim(trf_fig_param.t_lims)
+    xlim(butterfly_fig.t_lims)
     sgtitle(sprintf('%s Components',experiment_conditions{cc})) 
 end
 %% make and RGB-coded topoplot
@@ -498,8 +507,8 @@ if script_config.show_individual_weights
                 %         'on r_thresh=%d...\n'],r_thresh)
                 % end
                 title(title_str_)
-                title(title_str_,'FontSize',trf_fig_param.fz)
-                set(h_,'LineWidth',trf_fig_param.lw)
+                title(title_str_,'FontSize',butterfly_fig.fz)
+                set(h_,'LineWidth',butterfly_fig.lw)
             else
                 fprintf('nothing to plot for %s\n', configs(ss).trf_config.conditions{cc})
             end
@@ -513,47 +522,47 @@ if script_config.show_avg_weights
         model_=avg_models(1,cc);
         if ~isempty(model_.w)
 
-            if cc>1&&trf_fig_param.stack
+            if cc>1&&butterfly_fig.stack
                 % skip adding fig
             else
-                figure('Units','inches','Position',trf_fig_param.pos)
+                figure('Units','inches','Position',butterfly_fig.pos)
             end
 
-            if isempty(trf_fig_param.r_thresh)
+            if isempty(butterfly_fig.r_thresh)
                 h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
             else
                 h_=mTRFplot(model_,'trf','all',find(chns_m(cc,:)));
             end
             % make all the lines within a condition the same color
-            set(h_,'LineWidth',trf_fig_param.lw, ...
-                'Color',trf_fig_param.condition_colors.(experiment_conditions{cc}))
-            if cc>1&&trf_fig_param.stack
+            set(h_,'LineWidth',butterfly_fig.lw, ...
+                'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+            if cc>1&&butterfly_fig.stack
                 % skip adding title
-            elseif trf_fig_param.stack
+            elseif butterfly_fig.stack
                 % add title once
                 title_str=sprintf('subj-avg TRF - chns: %s ',num2str(mtrf_plot_chns));
-                title(title_str,'FontSize',trf_fig_param.title_fz)
+                title(title_str,'FontSize',butterfly_fig.title_fz)
             else
                 title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
                     num2str(mtrf_plot_chns),experiment_conditions{cc});
-                title(title_str,'FontSize',trf_fig_param.fz)
+                title(title_str,'FontSize',butterfly_fig.fz)
             end
-            xlim(trf_fig_param.t_lims)
-            ylim(trf_fig_param.ylims)
+            xlim(butterfly_fig.t_lims)
+            ylim(butterfly_fig.ylims)
             ylabel('Amplitude (a.u.)')
             grid off
-            set(gca,'FontSize',trf_fig_param.fz)
-            if trf_fig_param.stack,hold on,end
+            set(gca,'FontSize',butterfly_fig.fz)
+            if butterfly_fig.stack,hold on,end
         else
             % useful for pilot subjects that only listen to a single
             % condition...
             fprintf('nothing to plot for %s\n',configs(ss).trf_config.conditions{cc})
         end
     end
-    if trf_fig_param.stack
+    if butterfly_fig.stack
         % otherwise title has condition name
         hold off
-        legend_helper(gca,experiment_conditions,trf_fig_param.condition_colors);
+        legend_helper(gca,experiment_conditions,butterfly_fig.condition_colors);
         % set(lh,'LineWidth',trf_fig_param.leg_lw) % ended up not being
         % useful since it just makes box around legend thicker
         
