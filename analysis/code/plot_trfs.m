@@ -250,6 +250,7 @@ end
 % Note: loc_file defined in trf_analysis params...
 load(loc_file);
 avg_models=construct_avg_models(ind_models);
+
 %% compute GFP
 %preallocate
 % w has size: [1 x time x channels]
