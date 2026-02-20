@@ -175,7 +175,7 @@ component_fig=butterfly_fig;
 
 
 %% read data & setup grand average trfs
-load(loc_file);
+
 % preallocate
 % note: all configs should be the same except for subj num and best_lam, so
 % we probably don't need to keep all these in one large super structure
@@ -247,13 +247,27 @@ if ~isempty(butterfly_fig.r_thresh)
         warning('empty chns array will cause mtrfplot to show all the channels')
     end
 end
+% Note: loc_file defined in trf_analysis params...
+load(loc_file);
 avg_models=construct_avg_models(ind_models);
+%% compute GFP
+%preallocate
+% w has size: [1 x time x channels]
+gfp=nan(numel(experiment_conditions),size(avg_models(1).w,2));
+for cc = 1:numel(experiment_conditions)
+    W = squeeze(avg_models(1,cc).w);
+    % note: rms is valid when average-referenced, using std since
+    % mastoid-referenced
+    gfp(cc,:)=std(W,0,2);
+    % gfp(cc, :) = rms(W,2);
+end
+
 %% microstate-based TRF component identification
 % k-means clustering based on nearby channel correlations
 % desired output: k_components x 2 cell with start, end times
 microstate_analysis=[];
 microstate_analysis.max_k=15; % max number of clusters to try
-microstate_analysis.
+% microstate_analysis.
 %% time-based TRF component identification
 % compute GFP
 % For each condition:
@@ -266,24 +280,17 @@ time_component_analysis=[];
 time_component_analysis.smooth_gfp=false;
 
 
-%preallocate
-% w has size: [1 x time x channels]
-gfp=nan(numel(experiment_conditions),size(avg_models(1).w,2));
-for cc = 1:numel(experiment_conditions)
-    W = squeeze(avg_models(1,cc).w);
-    gfp(cc, :) = rms(W,2);
-end
-
 %% Identify candidate component latencies
+
+time_component_analysis.keep_top_n=[]; % leave empty if keeping all
 % plot pre-smoothed GFP:
 gfp_plots=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
     gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
 end
 
-%%
+
 % limit number of peaks to consider a component based on amplitude...
-time_component_analysis.keep_top_n=[]; % leave empty if keeping all
 component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));
 baseline=zeros(3,1);
@@ -292,14 +299,7 @@ baseline=zeros(3,1);
 time_component_analysis.tbounds=[0, 500];
 for cc = 1:numel(experiment_conditions)
 
-    % gfp_cc = gfp(cc,:);
-    % I feel like the GFP is already quite reasonably smooth (due to
-    % regularization + time-averaging inherent to TRF procedue...)
-    % so we'll make this part optional and ask Ed for input
-    if time_component_analysis.smooth_gfp
-    % Apply light temporal smoothing
-    % Decide smoothing window in ms, then convert to samples
-    end
+
     % Define an objective threshold
     % Using same as Lalor et al. (2009) - twice the mean GFP during
     % -100ms,0ms window
@@ -336,9 +336,6 @@ time_component_analysis.component_window_ms=[-16 16];
 % the average size given by window lims reported in Lalor et al 2009:
 % mean(diff([45,  61, 92, 104, 125, 170, 238])) ~32
 
-% seems the CarTool thing they used is still available, I wonder how hard
-% it is to just implement it using stuff we already have though? Does
-% mTRFToolbox not just have something we can use for this?
 
 component_windows=cell(size(experiment_conditions));
 for cc = 1:numel(experiment_conditions)
@@ -349,7 +346,7 @@ for cc = 1:numel(experiment_conditions)
         component_windows{cc}(kk,:) = [t_start_idx, t_end_idx];
     end
 end
-
+disp('Windowing around GFP peaks done.')
 %% extract and plot component topographies
 component_topos=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
@@ -368,41 +365,17 @@ for cc=1:numel(experiment_conditions)
         title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
     end
 end
-
-%% make an RGB-coded 3dscatterplot (not what we wanted)
-% % Example scalar per electrode
-% vals = randn(1, 128);   % or any quantity you care about
-% 
-% % Choose EEGLAB colormap
-% cmap = colormap('jet');   % or eeglab's default via topoplot later
-% nColors = size(cmap,1);
-% 
-% % Normalize values to [1, nColors]
-% vmin = min(vals);
-% vmax = max(vals);
-% idx = round( (vals - vmin) ./ (vmax - vmin) * (nColors-1) ) + 1;
-% 
-% % Map each electrode to RGB
-% electrode_colors = cmap(idx, :);   % [128 x 3]
-% X = [chanlocs.X];
-% Y = [chanlocs.Y];
-% Z = [chanlocs.Z];
-% 
-% scatter3(X, Y, Z, 40, electrode_colors, 'filled');
-% axis equal
-% 
-
-%% TODO: topographical microstate analyses
+disp('Components extracted and plotted.')
 %% stack butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
-
-% for fast-slow
-% gfp_ylim=[0 .4];
-% trf_ylim= [-.6 .6];
-% for reg-irreg:
-gfp_ylim=[0 .6];
-trf_ylim= [-.9 .9];
-
+switch script_config.experiment
+    case 'fast-slow'
+        gfp_ylim=[0 .4];
+        trf_ylim= [-.6 .6];
+    case 'reg-irreg'
+        gfp_ylim=[0 .6];
+        trf_ylim= [-.9 .9];
+end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
     figure('Units','inches','Position',[0 0 4.2 3])
@@ -450,7 +423,6 @@ for cc=1:numel(experiment_conditions)
         plot(ax_trf,T, trf_ylim, '--k')
         hold(ax_trf,"off");
     end
-    %TODO: add threshold line in GFP plots
     % --- Synchronize ---
     linkaxes([ax_gfp, ax_trf], 'x')
     xlim(butterfly_fig.t_lims)
@@ -511,7 +483,7 @@ if script_config.show_individual_weights
                 set(h_,'LineWidth',butterfly_fig.lw)
             else
                 fprintf('nothing to plot for %s\n', configs(ss).trf_config.conditions{cc})
-            end
+            end 
             clear title_str_ h_ model_
         end
     end
