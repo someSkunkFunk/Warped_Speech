@@ -5,27 +5,26 @@
 % assumes avg_models, experiment_conditions, ind_models
 % have been constructed by running 
 % plot_trfs script prior to this
-
+tanova=struct('param',[],'result',[]);
 % restrict TRFs to -100ms to 500ms
-microstate_analysis.t_range=[-100, 500];
+% only 
+tanova.param.t_range=[-100, 500];
 time=avg_models(1).t;
-m_time=time>=microstate_analysis.t_range(1)& ...
-    time<=microstate_analysis.t_range(2);
+m_time=time>=tanova.param.t_range(1)& ...
+    time<=tanova.param.t_range(2);
 time=time(m_time);
 
-tanova=struct('param',[],'result',[]);
-tanova.param.overwrite=false; % avoid re-running permutations
+tanova.param.overwrite=true; % avoid re-running permutations
 tanova.param.experiment=script_config.experiment;
-tanova.param.t_range=microstate_analysis.t_range;
-
+% tanova.param.t_range=clustering.t_range;
+n_chns=length(chanlocs);
+n_time=length(time);
 tanova.result.time=time;
 global boxdir_mine
 tanova_out_pth=fullfile(boxdir_mine,'analysis','tanova',[tanova.param.experiment '.mat']);
 if exist(tanova_out_pth,'file')==0 || tanova.param.overwrite
     disp('no file found -- running TANOVA.')
     %% "average-reference" trfs
-    n_chns=length(chanlocs);
-    n_time=length(time);
     % conditions x time x chns
     ar_trfs_grand=nan([numel(experiment_conditions), n_time, n_chns]);
     
@@ -33,7 +32,7 @@ if exist(tanova_out_pth,'file')==0 || tanova.param.overwrite
         W=squeeze(avg_models(1,cc).w);
         % restrict time range for analysis
         W=W(m_time,:);
-        ar_trfs_grand(cc,:,:)=W-mean(W,1);
+        ar_trfs_grand(cc,:,:)=W-mean(W,2);
     end
     disp('avg referencing + grand avg trfs done.')
     % repeat for single-subjects.
@@ -44,7 +43,7 @@ if exist(tanova_out_pth,'file')==0 || tanova.param.overwrite
             W=squeeze(ind_models(ss,cc).w);
             % restrict time range
             W=W(m_time,:);
-            ar_trfs_subj(ss,cc,:,:)=W-mean(W,1);
+            ar_trfs_subj(ss,cc,:,:)=W-mean(W,2);
         end
     end
     disp('avg referencing + aggregating subj trfs done.')
@@ -139,9 +138,12 @@ for cp=1:length(tanova.result.cond_pairs)
     mask_diff=[0, diff(tanova_m_)];
     run_starts=find(mask_diff==1);
     run_ends=find(mask_diff==-1);
-    % if end clipped -- assume it goes till end
+    % if start or end clipped -- extend length of run to edge of analysis
+    % time window
     if length(run_starts)-length(run_ends)==1
         run_ends=[run_ends, length(p_inv)];
+    elseif length(run_ends)-length(run_starts)==1
+        run_starts=[1, run_starts];
     end
     if length(run_starts)~=length(run_ends)
         warning('mismatch here')
@@ -165,6 +167,27 @@ for cp=1:length(tanova.result.cond_pairs)
     yticks([0.9 0.95 1.0])
     hold off
     clear c1 c2 tanova_m_
+end
+%% part 2: microstate clustering
+% "what are the distinct topographic patterns in the data?"
+% k-means clustering based on nearby channel correlations
+% desired output: k_components x 2 cell with start, end times
+clustering=struct('param',[],'result',[]);
+% how to choose max number of clusters worth trying? maybe looking at KL
+% curve?
+clustering.param.k_clusters=2:10; 
+clustering.param.t_range=tanova.param.t_range;
+clustering.param.n_restarts=10; %note: use 100 ultimately...
+% concatenate all trfs -- lumping conditions together
+% still use average reference
+% note: permute needed to keep waveform times from being shuffled around by
+% conditions...
+trf_concat=reshape(permute(tanova.result.ar_trfs_grand,[2 1 3]),[], n_chns);
+% calculate lumped-GFP
+gfp_concat=rms(trf_concat,2);
+%% run k-means clustering
+for k=clustering.param.k_clusters
+    fprintf('')
 end
 
 %%

@@ -263,12 +263,6 @@ for cc = 1:numel(experiment_conditions)
     % gfp(cc, :) = rms(W,2);
 end
 
-%% microstate-based TRF component identification
-% k-means clustering based on nearby channel correlations
-% desired output: k_components x 2 cell with start, end times
-microstate_analysis=[];
-microstate_analysis.max_k=15; % max number of clusters to try
-% microstate_analysis.
 %% time-based TRF component identification
 % compute GFP
 % For each condition:
@@ -367,7 +361,7 @@ for cc=1:numel(experiment_conditions)
         title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
     end
 end
-disp('Components extracted and plotted.')
+disp('GFP peaks identified and fixed-window topo average around them plotted.')
 %% stack butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
 switch script_config.experiment
