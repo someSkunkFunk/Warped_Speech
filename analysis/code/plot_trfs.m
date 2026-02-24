@@ -341,10 +341,11 @@ time_component_analysis.component_window_ms=[-16 16];
 component_windows=cell(size(experiment_conditions));
 for cc = 1:numel(experiment_conditions)
     for kk = 1:numel(component_idx{cc})
-        t_range_ms=component_times{cc}(kk)+time_component_analysis.component_window_ms;
-        t_start_idx=find(avg_models(cc).t>min(t_range_ms),1,'first');
-        t_end_idx=find(avg_models(cc).t<max(t_range_ms),1,'last');
-        component_windows{cc}(kk,:) = [t_start_idx, t_end_idx];
+        t_range_ms_=component_times{cc}(kk)+time_component_analysis.component_window_ms;
+        t_start_idx_=find(avg_models(cc).t>min(t_range_ms_),1,'first');
+        t_end_idx_=find(avg_models(cc).t<max(t_range_ms_),1,'last');
+        component_windows{cc}(kk,:) = [t_start_idx_, t_end_idx_];
+        clear t_range_ms_ t_start_idx_ t_end_idx_
     end
 end
 disp('Windowing around GFP peaks done.')
