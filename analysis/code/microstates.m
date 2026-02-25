@@ -15,13 +15,13 @@ m_time=time>=tanova.param.t_range(1)& ...
 time=time(m_time);
 
 tanova.param.overwrite=true; % avoid re-running permutations
-tanova.param.experiment=script_config.experiment;
+% tanova.param.experiment=script_config.experiment;
 % tanova.param.t_range=clustering.t_range;
 n_chns=length(chanlocs);
 n_time=length(time);
 tanova.result.time=time;
 global boxdir_mine
-tanova_out_pth=fullfile(boxdir_mine,'analysis','tanova',[tanova.param.experiment '.mat']);
+tanova_out_pth=fullfile(boxdir_mine,'analysis','tanova',[script_config.experiment '.mat']);
 if exist(tanova_out_pth,'file')==0 || tanova.param.overwrite
     disp('no file found -- running TANOVA.')
     %% "average-reference" trfs
@@ -166,7 +166,7 @@ for cp=1:length(tanova.result.cond_pairs)
     xlim(tanova.param.t_range)
     yticks([0.9 0.95 1.0])
     hold off
-    clear c1 c2 tanova_m_
+    clear c1 c2 tanova_m_ run_starts run_ends
 end
 %% part 2: microstate clustering
 % "what are the distinct topographic patterns in the data?"
@@ -175,21 +175,197 @@ end
 clustering=struct('param',[],'result',[]);
 % how to choose max number of clusters worth trying? maybe looking at KL
 % curve?
-clustering.param.k_clusters=2:10; 
+clustering.param.ks=2:15;
 clustering.param.t_range=tanova.param.t_range;
-clustering.param.n_restarts=10; %note: use 100 ultimately...
+clustering.param.n_restarts=100; %note: use 100 ultimately...
+clustering.param.overwrite=true;
+% clustering.param.experiment=tanova.param.experiment;
 % concatenate all trfs -- lumping conditions together
 % still use average reference
 % note: permute needed to keep waveform times from being shuffled around by
 % conditions...
-trf_concat=reshape(permute(tanova.result.ar_trfs_grand,[2 1 3]),[], n_chns);
+% i.e. [conditions x time x chns] -> [time x conditions x chns]
+%   (-> [time*conditions x chns])
+trfs_concat=reshape(permute(tanova.result.ar_trfs_grand,[2 1 3]),[], n_chns);
 % calculate lumped-GFP
-gfp_concat=rms(trf_concat,2);
+gfp_concat=rms(trfs_concat,2);
+% GFP-normalize each timepoint map before clustering
+% ensures clustering driven by topography, not strength
+trfs_normed=trfs_concat./gfp_concat;
 %% run k-means clustering
-for k=clustering.param.k_clusters
-    fprintf('')
+n_maps_total=size(trfs_normed,1); % n_conditions * n_time
+% preallocate GEV (global explained variance)
+clustering_out_pth=fullfile(boxdir_mine,'analysis','kmeans_clustering',[script_config.experiment '.mat']);
+if exist(clustering_out_pth,'file')==0 || clustering.param.overwrite
+    clustering.result.GEV=nan(length(clustering.param.ks),1);
+    clustering.result.labels=cell(length(clustering.param.ks),1);
+    clustering.result.centroids=cell(length(clustering.param.ks),1);
+    
+    for k_idx=1:length(clustering.param.ks)
+        k=clustering.param.ks(k_idx);
+        fprintf('clustering, k=%d...\n',k)
+    
+        [labels, centroids]=kmeans(trfs_normed, k, ...
+            'Replicates',clustering.param.n_restarts,...
+            'Distance','cosine' ...
+            );
+        % labels: [n_maps_total-by-1] centroids: [k-by-chns]
+        % note: consider changing MaxIter using statset if non-convergence is
+        % suspected... should primarily rely on reinilization though
+        
+        % compute GEV for this k solution
+        % GEV = sum(GFP(t)^2 * C(t)^2 / sum(GFP(t)^2)
+        % where C(t): spatial correlation at timepoint t --
+        %                   corr(trf_concat(t,:), centroids(labels(t),:))
+        % C(u,v) = (u'*v) / (||u|| * ||v||)
+        C=sum(trfs_normed.*centroids(labels,:), 2) ./ ...
+        (sqrt(sum(trfs_normed.^2,2)).*sqrt(sum(centroids(labels,:).^2,2)));
+    
+        clustering.result.GEV(k_idx)=sum(gfp_concat.^2.*C.^2)/sum(gfp_concat.^2);
+        clustering.result.labels{k_idx}=labels;
+        clustering.result.centroids{k_idx}=centroids;
+        clear labels centroids
+    end
+    save(clustering_out_pth,'clustering');
+    fprintf('saved clustering results to %s\n',clustering_out_pth)
+else
+    load(clustering_out_pth,'clustering')
 end
+%% plot GEV to inspect the elbow
+figure;
+plot(clustering.param.ks, clustering.result.GEV, 'o-')
+xlabel('Number of clusters')
+ylabel('GEV')
+title('Global explained variance by cluster solution')
 
+figure;
+plot(clustering.param.ks(2:end), diff(clustering.result.GEV), 'o-')
+xlabel('Number of clusters')
+ylabel('delta GEV')
+title('Incremental GEV gain')
+%% choose optimal k (KL criterion)
+% Krzanowski-Lai criterion
+% Dispersion (W) trends towards 0 as the quality of the clustering results
+
+W=nan(length(clustering.param.ks),1);
+for k_idx=1:length(clustering.param.ks)
+    k=clustering.param.ks(k_idx);
+    labels=clustering.result.labels{k_idx};
+    centroids=clustering.result.centroids{k_idx};
+
+    W_q=0;
+    for r=1:k
+        % find all maps assigned to this cluster
+        cluster_maps=trfs_normed(labels==r,:);
+        % number of maps for cluster r
+        % note: might be slow... could do without enumerating pairs
+        % explicitly perhaps?
+        n_r=size(cluster_maps,1);
+
+        % Sum of pair-wise distance between all maps of a given cluster r
+        cluster_pairs=nchoosek(1:size(cluster_maps,1),2);
+        Dr=sum(sum((cluster_maps(cluster_pairs(:,1),:)-cluster_maps(cluster_pairs(:,2),:)).^2,2));
+        W_q=W_q+Dr./(2*n_r);
+    end
+    W(k_idx)=W_q;
+    clear W_q labels centroids
+end
+disp('dispersion calculation done.')
+%% calculate KL criterion, find optimal number of clusters
+% normalize W by k^(2/n_chns) per Murray et al
+M_q = W .* (clustering.param.ks'.^(2/n_chns));
+% compute curvature
+d_q = diff(M_q);
+KL_q = abs(d_q(1:end-1) ./ d_q(2:end));
+warning('not saving KL_q to file below...')
+clustering.result.KL_q=KL_q; %todo: other things worth saving...?
+[~,opt_k_idx]=max(KL_q);
+templates=clustering.result.centroids{opt_k_idx}; % [4-by-chns]
+labels_grand=clustering.result.labels{opt_k_idx}; % [n_maps_total-by-1]
+%% plot KL criterion
+figure;
+plot(clustering.param.ks(2:end-1), KL_q, 'o-')
+xlabel('Number of clusters')
+ylabel('KL criterion')
+title('Krzanowski-Lai criterion')
+%% component definition from clustering
+% based on lalor et al 2009: define component windows from template map
+% transitions in the grand average TRF
+components_out_pth=fullfile(boxdir_mine,'analysis','components',[script_config.experiment '.mat'])
+components=struct('param',[],'result',[]);
+components.param.k=opt_k_idx;
+components.param.overwrite=true;
+if exist(components_out_pth,"file")==0 || components.param.overwrite
+    
+    % get labels for concatenated grand average
+    % labels: [time*conditions x 1] (cuz trf_concat)
+    % -> [time x conditions]
+    labels_by_cond=reshape(labels_grand,n_time,numel(experiment_conditions));
+    
+    % for condition-invariant boundaries, find dominant template at each
+    % timepoint across conditions by majority vote
+    labels_concat_time=mode(labels_by_cond,2); %[n_time x 1]
+    
+    % apply minimum duration constraint
+    % find runs of same label
+    components.param.min_duration_samples=3;
+    run_starts=find(diff([0; labels_concat_time])~=0);
+    run_ends=[run_starts(2:end)-1; n_time];
+    run_lengths=run_ends-run_starts+1;
+    
+    if any(run_lengths<components.param.min_duration_samples)
+        % merge with neighboring component
+        for rr=1:length(run_starts)
+            if run_lengths(rr)<components.param.min_duration_samples
+                % replace short segment with label of preceding segment
+                if run_starts(rr)>1
+                    labels_concat_time(run_starts(rr):run_ends(rr))= ...
+                        labels_concat_time(run_starts-1);
+                    % run_starts(rr)=run_starts(rr-1);
+                    % run_lengths(rr)=run_ends(rr)-run_starts(rr)+1;
+                else
+                    labels_concat_time(run_starts(rr):run_ends(rr))= ...
+                        labels_concat_time(run_ends(rr)+1);
+                    % run_starts(rr+1)=run_starts(rr);
+                    % run_lengths(rr+1)=run_ends(rr+1)-run_starts(rr+1)+1;
+                end
+            end
+        end
+    end
+    clear run_ends  run_starts
+    
+    %find component boundaries
+    transitions=find(diff([0; labels_concat_time])~=0);
+    comp_starts=[1; transitions+1];
+    comp_ends=[transitions; n_time];
+    comp_labels=labels_concat_time(comp_starts);
+    
+    n_components=length(comp_starts);
+    
+    fprintf('found %d components\n', n_components);
+    components.result.starts=time(comp_starts);
+    components.result.ends=time(comp_ends);
+    %preallocate topos for each component
+    components.result.topos=nan(n_components,n_chns);
+    
+    % average grand trf topography within each component window
+    % use mean across conditions...?
+    grand_mean_trf=squeeze(mean(tanova.result.ar_trfs_grand,1)); %[time x chns]
+    
+    for cc=1:n_components
+        window=comp_starts(cc):comp_ends(cc);
+        components.result.topos(cc,:)=mean(grand_mean_trf(window,:),1);
+        clear window
+    end
+    disp('component topos evaluated.')
+    save(components_out_pth,"components");
+    fprintf('saved components to %s\n',components_out_pth)
+else
+    load(components_out_pth,"components");
+end
+%% plot Lalor et al 2009 figure 4 using these component windows
+% caution: component_windows variable defined in plot_trfs could cause
+% confusion here.
 %%
 function diss=compute_diss(u,v)
     % per Murray et al 2008, "global dissimilarity (DISS) is an index of
@@ -211,3 +387,9 @@ end
 % “Topographic ERP Analyses: A Step-by-Step Tutorial Review.” Brain 
 % Topography 20, no. 4 (2008): 
 % 249–64. https://doi.org/10.1007/s10548-008-0054-5.
+
+% Lalor, Edmund C., Alan J. Power, Richard B. Reilly, and John J. Foxe. 
+% “Resolving Precise Temporal Processing Properties of the Auditory 
+% System Using Continuous Stimuli.” Journal of Neurophysiology 102, 
+% no. 1 (2009): 349–59. https://doi.org/10.1152/jn.90896.2008.
+
