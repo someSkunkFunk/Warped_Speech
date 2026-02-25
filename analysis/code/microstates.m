@@ -1,9 +1,9 @@
 % Microstate analysis
+% assumes avg_models, experiment_conditions, ind_models
+% have been constructed by running 
 
 %% part 1: TANOVA
 % "do conditions produce statistically different scalp topographies, and at which time points?"
-% assumes avg_models, experiment_conditions, ind_models
-% have been constructed by running 
 % plot_trfs script prior to this
 tanova=struct('param',[],'result',[]);
 % restrict TRFs to -100ms to 500ms
@@ -33,6 +33,7 @@ if exist(tanova_out_pth,'file')==0 || tanova.param.overwrite
         % restrict time range for analysis
         W=W(m_time,:);
         ar_trfs_grand(cc,:,:)=W-mean(W,2);
+        clear W
     end
     disp('avg referencing + grand avg trfs done.')
     % repeat for single-subjects.
@@ -44,6 +45,7 @@ if exist(tanova_out_pth,'file')==0 || tanova.param.overwrite
             % restrict time range
             W=W(m_time,:);
             ar_trfs_subj(ss,cc,:,:)=W-mean(W,2);
+            clear W
         end
     end
     disp('avg referencing + aggregating subj trfs done.')
@@ -251,7 +253,7 @@ W=nan(length(clustering.param.ks),1);
 for k_idx=1:length(clustering.param.ks)
     k=clustering.param.ks(k_idx);
     labels=clustering.result.labels{k_idx};
-    centroids=clustering.result.centroids{k_idx};
+    % centroids=clustering.result.centroids{k_idx};
 
     W_q=0;
     for r=1:k
@@ -291,7 +293,7 @@ title('Krzanowski-Lai criterion')
 %% component definition from clustering
 % based on lalor et al 2009: define component windows from template map
 % transitions in the grand average TRF
-components_out_pth=fullfile(boxdir_mine,'analysis','components',[script_config.experiment '.mat'])
+components_out_pth=fullfile(boxdir_mine,'analysis','components',[script_config.experiment '.mat']);
 components=struct('param',[],'result',[]);
 components.param.k=opt_k_idx;
 components.param.overwrite=true;

@@ -110,6 +110,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 close all
 script_config.experiment='fast-slow';
 script_config.custom_subjs=[];
+script_config.topos_from_peak_windows=false;
 % best fast-slow subjs: 
 % subjs=[9,12]; 
 switch script_config.experiment
@@ -261,7 +262,10 @@ for cc = 1:numel(experiment_conditions)
     % mastoid-referenced
     gfp(cc,:)=std(W,0,2);
     % gfp(cc, :) = rms(W,2);
+    clear W
 end
+%% estimate components via microstate analysis
+microstates
 
 %% time-based TRF component identification
 % compute GFP
@@ -271,102 +275,104 @@ end
 
 % doesn't seem necessary but in order to comply w Lalor et al. (2009)
 % we'll add this optional step
-time_component_analysis=[];
-time_component_analysis.smooth_gfp=false;
-
+% time_component_analysis=[];
+% time_component_analysis.smooth_gfp=false;
+% 
 
 %% Identify candidate component latencies
 
-time_component_analysis.keep_top_n=[]; % leave empty if keeping all
-% plot pre-smoothed GFP:
-gfp_plots=cell(size(experiment_conditions));
-for cc=1:numel(experiment_conditions)
-    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
-end
-
-
-% limit number of peaks to consider a component based on amplitude...
-component_idx=cell(size(experiment_conditions));
-component_times=cell(size(experiment_conditions));
-baseline=zeros(3,1);
-% limit search range because there are edge artefacts.... but how do we
-% decide objectively what time range makes sense???? TODO!
-time_component_analysis.tbounds=[0, 500];
-for cc = 1:numel(experiment_conditions)
-
-
-    % Define an objective threshold
-    % Using same as Lalor et al. (2009) - twice the mean GFP during
-    % -100ms,0ms window
-    baseline_window_m=avg_models(cc).t<0 & avg_models(cc).t>-100;
-    baseline(cc)=2*mean(gfp(cc,baseline_window_m),2);
-    % Find local maxima above threshold
-    % TODO: enforce minimum separation between peaks (did lalor et al do this?)
-    % also, what would be a principled way to set that minimum separation value?
-    [component_amplitudes,component_idx{cc}]=findpeaks(gfp(cc,:), ...
-        "MinPeakHeight",baseline(cc)+eps);
-    if ~isempty(time_component_analysis.keep_top_n)
-        [~,sortI]=maxk(component_amplitudes,time_component_analysis.keep_top_n);
-        component_idx{cc}=component_idx{cc}(sortI);
-    end
-    % filter peaks so only looking in search window defined by tbounds
-    component_times{cc}=avg_models(cc).t(component_idx{cc});
-    
-    tbounds_m_=component_times{cc}<max(time_component_analysis.tbounds)&...
-        component_times{cc}>min(time_component_analysis.tbounds);
-    component_idx{cc}=component_idx{cc}(tbounds_m_);
-    component_times{cc}=component_times{cc}(tbounds_m_);
-    clear tbounds_m_
-end
-
-%% define component latency windows
-% component start,end in ms relative to component time
-time_component_analysis.component_window_ms=[-16 16];
-% doing this somewhat arbitrarily based on the minimum size of windows
-% reported in Lalor et al. 2009 - but it would be cool to use the actual
-% microstates analysis they used to determine a better component...
-
-% apparently 10 ms window (the "minimum" size referred to above) is too 
-% small since we sampled at 128 Hz our delta is ~7.8 ms so bumping it up to
-% the average size given by window lims reported in Lalor et al 2009:
-% mean(diff([45,  61, 92, 104, 125, 170, 238])) ~32
-
-
-component_windows=cell(size(experiment_conditions));
-for cc = 1:numel(experiment_conditions)
-    for kk = 1:numel(component_idx{cc})
-        t_range_ms_=component_times{cc}(kk)+time_component_analysis.component_window_ms;
-        t_start_idx_=find(avg_models(cc).t>min(t_range_ms_),1,'first');
-        t_end_idx_=find(avg_models(cc).t<max(t_range_ms_),1,'last');
-        component_windows{cc}(kk,:) = [t_start_idx_, t_end_idx_];
-        clear t_range_ms_ t_start_idx_ t_end_idx_
-    end
-end
-disp('Windowing around GFP peaks done.')
+% time_component_analysis.keep_top_n=[]; % leave empty if keeping all
+% % plot pre-smoothed GFP:
+% gfp_plots=cell(size(experiment_conditions));
+% for cc=1:numel(experiment_conditions)
+%     gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
+% end
+% 
+% 
+% % limit number of peaks to consider a component based on amplitude...
+% component_idx=cell(size(experiment_conditions));
+% component_times=cell(size(experiment_conditions));
+% baseline=zeros(3,1);
+% % limit search range because there are edge artefacts.... but how do we
+% % decide objectively what time range makes sense???? TODO!
+% time_component_analysis.tbounds=[0, 500];
+% for cc = 1:numel(experiment_conditions)
+% 
+% 
+%     % Define an objective threshold
+%     % Using same as Lalor et al. (2009) - twice the mean GFP during
+%     % -100ms,0ms window
+%     baseline_window_m=avg_models(cc).t<0 & avg_models(cc).t>-100;
+%     baseline(cc)=2*mean(gfp(cc,baseline_window_m),2);
+%     % Find local maxima above threshold
+%     % TODO: enforce minimum separation between peaks (did lalor et al do this?)
+%     % also, what would be a principled way to set that minimum separation value?
+%     [component_amplitudes,component_idx{cc}]=findpeaks(gfp(cc,:), ...
+%         "MinPeakHeight",baseline(cc)+eps);
+% 
+% 
+%     if ~isempty(time_component_analysis.keep_top_n)
+%         [~,sortI]=maxk(component_amplitudes,time_component_analysis.keep_top_n);
+%         component_idx{cc}=component_idx{cc}(sortI);
+%     end
+%     % filter peaks so only looking in search window defined by tbounds
+%     component_times{cc}=avg_models(cc).t(component_idx{cc});
+% 
+%     tbounds_m_=component_times{cc}<max(time_component_analysis.tbounds)&...
+%         component_times{cc}>min(time_component_analysis.tbounds);
+%     component_idx{cc}=component_idx{cc}(tbounds_m_);
+%     component_times{cc}=component_times{cc}(tbounds_m_);
+%     clear tbounds_m_
+% end
+% 
+% %% define component latency windows
+% % component start,end in ms relative to component time
+% time_component_analysis.component_window_ms=[-16 16];
+% % doing this somewhat arbitrarily based on the minimum size of windows
+% % reported in Lalor et al. 2009 - but it would be cool to use the actual
+% % microstates analysis they used to determine a better component...
+% 
+% % apparently 10 ms window (the "minimum" size referred to above) is too 
+% % small since we sampled at 128 Hz our delta is ~7.8 ms so bumping it up to
+% % the average size given by window lims reported in Lalor et al 2009:
+% % mean(diff([45,  61, 92, 104, 125, 170, 238])) ~32
+% 
+% 
+% component_windows=cell(size(experiment_conditions));
+% for cc = 1:numel(experiment_conditions)
+%     for kk = 1:numel(component_idx{cc})
+%         t_range_ms_=component_times{cc}(kk)+time_component_analysis.component_window_ms;
+%         t_start_idx_=find(avg_models(cc).t>min(t_range_ms_),1,'first');
+%         t_end_idx_=find(avg_models(cc).t<max(t_range_ms_),1,'last');
+%         component_windows{cc}(kk,:) = [t_start_idx_, t_end_idx_];
+%         clear t_range_ms_ t_start_idx_ t_end_idx_
+%     end
+% end
+% disp('Windowing around GFP peaks done.')
 %% extract and plot component topographies
-component_topos=cell(size(experiment_conditions));
-for cc=1:numel(experiment_conditions)
-    for kk=1:numel(component_idx{cc})
-        win=component_windows{cc}(kk,1):component_windows{cc}(kk,2);
-        % average out the weights (TODO: do we wanna look at pre-averaged
-        % topos too?)
-        component_topos{cc}(kk,:)=squeeze(mean(avg_models(cc).w(1,win,:),2));
-    end
-end
-% plotting topos
-for cc=1:numel(experiment_conditions)
-    for kk=1:numel(component_idx{cc})
-        figure
-        topoplot(component_topos{cc}(kk,:),chanlocs)
-        title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
-    end
-end
-disp('GFP peaks identified and fixed-window topo average around them plotted.')
+% component_topos=cell(size(experiment_conditions));
+% for cc=1:numel(experiment_conditions)
+%     for kk=1:numel(component_idx{cc})
+%         win=component_windows{cc}(kk,1):component_windows{cc}(kk,2);
+%         % average out the weights (TODO: do we wanna look at pre-averaged
+%         % topos too?)
+%         component_topos{cc}(kk,:)=squeeze(mean(avg_models(cc).w(1,win,:),2));
+%     end
+% end
+% % plotting topos
+% for cc=1:numel(experiment_conditions)
+%     for kk=1:numel(component_idx{cc})
+%         figure
+%         topoplot(component_topos{cc}(kk,:),chanlocs)
+%         title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
+%     end
+% end
+% disp('GFP peaks identified and fixed-window topo average around them plotted.')
 %% stack butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
 switch script_config.experiment
     case 'fast-slow'
-        gfp_ylim=[0 .4];
+        gfp_ylim=[0 .2];
         trf_ylim= [-.6 .6];
     case 'reg-irreg'
         gfp_ylim=[0 .6];
@@ -374,7 +380,7 @@ switch script_config.experiment
 end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
-    figure('Units','inches','Position',[0 0 4.2 3])
+    figure('Units','inches','Position',[0 0 7 3])
     
     % Define normalized axis positions
     ax_gfp_pos = [0.12 0.70 0.83 0.22];   
@@ -388,7 +394,7 @@ for cc=1:numel(experiment_conditions)
     
     % add baseline indicator
     plot(ax_gfp,butterfly_fig.t_lims,[baseline(cc), baseline(cc)],'--', ...
-        'Color',baseline_color);
+        'Color',baseline_color,'LineWidth',1);
     hold(ax_gfp,"off")
     ylabel('GFP')
     set(ax_gfp, 'XTickLabel', [],'YLim',gfp_ylim)   % no x labels on top
@@ -406,9 +412,12 @@ for cc=1:numel(experiment_conditions)
     box off
 
     % --- Annotate Component Windows ---
-    for kk=1:size(component_windows{cc},1)
-        t1=avg_models(cc).t(min(component_windows{cc}(kk,:)));
-        t2=avg_models(cc).t(max(component_windows{cc}(kk,:)));
+    % for kk=1:size(component_windows{cc},1)
+        % t1=avg_models(cc).t(min(component_windows{cc}(kk,:)));
+        % t2=avg_models(cc).t(max(component_windows{cc}(kk,:)));
+    for kk=1:length(components.result.starts)
+        t1=components.result.starts(kk);
+        t2=components.result.ends(kk);
         T=repmat([t1,t2],2,1);
         % put line in gfp plot
         hold(ax_gfp,"on");
@@ -418,41 +427,21 @@ for cc=1:numel(experiment_conditions)
         hold(ax_trf,"on");
         plot(ax_trf,T, trf_ylim, '--k')
         hold(ax_trf,"off");
+        clear t1 t2
     end
     % --- Synchronize ---
     linkaxes([ax_gfp, ax_trf], 'x')
     xlim(butterfly_fig.t_lims)
-    sgtitle(sprintf('%s Components',experiment_conditions{cc})) 
-end
-%% make and RGB-coded topoplot
-script_config.show_rgb_topo=false;
-if script_config.show_rgb_topo
-    % map x,y,z -> r,g,b
-    X = [chanlocs.X];
-    Y = [chanlocs.Y];
-    Z = [chanlocs.Z];
-    
-    % Normalize to [0,1]
-    R = (X - min(X)) ./ (max(X) - min(X));
-    G = (Y - min(Y)) ./ (max(Y) - min(Y));
-    B = (Z - min(Z)) ./ (max(Z) - min(Z));
-    
-    RGB = [R(:), G(:), B(:)];   % 128×3
-    % N electrodes, M colormap entries
-    % Result: N×M distance matrix
-    D = squeeze(sum((RGB- permute(cmap,[3 2 1])).^2, 2));
-    [~, idx] = min(D, [], 2);   % idx is N×1
-    
-    
-    % get electrode x/y projections on scalp
-    % ex = [chanlocs.radius] .* cos([chanlocs.theta]);
-    % ey = [chanlocs.radius] .* sin([chanlocs.theta]);
-    
-    % draw head outline
-    figure; hold on
-    topoplot(idx, chanlocs, 'maplimits',[1 size(cmap,1)]);
-    colormap(cmap);
-    title("XYZ->RGB")
+    % sgtitle(sprintf('%s Components',experiment_conditions{cc}))
+    % plot topos for each component
+    for kk=1:size(components.result.topos,1)
+        figure('Units','inches','Position',[0 0 1 1.2])
+        topoplot(components.result.topos(kk,:),chanlocs)
+        title(sprintf('%s, %0.0fms-%0.0fms',experiment_conditions{cc}, ...
+            components.result.starts(kk),components.result.ends(kk)))
+        ax = gca;
+        ax.LooseInset = max(ax.TightInset, 0.02);
+    end
 end
 
 %% plot weights for individual subject
@@ -536,6 +525,36 @@ if script_config.show_avg_weights
         
     end
     clear  h_ lg_
+end
+%% make and RGB-coded topoplot
+script_config.show_rgb_topo=false;
+if script_config.show_rgb_topo
+    % map x,y,z -> r,g,b
+    X = [chanlocs.X];
+    Y = [chanlocs.Y];
+    Z = [chanlocs.Z];
+    
+    % Normalize to [0,1]
+    R = (X - min(X)) ./ (max(X) - min(X));
+    G = (Y - min(Y)) ./ (max(Y) - min(Y));
+    B = (Z - min(Z)) ./ (max(Z) - min(Z));
+    
+    RGB = [R(:), G(:), B(:)];   % 128×3
+    % N electrodes, M colormap entries
+    % Result: N×M distance matrix
+    D = squeeze(sum((RGB- permute(cmap,[3 2 1])).^2, 2));
+    [~, idx] = min(D, [], 2);   % idx is N×1
+    
+    
+    % get electrode x/y projections on scalp
+    % ex = [chanlocs.radius] .* cos([chanlocs.theta]);
+    % ey = [chanlocs.radius] .* sin([chanlocs.theta]);
+    
+    % draw head outline
+    figure; hold on
+    topoplot(idx, chanlocs, 'maplimits',[1 size(cmap,1)]);
+    colormap(cmap);
+    title("XYZ->RGB")
 end
 
 %% plot topos at particular latency
