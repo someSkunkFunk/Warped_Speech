@@ -5,19 +5,35 @@ config.fs=128;
 config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
 config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
 config.plot_individual_trials=false;
-config.model='SL'; % always sl... oops
+% --- model options --- 
+% 'env' : envelope-coupled by some constant
+% 'reset': phase-reset model 
+config.model='env';  
 %% select SL parameters
-% optimal parameters used by wei ching
 
 sl_param=[];
-sl_param.lambda=0.1;
-sl_param.gamma=13.83;
-sl_param.k=80;
 sl_param.f_nat=4; % in Hz -> converted to radians when running model
+switch config.model
+    case 'env'
+        % optimal parameters used by wei ching
+        sl_param.lambda=0.1;
+        sl_param.gamma=13.83;
+        sl_param.k=80;
+    case 'reset'
+        optimize_sl_reset
+end
 
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
-[t, sl_nostim]=run_sl_model(config,sl_param);
+switch config.model
+    case 'env'
+        [t, sl_nostim]=run_sl_env(config,sl_param);
+    case 'reset'
+        [t, sl_nostim]=run_sl_reset(config,sl_param);
+    otherwise
+        error('config.model: %s', config.model)
+end
+
 %% plot unforced model output
 figure
 plot(t,sl_nostim(:,1)), hold on
@@ -51,11 +67,18 @@ env=env(3,:);
 nenv=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
 %%
 % run sl model for each trial's envelope 
-%TODO: how to enter envelope in function form below?
 sl_responses=cell(length(nenv),2);
 for ii=1:length(nenv)
     fprintf('running %s model for %d/%d\n',config.model,ii,length(nenv))
-    [sl_responses{ii,:}]=run_sl_model(config,sl_param,nenv{ii});
+    switch config.model
+        case 'env'
+            [sl_responses{ii,:}]=run_sl_env(config,sl_param,nenv{ii});
+        case 'reset'
+            [sl_responses{ii,:}]=run_sl_reset(config,sl_param);
+        otherwise
+            error('config.model: %s', config.model)
+    end
+    
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
 if config.plot_individual_trials
@@ -157,7 +180,9 @@ xticks(trf_config.trtlims(1):100:trf_config.trtlims(2))
 xlim([-100,trf_config.trtlims(2)])
 title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
 
-%% quantify event-based phase concentration of output across all stimuli
+%% quantify event-based phase concentration of output across all stimuli?
+% to what end?
+%
 
 
 %% helpers
@@ -185,7 +210,7 @@ function x0=init_limit_cycle(sl_param)
     rand_theta=randn(1)*2*pi;
     x0=lim_rad.*[cos(rand_theta);sin(rand_theta)];
 end
-function [t, model_out]=run_sl_model(config,sl_param,s_data)
+function [t, model_out]=run_sl_env(config,sl_param,s_data)
 % [t, model_out]=run_sl_model(config,sl_param,input_fun)
 % arguments
 %     config (1,1) struct
