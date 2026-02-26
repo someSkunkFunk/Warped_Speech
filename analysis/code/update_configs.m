@@ -4,8 +4,7 @@
 script_config=[];
 script_config.show_tuning_curves=true;
 
-% for subj=[2:7,9:23,96,98]
-for subj=[6:7,9:23,96,98]
+for subj=[2:7,9:23,96,98]
     trf_analysis_params;
     fprintf('**********UPDATING SUBJ %d CONFIGS***********\n', subj)
     % need to run again for both settings of separate conditions --
