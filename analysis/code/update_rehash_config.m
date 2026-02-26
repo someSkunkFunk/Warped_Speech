@@ -41,7 +41,12 @@ for dd=1:length(D)
     % after replacing, new config should not have paths
     new_config=remove_nested_paths(new_config);
     new_hash=char(upper(DataHash(new_config)));
-    old_hash=char(upper(DataHash(old_config)));
+
+    % NOTE: not sure why but old_hash sometimes doesn't match hash stored
+    % in registry, or in filename... so get from registry instead since it
+    % should link to the correct file name more robustly
+    old_hash=registry(dd).hash;
+    % old_hash=char(upper(DataHash(old_config)));
     disp('new hash:')
     disp(new_hash)
     disp('old_hash:')

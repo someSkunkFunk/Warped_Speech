@@ -1,4 +1,8 @@
 function data=load_checkpoint(config)
+% checkpoint_data_struct=load_checkpoint(config)
+% all variables associated with config structure packaged into a structure
+% is returned, unpack:
+% desired_var=checkpoint_data_struct.desired_var;
     subj=config.subj;
     registry_file=fullfile(config.paths.output_dir,'registry.json');
     if ~isfile(registry_file)

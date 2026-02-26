@@ -3,11 +3,19 @@
 % in order to fairly compare predicted TRFs, model should be fit
 % independently for each subject & electrode... 
 global boxdir_mine
+subj=2;
 
-% load preprocessed EEG
+% --- IGNORE (NUISANCE SETUP) ---
+script_config=[];
+script_config.show_tuning_curves=false;
+trf_analysis_params
+% --- ---
 
+% --- LOAD PREPROCESSED EEG ---
+pp_checkpoint=load_checkpoint(preprocess_config);
+preprocessed_eeg=pp_checkpoint.preprocessed_eeg;
+clear pp_checkpoint
 sl_reset_gridsearch=struct('param',[],'result',[]);
-sl_reset_gridsearch.param.overwrite=true;
 sl_reset_gridsearch.out_path=fullfile(boxdir_mine,'analysis','sl_reset','optimized_models_fastSlow.mat');
 % note: assuming small amplitude perturbations, and linearizing around 
 % r_dot=0 lambda & gamma are somewhat redundant as different combinations
@@ -52,6 +60,9 @@ if exist(sl_reset_gridsearch.out_path,'file')==0||sl_reset_gridsearch.overwrite
     fasl_envs_path=fullfile(boxdir_mine,'stimuli','wrinkle','fastSlowEnvelopes128Hz.mat');
     % note: not sure if normalizing or anything like that is desireable here?
     load(fasl_envs_path,'env','fs');
+    % load preprocessed eeg, one subject at a time
+
+
     % initialize values
     optimal.lambda=sl_reset_gridsearch.param.init_pts(1);
     optimal.theta=sl_reset_gridsearch.param.init_pts(2);
@@ -62,7 +73,7 @@ if exist(sl_reset_gridsearch.out_path,'file')==0||sl_reset_gridsearch.overwrite
             for tt=1:length(G2)
                 %TODO: RMSE evaluation should be independent for each
                 %subject, electrode....
-                inv_loss= % -(RMSE)
+                % inv_loss= % -(RMSE)
 
                 if inv_loss>optimal.inv_loss
                     optimal.inv_loss=inv_loss;

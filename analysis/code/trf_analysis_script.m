@@ -12,7 +12,8 @@ clc
 % for subj=[7,9:21]
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
 % for subj=[2:7,9:23,96,98]
-for subj=[23, 96:98]
+% for subj=[23, 96:98]
+for subj=2
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -20,21 +21,23 @@ close all
 script_config=[];
 script_config.show_tuning_curves=true;
 trf_analysis_params;
-if update_configs
-    disp('**********UPDATING CONFIGS - NOT RUNNING ANALYSIS SCRIPT***********')
-    % assumes these exist already and just need to add fields not
-    % previously saved
-    if ~trf_config.separate_conditions
-        % should already be updated when updating sep conditions configs
-        disp('updating preprocess config')
-        update_rehash_config(preprocess_config)
-        disp('done.')
-    end
-    disp('updating trf config')
-    update_rehash_config(trf_config)
-    disp('done.')  
-    continue
-end
+% update_configs=false;
+% 
+% if update_configs
+%     disp('**********UPDATING CONFIGS - NOT RUNNING ANALYSIS SCRIPT***********')
+%     % assumes these exist already and just need to add fields not
+%     % previously saved
+%     if ~trf_config.separate_conditions
+%         % should already be updated when updating sep conditions configs
+%         disp('updating preprocess config')
+%         update_rehash_config(preprocess_config)
+%         disp('done.')
+%     end
+%     disp('updating trf config')
+%     update_rehash_config(trf_config)
+%     disp('done.')  
+%     continue
+% end
 %% check if data exists already...
 if overwrite
     if trf_config.separate_conditions
