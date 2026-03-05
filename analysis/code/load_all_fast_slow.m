@@ -15,9 +15,6 @@ for ss=1:length(subjs)
     EEG(ss,pp_checkpoint_.preprocessed_eeg.trials)=pp_checkpoint_.preprocessed_eeg.resp;
     % each subj has a different order so we have to package that too
     COND(ss,pp_checkpoint_.preprocessed_eeg.trials)=pp_checkpoint_.preprocessed_eeg.cond;
-    % if ~isequal(1:n_trials,pp_checkpoint_.preprocessed_eeg.trials)
-    %     error('missing trials...')
-    % end
     STIM(ss,pp_checkpoint_.preprocessed_eeg.trials)=load_stim_cell(trf_config.paths.envelopesFile,COND(ss,pp_checkpoint_.preprocessed_eeg.trials),pp_checkpoint_.preprocessed_eeg.trials);
     
     clear pp_checkpoint_

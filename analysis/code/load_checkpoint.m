@@ -27,8 +27,9 @@ function data=load_checkpoint(config)
     elseif length(config_match_idx)>1
         error('redundant entries found and need to be dissolved...')
     else
-        file=registry(config_match_idx).file;
-        data=load(file);
+        [~,file,~]=fileparts(registry(config_match_idx).file);
+        [dir,~,~]=fileparts(registry_file);
+        data=load(fullfile(dir,file));
         fprintf(['finished loading checkpoint for ' ...
             'subj %02d (hash %s)\n'],subj,config_hash)
     end
