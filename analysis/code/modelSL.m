@@ -4,21 +4,28 @@ config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
 config.fs=128;
 config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
 config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
-config.plot_individual_trials=false;
+config.plot_individual_trials=[10]; % look at simulated response for trials specified here
 % --- model options --- 
 % 'env' : envelope-coupled by some constant
 % 'reset': phase-reset model 
-config.model='env';  
+config.model='env'; 
+config.fit_trfs=false;
+config.normalize_envs=false;
+config.sim_trials=[10]; % 1:120 to simulate all of them
 %% select SL parameters
 
 sl_param=[];
 sl_param.f_nat=4; % in Hz -> converted to radians when running model
 switch config.model
     case 'env'
-        % optimal parameters used by wei ching
-        sl_param.lambda=0.1;
-        sl_param.gamma=13.83;
-        sl_param.k=80;
+        % optimal parameters wei ching previously gave 
+        % sl_param.lambda=0.1;
+        % sl_param.gamma=13.83;
+        % sl_param.k=80;
+        sl_param.lambda=.5;
+        sl_param.gamma=1;
+        sl_param.k=1000;
+        rs=sqrt(sl_param.lambda/sl_param.gamma);
     case 'reset'
         optimize_sl_reset
 end
@@ -41,7 +48,8 @@ plot(t,sl_nostim(:,2))
 title(sprintf('%s without stimulus',config.model))
 legend('x', 'y')
 xlabel('time (s)')
-xlim([min(t) max(t)])
+% xlim([min(t) max(t)])
+xlim([0 1])
 hold off
 %% phase-portrait of unforced model output
 figure
@@ -62,17 +70,19 @@ envelopes_path=sprintf(['C:/Users/ninet/Box/my box/LALOR LAB/', ...
 load(envelopes_path,"env");
 % some cell entries intentionally left empty - only care about third row
 % anyway
-env=env(3,:);
+env=env(3,config.sim_trials);
 % normalize envelopes as in Doelling et al 2023
-nenv=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
+if config.normalize_envs
+    env=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
+end
 %%
 % run sl model for each trial's envelope 
-sl_responses=cell(length(nenv),2);
-for ii=1:length(nenv)
-    fprintf('running %s model for %d/%d\n',config.model,ii,length(nenv))
+sl_responses=cell(length(env),2);
+for ii=1:length(env)
+    fprintf('running %s model for %d/%d\n',config.model,ii,length(env))
     switch config.model
         case 'env'
-            [sl_responses{ii,:}]=run_sl_env(config,sl_param,nenv{ii});
+            [sl_responses{ii,:}]=run_sl_env(config,sl_param,env{ii});
         case 'reset'
             [sl_responses{ii,:}]=run_sl_reset(config,sl_param);
         otherwise
@@ -81,16 +91,19 @@ for ii=1:length(nenv)
     
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
-if config.plot_individual_trials
-    for plot_idx=1:length(nenv)
-        % plot stimulus for current trial
-        
+if ~isempty(config.plot_individual_trials)
+    for tt=1:length(config.plot_individual_trials)
+        if isequal(config.sim_trials,1:120)
+            plot_idx=config.plot_individual_trials(tt);
+        else
+            plot_idx=tt;
+        end
         figure
         %note: time returned by model simulation should match fs samples of
         %stimulus because of how we defined tspan arg of ode45
         tstr_=sprintf('normalized stimulus envelope -trial %d, %04dms max', ...
             plot_idx,config.irreg_maxt);
-        plot(sl_responses{plot_idx,1},nenv{plot_idx})
+        plot(sl_responses{plot_idx,1},env{plot_idx})
         xlabel('time (s)')
         ylabel('S(t)')
         title(tstr_)
@@ -99,27 +112,35 @@ if config.plot_individual_trials
         tstr_=sprintf('%s speech response - trial %d, %04dms max', ...
             config.model,plot_idx,config.irreg_maxt);
         figure
-        plot(sl_responses{plot_idx,1},sl_responses{plot_idx,2})
+        plot(sl_responses{plot_idx,1},[sl_responses{plot_idx,2}, env{plot_idx}])
         title(tstr_)
-        legend('x', 'y')
+        legend('x', 'y','env')
         xlabel('time (s)')
         xlim([min(t) max(t)])
         hold off
         % "phase portrait"
         figure
         plot(sl_responses{plot_idx,2}(:,1),sl_responses{plot_idx,2}(:,2))
+        hold on
+        thetas_=0:pi/100:2*pi;
+        plot(rs*cos(thetas_),rs*sin(thetas_),'r--')
+        hold off
+        clear thetas_
         axis equal
         xlabel('x')
         ylabel('y')
+        legend('SL simulation','limit cycle')
+       
         tstr_=sprintf('%s speech-phase portrait - trial %d, %04dms max', ...
             config.model,plot_idx,config.irreg_maxt);
         title(tstr_)
+
         
         % input-output (just x)
         % NOTE: if time in sl doesn't line up with stimulus samples this is
         % not gonna correspond right...
         figure
-        plot(nenv{plot_idx},sl_responses{plot_idx,2}(:,1))
+        plot(env{plot_idx},sl_responses{plot_idx,2}(:,1))
         xlabel('S(t)')
         ylabel('x(t)')
         tstr_=sprintf('%s input-output - trial %d, %04dms max', ...
@@ -129,57 +150,58 @@ if config.plot_individual_trials
     end
 end
 %% derive TRFs from simulated responses
-trf_config=[];
-trf_config.add_noise=false;
-trf_config.optimize_lambda=false;
-trf_config.lam_range=10.^(-3:8);
-% note: used 400ms previously but if we're looking at effects for syllables
-% up to 1000ms apart... think it makes sense to extend the range a bit
-trf_config.cvtlims=[0, 400];
-trf_config.trtlims=[-500,800];
-% add 1/f noise to simulated responses to make them "realistic"
-% Oganian et al 2023 did this by using firls on gaussian white noise
-% they also used an snr of 1/10... not sure why
-%note: leaving this out for now to look at "pure" model response behavior 
-if trf_config.add_noise
-    %TODO: add 1/f noise
+if config.fit_trfs
+    trf_config=[];
+    trf_config.add_noise=false;
+    trf_config.optimize_lambda=false;
+    trf_config.lam_range=10.^(-3:8);
+    % note: used 400ms previously but if we're looking at effects for syllables
+    % up to 1000ms apart... think it makes sense to extend the range a bit
+    trf_config.cvtlims=[0, 400];
+    trf_config.trtlims=[-500,800];
+    % add 1/f noise to simulated responses to make them "realistic"
+    % Oganian et al 2023 did this by using firls on gaussian white noise
+    % they also used an snr of 1/10... not sure why
+    %note: leaving this out for now to look at "pure" model response behavior 
+    if trf_config.add_noise
+        %TODO: add 1/f noise
+    end
+    
+    % optimize lambda via cv
+    % NOTE: although model responses derived from zero-mean, normalized
+    % envelopes, we previously found TRF fitting benefits from normalizing by
+    % std ONLY (i.e. keep them rectified...)
+    
+    %note: here we're scaling by each envelope's standard deviation, but we
+    %previously used std(all envelopes) for simplicity...
+    trf_env=cellfun(@(x) normalize(x,"scale"), env,'UniformOutput',false);
+    trf_response=cellfun(@(x) x(:,1), sl_responses(:,2),'UniformOutput',false);
+    if trf_config.optimize_lambda
+        stats_obs=mTRFcrossval(trf_env,trf_response,config.fs,1, ...
+            trf_config.cvtlims(1),trf_config.cvtlims(2),trf_config.lam_range);
+        % plot TRFs
+        % plot lambda tuning curve, select best lambda
+        r_tuning_curve=mean(stats_obs.r, 1);
+        [~,max_lam_idx]=max(r_tuning_curve);
+        trf_config.best_lam=trf_config.lam_range(max_lam_idx);
+        figure
+        plot(trf_config.lam_range,r_tuning_curve)
+        title('tuning curve')
+        xlabel('\lambda')
+        ylabel('r (crossvalidated)')
+    else
+        % seems unnecessary if no noise
+        trf_config.best_lam=0;
+    end
+    %% train using best lambda on entire dataset
+    trf_model=mTRFtrain(trf_env,trf_response,config.fs,1, ...
+        trf_config.trtlims(1),trf_config.trtlims(2),trf_config.best_lam);
+    %% plot model-TRF
+    figure, plot(trf_model.t,trf_model.w)
+    xticks(trf_config.trtlims(1):100:trf_config.trtlims(2))
+    xlim([-100,trf_config.trtlims(2)])
+    title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
 end
-
-% optimize lambda via cv
-% NOTE: although model responses derived from zero-mean, normalized
-% envelopes, we previously found TRF fitting benefits from normalizing by
-% std ONLY (i.e. keep them rectified...)
-
-%note: here we're scaling by each envelope's standard deviation, but we
-%previously used std(all envelopes) for simplicity...
-trf_env=cellfun(@(x) normalize(x,"scale"), env,'UniformOutput',false);
-trf_response=cellfun(@(x) x(:,1), sl_responses(:,2),'UniformOutput',false);
-if trf_config.optimize_lambda
-    stats_obs=mTRFcrossval(trf_env,trf_response,config.fs,1, ...
-        trf_config.cvtlims(1),trf_config.cvtlims(2),trf_config.lam_range);
-    % plot TRFs
-    % plot lambda tuning curve, select best lambda
-    r_tuning_curve=mean(stats_obs.r, 1);
-    [~,max_lam_idx]=max(r_tuning_curve);
-    trf_config.best_lam=trf_config.lam_range(max_lam_idx);
-    figure
-    plot(trf_config.lam_range,r_tuning_curve)
-    title('tuning curve')
-    xlabel('\lambda')
-    ylabel('r (crossvalidated)')
-else
-    % seems unnecessary if no noise
-    trf_config.best_lam=0;
-end
-%% train using best lambda on entire dataset
-trf_model=mTRFtrain(trf_env,trf_response,config.fs,1, ...
-    trf_config.trtlims(1),trf_config.trtlims(2),trf_config.best_lam);
-%% plot model-TRF
-figure, plot(trf_model.t,trf_model.w)
-xticks(trf_config.trtlims(1):100:trf_config.trtlims(2))
-xlim([-100,trf_config.trtlims(2)])
-title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
-
 %% quantify event-based phase concentration of output across all stimuli?
 % to what end?
 %
@@ -191,13 +213,32 @@ function env_normed=norm_env(env_data)
 env_bar=mean(env_data);
 env_normed=(env_data-env_bar)/max(env_data-env_bar);
 end
+function [stim_env, event_times, trf_stim] = get_fast_slow_events()
+    min_peak_height=0.01;
+    global boxdir_mine
+    envs_path = fullfile(boxdir_mine, 'stimuli', 'wrinkle', 'fastSlowEnvelopes128hz.mat');
+    load(envs_path, 'env', 'fs');
 
-% function s_out=env_fun(t,s_data,fs)
-% % helper function for getting "continous time" stim envelope representation
-% % to be used in ode solver
-% t_data=0:1/fs:(length(s_data)-1)/fs;
-% s_out=interp1(t_data,s_data,t,'linear',0);
-% end
+    trf_stim.envs = env;
+    trf_stim.fs   = fs;
+
+    stim_env    = cell(size(env));
+    event_times = cell(size(env));
+
+    for cc = 1:size(env, 1)
+        for ss = 1:size(env, 2)
+            env_vec = env{cc,ss}(:);
+            d_env   = [0; diff(env_vec)];
+
+            % Event times = rising-edge peaks of envelope derivative
+            [~, ev_t] = findpeaks(d_env, fs,'MinPeakHeight',min_peak_height);
+            event_times{cc,ss} = ev_t;
+
+            % Keep raw envelope as stimulus predictor for mTRF
+            stim_env{cc,ss} = env_vec;
+        end
+    end
+end
 
 function x0=init_rand(n)
 % initialize random starting condition;
@@ -265,11 +306,8 @@ dxdt=nan(2,1);
 % x differential equation
 dxdt(1)=lambda*x(1)-omega*x(2)-gamma*r2*x(1)+k*S;
 % y differential equation
-dxdt(2)=lambda*x(2)+omega*x(1);
+dxdt(2)=lambda*x(2)+omega*x(1)-gamma*r2*x(2);
 end
-% plotting 
-% function h=plot_xy()
-% end
 
 %references
 % Doelling, Keith B., Luc H. Arnal, and M. Florencia Assaneo. 
