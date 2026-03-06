@@ -2,11 +2,11 @@
 % script for optimizing SL model on fast-slow data
 % in order to fairly compare predicted TRFs, model should be fit
 % independently for each subject & electrode... 
-
+clearvars -except boxdir_mine boxdir_lab
 % --- IGNORE (NUISANCE SETUP) ---
 load_all_fast_slow
 % convert envelopes to peakrate (dumb, not oganian)
-STIM=env2peakrate(STIM);
+
 % --- ---
 %%
 % --- LOAD PREPROCESSED EEG ---
@@ -35,7 +35,8 @@ sl_reset_gridsearch.param.n_refinements=1; % number of grid refinements
 
 %note: very small value was used previously, so extending the range might
 %produce weird results... play with this parameter
-sl_reset_gridsearch.param.max_lambda=10;
+sl_reset_gridsearch.param.lambda=1;
+sl_reset_gridssearch.param.gamma=1;
 
 % note lambda oscillatory regime is lambda>0
 
@@ -71,6 +72,18 @@ if exist(sl_reset_gridsearch.out_path,'file')==0||sl_reset_gridsearch.overwrite
     for rr=1:sl_reset_gridsearch.param.n_refinements
         for ll=1:length(G1)
             for tt=1:length(G2)
+                %% Simulate SL oscillator for every condition x stimulus
+                % x_all{cc,ss} = oscillator output vector for condition cc, stimulus ss
+                x_all = cell(n_cond, n_stim);
+                
+                fprintf('Simulating SL oscillator (%d conditions x %d stimuli)...\n', n_cond, n_stim);
+                for cc = 1:n_cond
+                    for ss = 1:n_stim
+                        x_all{cc,ss} = sl_reset(sl, event_times{cc,ss}, sim_param(cc));
+                    end
+                    fprintf('  Condition %d done.\n', cc);
+                end
+
                 %TODO: RMSE evaluation should be independent for each
                 %subject, electrode....
                 % inv_loss= % -(RMSE)
@@ -88,10 +101,3 @@ else
     load(sl_reset_optim.out_path);
 end
 %%
-%NOTE: we have code 
-function STIM=env2peakrate(STIM)
-    for ss=1:numel(STIM)
-        rate=[0;diff(STIM(ss))];
-
-    end
-end

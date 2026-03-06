@@ -25,14 +25,18 @@ switch config_peakrate.param.experiment
         otherwise
             error('yo wtf.')     
 end
-
+%% RESTART AT OG BECAUSE BUG CRASH OUT -- CHANGE BACK TO rr=1:...
 for rr=1:length(rate_dirs)
     rd=rate_dirs{rr};
     fprintf('getting peakrate for %s...\n',rd)
     dir_=fullfile(boxdir_lab,'stimuli','wrinkle',rd);
     wav_files=dir(dir_);
     % remove directories - assumes only files in directory
-    wav_files={wav_files(~[wav_files.isdir]).name};
+    % wav_files={wav_files(~[wav_files.isdir]).name};
+    % og has some transcription files i dont wanna move but are useless
+    % here
+    wav_files={wav_files(endsWith({wav_files.name},'.wav')).name};
+
 
     for dd=1:n_trials
         wavfnm=wav_files{dd};
@@ -49,9 +53,9 @@ for rr=1:length(rate_dirs)
     end
     clear dir_
 end
-% clear dir_ env
+%%
 fprintf('saving result to %s...\n',output_dir)
-save(fullfile(output_dir,'fastSlow.mat',config_peakrate));
+save(fullfile(output_dir,'fastSlow.mat'),'config_peakrate');
 disp('done.')
 
 function warp_config=get_warp_config()
