@@ -2,19 +2,15 @@
 % script for optimizing SL model on fast-slow data
 % in order to fairly compare predicted TRFs, model should be fit
 % independently for each subject & electrode... 
-global boxdir_mine
-subj=2;
 
 % --- IGNORE (NUISANCE SETUP) ---
-script_config=[];
-script_config.show_tuning_curves=false;
-trf_analysis_params
+load_all_fast_slow
+% convert envelopes to peakrate (dumb, not oganian)
+STIM=env2peakrate(STIM);
 % --- ---
-
+%%
 % --- LOAD PREPROCESSED EEG ---
-pp_checkpoint=load_checkpoint(preprocess_config);
-preprocessed_eeg=pp_checkpoint.preprocessed_eeg;
-clear pp_checkpoint
+
 sl_reset_gridsearch=struct('param',[],'result',[]);
 sl_reset_gridsearch.out_path=fullfile(boxdir_mine,'analysis','sl_reset','optimized_models_fastSlow.mat');
 % note: assuming small amplitude perturbations, and linearizing around 
@@ -27,7 +23,11 @@ sl_reset_gridsearch.out_path=fullfile(boxdir_mine,'analysis','sl_reset','optimiz
 
 
 % --- GRIDSEARCH SETTINGS ---
+% reset model doesn't care about radius, set it to 1 for convenience
+
 sl_reset_gridsearch.param.lambda=1;
+sl_reset_gridsearch.param.gamma=1;
+
 sl_reset_gridsearch.param.n_refinements=1; % number of grid refinements
 
 % G1 is lambda grid
@@ -84,9 +84,14 @@ if exist(sl_reset_gridsearch.out_path,'file')==0||sl_reset_gridsearch.overwrite
         end
     end
 
-
-
 else
-    load(sl+reset_optim.out_path);
+    load(sl_reset_optim.out_path);
 end
+%%
+%NOTE: we have code 
+function STIM=env2peakrate(STIM)
+    for ss=1:numel(STIM)
+        rate=[0;diff(STIM(ss))];
 
+    end
+end

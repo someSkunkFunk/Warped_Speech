@@ -20,3 +20,4 @@ for ss=1:length(subjs)
     clear pp_checkpoint_
 end
 disp('done.')
+clear do_nulltest preprocess_config ss subj train_params trf_config user_profile warped_speech_dir
