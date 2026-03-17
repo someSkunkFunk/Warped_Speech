@@ -10,10 +10,13 @@ clear; clc; close all;
 stimulus_type = 'fast-slow';
 
 sl = struct('param', [], 'result', []);
-sl.param.f_nat   = 4;       % natural frequency in Hz (converted to rad in model)
+% textgrid median frequency
+sl.param.f_nat   = 5;  % natural frequency in Hz (converted to rad in model)
+% sl.param.f_nat= 3.75;  % lower to match EEG trf?
 sl.param.lambda  = 0.1;     % growth/decay rate
 sl.param.gamma   = 13.83;   % nonlinear saturation
-sl.param.theta_r = pi/2;    % preferred (reset) phase [rad]
+% sl.param.theta_r = pi;    % preferred (reset) phase [rad]
+sl.param.theta_r = 0.03;
 
 %% TRF parameters
 trf_param.tmin    = -200;   % ms
@@ -60,7 +63,7 @@ r_lc = sqrt(sl.param.lambda / sl.param.gamma);
 fprintf('Limit-cycle amplitude r* = %.4f\n', r_lc);
 
 %% ---- Visualisation: first stimulus of each condition, first 2 s ----
-vis_dur = 2;   % seconds to show
+vis_lim = [0.6 3.6];   % seconds to show
 cond_colors = lines(n_cond);
 
 fig_vis = figure('Color', 'w', 'Position', [80 80 1000 220*n_cond]);
@@ -68,7 +71,7 @@ fig_vis = figure('Color', 'w', 'Position', [80 80 1000 220*n_cond]);
 for cc = 1:n_cond
     fs  = trf_stim.fs;
     t_c = sim_param(cc).t;
-    vis_mask = t_c <= vis_dur;
+    vis_mask = vis_lim(1) <= t_c & t_c  <= vis_lim(2);
     t_vis    = t_c(vis_mask);
 
     % --- envelope (stimulus) ---
@@ -79,12 +82,12 @@ for cc = 1:n_cond
     hold on;
     % mark event times within window
     ev = event_times{cc,1};
-    ev = ev(ev <= vis_dur);
+    ev = ev(ev <= vis_lim(2) & ev >= vis_lim(1));
     stem(ev, max(env_vis)*ones(size(ev)), 'r', 'Marker', 'none', 'LineWidth', 0.8);
     ylabel('Env', 'FontSize', 10);
     title(sprintf('%s — envelope & events', cond_labels{cc}), 'FontSize', 11);
     set(ax_s, 'XTickLabel', [], 'Box', 'off', 'TickDir', 'out');
-    xlim([0 vis_dur]);
+    xlim(vis_lim);
 
     % --- oscillator output x(t) ---
     ax_x = subplot(n_cond*2, 1, (cc-1)*2 + 2);
@@ -92,14 +95,13 @@ for cc = 1:n_cond
     plot(t_vis, x_vis, 'Color', cond_colors(cc,:), 'LineWidth', 1.4);
     hold on;
     stem(ev, max(abs(x_vis))*ones(size(ev)), 'r', 'Marker', 'none', 'LineWidth', 0.8);
-    ylabel('x = r·cos(θ)', 'FontSize', 10);
-    xlabel('Time (s)', 'FontSize', 10);
-    set(ax_x, 'Box', 'off', 'TickDir', 'out');
-    xlim([0 vis_dur]);
+    ylabel('x_{edge} = r·cos(θ)', 'FontSize', 10);
+    xlabel('Time (s)', 'FontSize', 10);    set(ax_x, 'Box', 'off', 'TickDir', 'out');
+    xlim(vis_lim);
 
     linkaxes([ax_s ax_x], 'x');
 end
-sgtitle(sprintf('SL oscillator response — first 2 s (\\theta_r = %.2f rad)', sl.param.theta_r), ...
+sgtitle(sprintf('edge-reset SL oscillator response — first 2 s (\\theta_r = %.2f rad)', sl.param.theta_r), ...
     'FontSize', 13, 'FontWeight', 'bold');
 
 %% ---- mTRF: train one model per condition ----
@@ -154,12 +156,12 @@ xline(ax_trf, 0, 'k--', 'LineWidth', 1);
 yline(ax_trf, 0, 'k:', 'LineWidth', 0.8);
 xlabel(ax_trf, 'Lag (ms)', 'FontSize', 12);
 ylabel(ax_trf, 'TRF weight', 'FontSize', 12);
-title(ax_trf, 'Forward TRF: envelope → x(t)', 'FontSize', 13, 'FontWeight', 'bold');
+title(ax_trf, 'Forward TRF: envelope → x_{edge}(t)', 'FontSize', 13, 'FontWeight', 'bold');
 legend(ax_trf, cond_labels, 'Location', 'best', 'FontSize', 11);
 set(ax_trf, 'Box', 'off', 'TickDir', 'out');
 grid(ax_trf, 'on');
-xlim(ax_trf, [trf_param.tmin trf_param.tmax]);
-
+% xlim(ax_trf, [trf_param.tmin trf_param.tmax]);
+xlim(ax_trf, [-100 500]);
 %% ---- Phase-response curve ----
 n_grid  = 200;
 thetas  = linspace(-pi, pi, n_grid);
@@ -243,7 +245,7 @@ end
 
 % -------------------------------------------------------------------------
 function [stim_env, event_times, trf_stim] = get_fast_slow_events()
-    min_peak_height=0.01;
+    min_peak_height=0.1;
     global boxdir_mine
     envs_path = fullfile(boxdir_mine, 'stimuli', 'wrinkle', 'fastSlowEnvelopes128hz.mat');
     load(envs_path, 'env', 'fs');

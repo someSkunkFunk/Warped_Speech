@@ -10,7 +10,8 @@ config.plot_individual_trials=[10]; % look at simulated response for trials spec
 % 'reset': phase-reset model 
 config.model='env'; 
 config.fit_trfs=false;
-config.normalize_envs=false;
+config.normalize_envs='range';
+config.demo_klim=false;
 config.sim_trials=[10]; % 1:120 to simulate all of them
 %% select SL parameters
 
@@ -19,13 +20,15 @@ sl_param.f_nat=4; % in Hz -> converted to radians when running model
 switch config.model
     case 'env'
         % optimal parameters wei ching previously gave 
-        % sl_param.lambda=0.1;
-        % sl_param.gamma=13.83;
-        % sl_param.k=80;
-        sl_param.lambda=.5;
-        sl_param.gamma=1;
-        sl_param.k=1000;
+        sl_param.lambda=0.1;
+        sl_param.gamma=13.83;
+        sl_param.k=80;
+        % sl_param.lambda=.01;
+        % sl_param.gamma=1;
         rs=sqrt(sl_param.lambda/sl_param.gamma);
+        % sl_param.k=2*rs;
+        % sl_param.k=rs/2;
+
     case 'reset'
         optimize_sl_reset
 end
@@ -42,7 +45,7 @@ switch config.model
 end
 
 %% plot unforced model output
-figure
+figure('Color','white')
 plot(t,sl_nostim(:,1)), hold on
 plot(t,sl_nostim(:,2))
 title(sprintf('%s without stimulus',config.model))
@@ -52,7 +55,7 @@ xlabel('time (s)')
 xlim([0 1])
 hold off
 %% phase-portrait of unforced model output
-figure
+figure('Color', 'white')
 plot(sl_nostim(:,1),sl_nostim(:,2))
 axis equal
 xlabel('x')
@@ -71,24 +74,35 @@ load(envelopes_path,"env");
 % some cell entries intentionally left empty - only care about third row
 % anyway
 env=env(3,config.sim_trials);
+switch config.normalize_envs
 % normalize envelopes as in Doelling et al 2023
-if config.normalize_envs
-    env=cellfun(@(x) norm_env(x),env,'UniformOutput',false);
+    case 'doelling'
+        env=cellfun(@(x) norm_env_doelling(x),env,'UniformOutput',false);
+    case 'range'
+        % normalize to 0,1
+        env=cellfun(@(x) normalize(x, 'range'),env,'UniformOutput',false);
 end
+
 %%
-% run sl model for each trial's envelope 
-sl_responses=cell(length(env),2);
-for ii=1:length(env)
-    fprintf('running %s model for %d/%d\n',config.model,ii,length(env))
-    switch config.model
-        case 'env'
-            [sl_responses{ii,:}]=run_sl_env(config,sl_param,env{ii});
-        case 'reset'
-            [sl_responses{ii,:}]=run_sl_reset(config,sl_param);
-        otherwise
-            error('config.model: %s', config.model)
+% run sl model for each trial's envelope OR demo k limit
+if config.demo_klim
+    % show deviation from limit cycle as stimulus exrets maximum force away
+    % from limit cycle
+    sl_responses=cell(1,2);
+    [sl_responses{1,:}]=run_sl_env(config,sl_param,ones(size(env{1})));
+else
+    sl_responses=cell(length(env),2);
+    for ii=1:length(env)
+        fprintf('running %s model for %d/%d\n',config.model,ii,length(env))
+        switch config.model
+            case 'env'
+                [sl_responses{ii,:}]=run_sl_env(config,sl_param,env{ii});
+            case 'reset'
+                [sl_responses{ii,:}]=run_sl_reset(config,sl_param);
+            otherwise
+                error('config.model: %s', config.model)
+        end
     end
-    
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
 if ~isempty(config.plot_individual_trials)
@@ -98,7 +112,7 @@ if ~isempty(config.plot_individual_trials)
         else
             plot_idx=tt;
         end
-        figure
+        figure('Color', 'white')
         %note: time returned by model simulation should match fs samples of
         %stimulus because of how we defined tspan arg of ode45
         tstr_=sprintf('normalized stimulus envelope -trial %d, %04dms max', ...
@@ -111,15 +125,17 @@ if ~isempty(config.plot_individual_trials)
         %xy plot
         tstr_=sprintf('%s speech response - trial %d, %04dms max', ...
             config.model,plot_idx,config.irreg_maxt);
-        figure
+        figure('Color', 'white')
         plot(sl_responses{plot_idx,1},[sl_responses{plot_idx,2}, env{plot_idx}])
         title(tstr_)
         legend('x', 'y','env')
         xlabel('time (s)')
         xlim([min(t) max(t)])
         hold off
+        
+
         % "phase portrait"
-        figure
+        figure('Color', 'white')
         plot(sl_responses{plot_idx,2}(:,1),sl_responses{plot_idx,2}(:,2))
         hold on
         thetas_=0:pi/100:2*pi;
@@ -139,7 +155,7 @@ if ~isempty(config.plot_individual_trials)
         % input-output (just x)
         % NOTE: if time in sl doesn't line up with stimulus samples this is
         % not gonna correspond right...
-        figure
+        figure('Color', 'white')
         plot(env{plot_idx},sl_responses{plot_idx,2}(:,1))
         xlabel('S(t)')
         ylabel('x(t)')
@@ -184,7 +200,7 @@ if config.fit_trfs
         r_tuning_curve=mean(stats_obs.r, 1);
         [~,max_lam_idx]=max(r_tuning_curve);
         trf_config.best_lam=trf_config.lam_range(max_lam_idx);
-        figure
+        figure('Color', 'white')
         plot(trf_config.lam_range,r_tuning_curve)
         title('tuning curve')
         xlabel('\lambda')
@@ -197,7 +213,7 @@ if config.fit_trfs
     trf_model=mTRFtrain(trf_env,trf_response,config.fs,1, ...
         trf_config.trtlims(1),trf_config.trtlims(2),trf_config.best_lam);
     %% plot model-TRF
-    figure, plot(trf_model.t,trf_model.w)
+    figure('Color', 'white'), plot(trf_model.t,trf_model.w)
     xticks(trf_config.trtlims(1):100:trf_config.trtlims(2))
     xlim([-100,trf_config.trtlims(2)])
     title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
@@ -208,7 +224,7 @@ end
 
 
 %% helpers
-function env_normed=norm_env(env_data)
+function env_normed=norm_env_doelling(env_data)
 % normalize stim as in Doelling et al 2023
 env_bar=mean(env_data);
 env_normed=(env_data-env_bar)/max(env_data-env_bar);

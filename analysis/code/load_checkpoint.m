@@ -24,9 +24,11 @@ function data=load_checkpoint(config)
         warning('no matching file found for config below in existing registry.')
         disp(config)
         data=[];
-    elseif length(config_match_idx)>1
-        error('redundant entries found and need to be dissolved...')
     else
+        if length(config_match_idx)>1
+            warning('redundant entries found and SHOULD be resolved...')
+            config_match_idx=config_match_idx(1);
+        end
         [~,file,~]=fileparts(registry(config_match_idx).file);
         [dir,~,~]=fileparts(registry_file);
         data=load(fullfile(dir,file));
