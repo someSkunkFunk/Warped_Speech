@@ -1,170 +1,403 @@
-% envelope flattening of speech
-% goald: remove slow amplitude modulations from speech signal by dividing
-% by the smoothed envelope, without altering fine spectral structure
-
+% fast-modulated speech
+% goal: fast-modulate speech
 clear, close all, clc
 
 global boxdir_mine
 global boxdir_lab
-n_trials=1;
-%% --- Load Audio ---
-wavs_dir=fullfile(boxdir_mine,'stimuli','wrinkle_wClicks','og');
-wavs=dir(fullfile(wavs_dir,'*.wav'));
-for ii=1:n_trials
-    [x, fs] = audioread(fullfile(wavs_dir,wavs(ii).name));
-    % take non-click channel jk folder has stimuli without clicks
-    % x = x(:,1);
+
+%% =========================================================
+%  PIPELINE CONFIGURATION
+%  =========================================================
+%
+%  Define the order of operations as a cell array of strings.
+%  Valid operation names (case-insensitive):
+%    'compress'  – power-law compression (x -> sign(x).*|x|^gamma)
+%    'flatten'   – envelope division (divide by smoothed envelope)
+%    'fastAM'    – fast amplitude modulation 10-30 Hz  [REQUIRED, must be last]
+%
+%  Examples:
+%    pipeline = {'fastAM'};                         % AM only
+%    pipeline = {'flatten', 'fastAM'};              % flatten then AM
+%    pipeline = {'compress', 'fastAM'};             % compress then AM
+%    pipeline = {'flatten', 'compress', 'fastAM'};  % flatten -> compress -> AM
+%    pipeline = {'compress', 'flatten', 'fastAM'};  % compress -> flatten -> AM
+%
+pipeline = {'flatten', 'compress', 'fastAM'};
+
+% Show intermediate steps in plots?
+%   true  – dotted gray lines for each intermediate stage
+%   false – only original (green) and final stimulus (red)
+show_intermediate = true;
+
+% Compression exponent (only used when 'compress' is in pipeline)
+gamma = 0.6;   % approximates cochlear compression; see Ewert & Dau 2000
+
+%% =========================================================
+%  VALIDATION
+%  =========================================================
+pipeline = lower(pipeline);
+valid_ops = {'compress', 'flatten', 'fastam'};
+for k = 1:numel(pipeline)
+    assert(ismember(pipeline{k}, valid_ops), ...
+        'Unknown operation "%s". Valid ops: compress, flatten, fastAM.', pipeline{k});
+end
+assert(strcmp(pipeline{end}, 'fastam'), ...
+    'fastAM must be the last operation in the pipeline.');
+assert(sum(strcmp(pipeline, 'fastam')) == 1, ...
+    'fastAM must appear exactly once.');
+
+n_trials = 1;
+
+%% =========================================================
+%  LOAD AUDIO
+%  =========================================================
+wavs_dir = fullfile(boxdir_mine, 'stimuli', 'wrinkle_wClicks', 'og');
+wavs = dir(fullfile(wavs_dir, '*.wav'));
+for ii = 1:n_trials
+    [x, fs] = audioread(fullfile(wavs_dir, wavs(ii).name));
 end
 
-t=(0:length(x)-1)'/fs;
-
+t = (0:length(x)-1)' / fs;
 disp('Loaded signal')
 
-%% --- Extract the envelope using Hilbert Transform & smooth it---
-env=abs(hilbert(x));
-cutoff_hz=30;
-filter_order=4;
-Wn=cutoff_hz/(fs/2);
-[b,a]=butter(filter_order,Wn);
+%% =========================================================
+%  PRE-COMPUTE ENVELOPE (needed by 'flatten'; always computed for plotting)
+%  =========================================================
+env = abs(hilbert(x));
 
-% filtfilt on envelope itself causes ringing artefacts?
-% env_smooth=filtfilt(b,a,env);
-% log-filter to reduce transient artefacts
-log_env = log(env + eps);
+cutoff_hz   = 30;
+filter_order = 4;
+Wn = cutoff_hz / (fs/2);
+[b, a] = butter(filter_order, Wn);
+
+% Log-domain filtering avoids ringing artefacts on the raw envelope
+log_env        = log(env + eps);
 log_env_smooth = filtfilt(b, a, log_env);
-env_smooth = exp(log_env_smooth);
+env_smooth     = exp(log_env_smooth);
 
-% avoid dividing by zero
-min_envelope=0.001*max(env_smooth);
+% Floor to avoid divide-by-zero in flatten
+min_envelope = 0.001 * max(env_smooth);
+env_smooth   = max(env_smooth, min_envelope);
 
+%% =========================================================
+%  RUN PIPELINE  –  accumulate stages struct
+%  =========================================================
+%  stages(k).signal  – signal after step k
+%  stages(k).label   – human-readable name for legend
+%
+%  stages(1) is always the original signal (no label needed separately
+%  as it gets the fixed "Original" legend entry).
 
-env_smooth=max(env_smooth, min_envelope);
-%% --- Flatten the signal by dividing ---
-x_flat=x./env_smooth;
+stages      = struct('signal', {}, 'label', {});
+current_sig = x;    % running signal through the pipeline
 
+for k = 1:numel(pipeline)
+    op = pipeline{k};
+    switch op
+        case 'compress'
+            current_sig = sign(current_sig) .* abs(current_sig) .^ gamma;
+            label = sprintf('compress (\\gamma=%.1f)', gamma);
 
-%% --- compute modulation spectra before & after ---
-env_flat=abs(hilbert(x_flat));
-max_ms_freq=40; %hz
+        case 'flatten'
+            % Re-compute envelope on whatever signal we have at this stage
+            env_stage        = abs(hilbert(current_sig));
+            log_env_stage    = log(env_stage + eps);
+            log_env_s_smooth = filtfilt(b, a, log_env_stage);
+            env_s_smooth     = exp(log_env_s_smooth);
+            env_s_smooth     = max(env_s_smooth, 0.001 * max(env_s_smooth));
+            current_sig      = current_sig ./ env_s_smooth;
+            label = 'flatten (env. div.)';
 
-[ms_og, ~]=long_audio_ms(x,fs);
-[ms_flat, freqs]=long_audio_ms(x_flat,fs);
-keep_mask_=freqs<max_ms_freq;
-freqs=freqs(keep_mask_);
-ms_og=ms_og(keep_mask_);
-ms_flat=ms_flat(keep_mask_);
-disp('mod spectra computed.')
-clear keep_mask_
-%% --- plot results ---
-% note: normalized all the plotted quantities
-% to put them on the same scale otherwise
-% hard to see anything
-plot_settings=[];
-plot_settings.colors=[[0 1 0];[1 0 0]]; % original; flat
-% plot_settings.linewidths=
-figure('Name','Envelope Flattening', ...
-    'Position', [100 100 1200 600], 'Color', 'w');
+        case 'fastam'
+            current_sig = apply_AM(current_sig, fs);
+            label = 'fast-AM (10-30 Hz)';
+    end
 
-ax1=subplot(3,2,[1 2]);
-plot(t, rescale(x,-1,1), 'Color', plot_settings.colors(1,:)); hold on;
-plot(t, rescale(x_flat,-1,1), 'Color',plot_settings.colors(2,:));
-legend('Original', 'Flattened','Location','northeast');
-title('waveforms'); xlabel('Time (s)')
-xlim([t(1) t(end)]); grid on
-
-ax2=subplot(3,2, [3 4]);
-plot(t, normalize(env,'range'), 'Color',plot_settings.colors(1,:)); hold on
-plot(t, normalize(env_flat,'range'),'Color',plot_settings.colors(2,:));
-plot(t, normalize(env_smooth,'range'), 'k--')
-legend('original broadband envelope', 'flattened envelope', ...
-    'divisor envelope', 'Location','northeast');
-title('Envelopes')
-xlabel('Time (s)'), ylabel('Amplitude (a.u)')
-xlim([t(1) t(end)]), grid on
-
-ax3=subplot(3,2,5);
-plot(freqs, normalize(ms_og,'range'), 'Color', plot_settings.colors(1,:)); hold on
-plot(freqs, normalize(ms_flat,'range'), 'Color', plot_settings.colors(2,:));
-xline(cutoff_hz, 'k--',sprintf('%d Hz cutoff', cutoff_hz))
-legend('Original', 'Flattened', 'Location','northeast');
-title('Modulation Spectrum (linear)')
-xlabel('modulation frequency (hz)'); ylabel('Power (a.u.)');
-xlim([freqs(1) freqs(end)]); grid on
-
-ax4=subplot(3,2,6);
-plot(freqs, normalize(ms_og,'range'), 'Color', plot_settings.colors(1,:)); hold on
-plot(freqs, normalize(ms_flat,'range'), 'Color', plot_settings.colors(2,:));
-xline(cutoff_hz, 'k--',sprintf('%d Hz cutoff', cutoff_hz))
-legend('Original', 'Flattened', 'Location','northeast');
-title('Modulation Spectrum (semilog)')
-xlabel('modulation frequency (hz)'); ylabel('Power (a.u.)');
-xscale('log')
-xlim([freqs(1) freqs(end)]); grid on
-
-
-
-
-%% --- helper functions --- 
-
-function [ms, f]=long_audio_ms(x_full,fs)
-% gets modulation spectrum accounting for cochlear filtering from waveform
-% get the sampling rate, fs
-% [~,fs]=audioread(filename,[1 1]);
-% load 6-seconds duration non-overlapping chunks of the audio file
-nMaxSegments=1000;
-for ind=1:nMaxSegments
-  % load a 6-seconds duration chunk -- assumes 1D signal
-  try  x_chunk=x_full(fs*6*(ind-1)+1:fs*6*ind);catch,break;end
-  disp(['...' ' processing chunk ' num2str(ind)])
-  % resample the recordign to 16 k Hz
-  x_chunk=resample(x_chunk,16e3,fs);
-  % generate the auditory spectrogram
-  [v,cf]=wav2aud2(x_chunk,[5 8 -2 0]);
-  % compute the narrow-band modulation spectrum
-  [ms(:,ind),f]=Modulation_Spectrum(v,200,'log');
+    stages(end+1).signal = current_sig; %#ok<SAGROW>
+    stages(end).label    = label;
 end
-if ind<nMaxSegments
-    disp(['The analyzed audio file is segmented into ' num2str(ind) ' chunks.'])
+
+x_final = stages(end).signal;   % convenience alias
+
+disp('Pipeline complete.')
+
+%% =========================================================
+%  BUILD PIPELINE TITLE STRING  (for sgtitle)
+%  =========================================================
+% Pretty-print: Original -> op1 -> op2 -> ... -> final
+op_labels = [{'original'}, {stages.label}];
+pipeline_str = strjoin(op_labels, '  \\rightarrow  ');
+
+%% =========================================================
+%  MODULATION SPECTRA
+%  =========================================================
+max_ms_freq = 40; % Hz
+
+[ms_og,           ~     ] = long_audio_ms(x,       fs);
+[ms_coch_faster, freqs  ] = long_audio_ms(x_final, fs);
+keep_coch = freqs < max_ms_freq;
+freqs          = freqs(keep_coch);
+ms_og          = ms_og(keep_coch);
+ms_coch_faster = ms_coch_faster(keep_coch);
+disp('Cochlear-based mod spectrum computed.')
+
+env_final = abs(hilbert(x_final));
+
+[freqs_bb_og, ~, ms_bb_log_og] = bb_ms(env_smooth, fs);
+keep_bb       = freqs_bb_og < max_ms_freq & freqs_bb_og > 0;
+freqs_bb_og   = freqs_bb_og(keep_bb);
+ms_bb_log_og  = ms_bb_log_og(keep_bb);
+
+[freqs_bb_final, ~, ms_bb_log_final] = bb_ms(env_final, fs);
+keep_bb_f         = freqs_bb_final < max_ms_freq & freqs_bb_final > 0;
+freqs_bb_final    = freqs_bb_final(keep_bb_f);
+ms_bb_log_final   = ms_bb_log_final(keep_bb_f);
+disp('Broadband mod spectrum computed.')
+
+%% =========================================================
+%  PLOT SETTINGS
+%  =========================================================
+alpha_val  = 0.45;
+col_orig   = [0   0.85 0  ];   % green  – original
+col_final  = [0.85 0   0  ];   % red    – final stimulus
+
+% Intermediate steps: dotted gray, different line styles per step
+% (MATLAB linestyles that look distinct with dotted-ish appearance)
+interm_styles = {':', '-.', '--', '-'};   % cycles if > 4 intermediates
+gray_base     = 0.55;   % base gray level
+gray_step     = 0.10;   % darken slightly per step so they're distinguishable
+
+n_intermediate = numel(stages) - 1;   % all stages except the final fastAM
+
+%% =========================================================
+%  FIGURE
+%  =========================================================
+figure('Name', 'fast-modulated speech', ...
+    'Position', [100 100 1200 650], 'Color', 'w');
+
+% ---- Subplot 1: Waveforms ----
+ax1 = subplot(3, 2, [1 2]);
+hold on;
+
+% Original (green)
+plot(t, rescale(x, -1, 1), ...
+    'Color', [col_orig alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'Original');
+
+% Intermediate stages (dotted gray)
+if show_intermediate
+    for k = 1:n_intermediate
+        g = max(0, gray_base - (k-1)*gray_step);
+        ls = interm_styles{mod(k-1, numel(interm_styles)) + 1};
+        plot(t, rescale(stages(k).signal, -1, 1), ...
+            'Color', [g g g alpha_val+0.2], 'LineStyle', ls, 'LineWidth', 1.0, ...
+            'DisplayName', stages(k).label);
+    end
+end
+
+% Final (red)
+plot(t, rescale(x_final, -1, 1), ...
+    'Color', [col_final alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', stages(end).label);
+
+legend('Location', 'northeast');
+title('Waveforms');  xlabel('Time (s)');
+xlim([t(1) t(end)]);  grid on;
+
+% ---- Subplot 2: Envelopes ----
+ax2 = subplot(3, 2, [3 4]);
+hold on;
+
+% Original envelope (green)
+plot(t, normalize(env, 'range'), ...
+    'Color', [col_orig alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'Original envelope');
+
+% Smoothed envelope of original (dashed black)
+plot(t, normalize(env_smooth, 'range'), ...
+    'Color', [0 0 0 0.55], 'LineStyle', '--', 'LineWidth', 1.0, ...
+    'DisplayName', 'Smoothed orig. envelope');
+
+% Intermediate envelopes
+if show_intermediate
+    for k = 1:n_intermediate
+        g = max(0, gray_base - (k-1)*gray_step);
+        ls = interm_styles{mod(k-1, numel(interm_styles)) + 1};
+        env_k = abs(hilbert(stages(k).signal));
+        plot(t, normalize(env_k, 'range'), ...
+            'Color', [g g g alpha_val+0.2], 'LineStyle', ls, 'LineWidth', 1.0, ...
+            'DisplayName', ['env: ' stages(k).label]);
+    end
+end
+
+% Final envelope (red)
+plot(t, normalize(env_final, 'range'), ...
+    'Color', [col_final alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'Final envelope');
+
+legend('Location', 'northeast');
+title('Envelopes');
+xlabel('Time (s)');  ylabel('Amplitude (a.u.)');
+xlim([t(1) t(end)]);  grid on;
+
+linkaxes([ax1, ax2], 'x');
+
+% ---- Subplot 3: Broadband modulation spectrum ----
+ax3 = subplot(3, 2, 5);
+hold on;
+
+plot(freqs_bb_og,    normalize(ms_bb_log_og,    'range'), ...
+    'Color', [col_orig alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'bb MS: original');
+plot(freqs_bb_final, normalize(ms_bb_log_final, 'range'), ...
+    'Color', [col_final alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'bb MS: final');
+
+xline(cutoff_hz, 'k--', sprintf('%d Hz cutoff', cutoff_hz));
+xline(10,        'b--', '10 Hz');
+title('Broadband Mod. Spectra (log-weighted)');
+xlabel('Modulation frequency (Hz)');  ylabel('Power (a.u.)');
+xlim([freqs_bb_final(1) freqs_bb_final(end)]);
+xscale('log');  grid on;
+legend('Location', 'northeast');
+
+% ---- Subplot 4: Cochlear-filter modulation spectrum ----
+ax4 = subplot(3, 2, 6);
+hold on;
+
+plot(freqs, normalize(ms_og,          'range'), ...
+    'Color', [col_orig alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'Coch MS: original');
+plot(freqs, normalize(ms_coch_faster, 'range'), ...
+    'Color', [col_final alpha_val], 'LineWidth', 1.2, ...
+    'DisplayName', 'Coch MS: final');
+
+xline(cutoff_hz, 'k--', sprintf('%d Hz cutoff', cutoff_hz));
+title('CochFB Mod. Spectrum (semilog)');
+xlabel('Modulation frequency (Hz)');  ylabel('Power (a.u.)');
+xscale('log');
+xlim([freqs(1) freqs(end)]);  grid on;
+legend('Location', 'northeast');
+
+% ---- Super-title: full pipeline ----
+sgtitle(pipeline_str, 'Interpreter', 'tex', 'FontSize', 11);
+
+%% =========================================================
+%  SAVE FIGURE & AUDIO
+%  =========================================================
+downloads_dir = fullfile(getenv('USERPROFILE'), 'Downloads', 'tempfigs');
+if ~exist(downloads_dir, 'dir'),  mkdir(downloads_dir);  end
+
+fig_name = 'fastModSpeech_figure';
+savefig(gcf,    fullfile(downloads_dir, [fig_name '.fig']));
+exportgraphics(gcf, fullfile(downloads_dir, [fig_name '.png']), 'Resolution', 300);
+fprintf('Figure saved to: %s\n', downloads_dir);
+
+audiowrite(fullfile(downloads_dir, [fig_name '.wav']), ...
+    x_final / max(abs(x_final)), fs);
+
+%% =========================================================
+%  HELPER FUNCTIONS
+%  =========================================================
+
+function [freqs_bb, ms_bb_log, ms_bb] = bb_ms(signal_envelope, fs)
+% Broadband modulation spectrum via envelope FFT.
+fs_env = 200;
+signal_envelope_ds = resample(signal_envelope, fs_env, fs);
+nMaxSegments = 1000;
+for ind = 1:nMaxSegments
+    try
+        x_chunk = signal_envelope_ds(fs_env*6*(ind-1)+1 : fs_env*6*ind);
+    catch
+        break
+    end
+    disp(['...' ' processing chunk ' num2str(ind)])
+    N_bb     = length(x_chunk);
+    freqs_bb = (0:N_bb/2-1)' * (fs_env / N_bb);
+    vs_bb    = abs(fft(x_chunk.^2));
+    ms_bb(:,ind) = vs_bb(1:N_bb/2); %#ok<AGROW>
+end
+if ind < nMaxSegments
+    disp(['Segmented into ' num2str(ind) ' chunks.'])
 else
     error('audio long af')
 end
-% andre's edit to match my modSpec format in other code
-ms=mean(ms,2);
-ms=ms';
+ms_bb     = mean(ms_bb, 2)';
+ms_bb_log = sqrt(freqs_bb) .* ms_bb;
 end
 
-function [ms,f]=Modulation_Spectrum(Nenv,fs,fscale)
-% Nenv (time by frequency channel) is the narrowband envelope.
-% fs is the sampling rate of Nenv in Hz
-% fscale, the scale of the modulation frequency, is 'log' or 'lin'.
-% ms, the modulation spectrum, is normalized by its maximal value 
-% between 0.5 Hz and 32 Hz
+% ---------------------------------------------------------
+function AMx = apply_AM(x, fs)
+if ~isrow(x)
+    x = x';
+    if ~isvector(x),  error('wrong.');  end
+end
+dur = length(x) / fs;
+f   = [10 30];
 
-% Nai Ding
-% gahding@gmail.com
-% 6.16.2014
+F     = linspace(0, fs, fs*dur);
+T     = linspace(1./fs, dur, dur*fs); %#ok<NASGU>
+fspec = zeros(1, fs*dur);
+fspec(F>=f(1) & F<=f(2)) = 1;
 
-arguments   
+p        = (rand(size(fspec))*2 - 1) * pi;
+a        = sqrt(pi.^2 - p.^2) .* sign(randn(size(fspec)));
+z        = complex(a, p);
+envelope = ifft(fspec .* z, 'symmetric');
+
+carrier  = x;
+gatetime = 0.01;
+gatesamp = round(gatetime .* fs);
+rampu    = linspace(1./fs, 1, gatesamp);
+rampd    = linspace(1, 1./fs, gatesamp);
+gate     = [rampu, ones(1, (fs*dur - 2*gatesamp)), rampd];
+
+AMx = (1 + (envelope ./ -min(envelope))) .* carrier .* gate;
+end
+
+% ---------------------------------------------------------
+function [ms, f] = long_audio_ms(x_full, fs)
+nMaxSegments = 1000;
+for ind = 1:nMaxSegments
+    try
+        x_chunk = x_full(fs*6*(ind-1)+1 : fs*6*ind);
+    catch
+        break
+    end
+    disp(['...' ' processing chunk ' num2str(ind)])
+    x_chunk       = resample(x_chunk, 16e3, fs);
+    [v, cf]       = wav2aud2(x_chunk, [5 8 -2 0]); %#ok<ASGLU>
+    [ms(:,ind), f] = Modulation_Spectrum(v, 200, 'log'); %#ok<AGROW>
+end
+if ind < nMaxSegments
+    disp(['Segmented into ' num2str(ind) ' chunks.'])
+else
+    error('audio long af')
+end
+ms = mean(ms, 2)';
+end
+
+% ---------------------------------------------------------
+function [ms, f] = Modulation_Spectrum(Nenv, fs, fscale)
+% Nai Ding, gahding@gmail.com, 6.16.2014
+arguments
     Nenv
     fs
     fscale = 'lin';
-
 end
-
-if isempty('fscale')||~exist('fscale','var')
+if isempty('fscale') || ~exist('fscale','var')
     fscale = 'lin';
 end
-
-f=1:size(Nenv,1)/2;f=f-1;f=fs*f'/size(Nenv,1);
-vs=abs(fft(Nenv.^2)); % fourier transform
-vs=sqrt(mean(vs.^2,2)); % average over carrier frequency channels
-ms=single(vs(1:end/2)); % keep only 0 - fs/2
-
-if fscale=='log'
-  ms=sqrt(f).*ms;
+f  = 1:size(Nenv,1)/2;  f = f-1;  f = fs*f'/size(Nenv,1);
+vs = abs(fft(Nenv.^2));
+vs = sqrt(mean(vs.^2, 2));
+ms = single(vs(1:end/2));
+if fscale == "log"
+    ms = sqrt(f) .* ms;
 end
 end
 
+% ---------------------------------------------------------
 function [v5,cf] = wav2aud2(x, paras, filt, VERB)
 % wav2aud2 compute the auditory spectrogram of sound signal x
 % v5 is the auditory spectrogram
@@ -417,3 +650,7 @@ COCHBA=[22.0000000000000 + 6.48879348431515i	22.0000000000000 + 6.78700351282769
 0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	-0.000136472028241710 + 0.224614351563595i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i];
 end
 
+% --- REFERENCES ---
+% Ewert, Stephan D., and Torsten Dau. “Characterizing Frequency Selectivity
+% for Envelope Fluctuations.” The Journal of the Acoustical Society of
+% America 108, no. 3 (2000): 1181–96. https://doi.org/10.1121/1.1288665.

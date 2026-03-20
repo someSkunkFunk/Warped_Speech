@@ -1,13 +1,54 @@
-% envelope flattening of speech
-% goald: remove slow amplitude modulations from speech signal by dividing
-% by the smoothed envelope, without altering fine spectral structure
-
+% fast-modulated speech
+% goal: reduce 2-10 Hz modulations in speech while increasing 10-30 Hz
+% modulations -- and maintaining intelligibility?
 clear, close all, clc
 
 global boxdir_mine
 global boxdir_lab
-n_trials=1;
+%% --- PIPELINE CONFIGURATION ---
+% define order of opperations as cell array of strings
+% valid operation names (case-insensitive):
+% 'compress' - power-law compression (x->sign(x).|x|^gamma)
+% 'flatten' - divide by smoothed envelope
+% 'fastAM' - fast amplitude modulation 10-30 Hz [MUST BE LAST STEP? maybe not...]
+
+
+% pipeline={'flatten','compress','fastAM'};
+pipeline={'flatten','fastAM','compress'};
+
+% show intermediate steps in plots
+% true- dotted gray lines for each intermediate stage
+% false - only original (green) and final stimulus (red)
+show_intermediate=true;
+
+% compression exponent (only used when compress is in pipeline)
+gamma=0.4; % approximates cochlear compression (see Ewert & Dau 2000),
+% but maybe should be fine-tuned... idk?
+
+add_compression=false;
+flatten_first=true;
+flatten_after=false;
+if flatten_first && flatten_after
+    error('pick one dude.')
+end
+
+% NOTE: i'm assuming cutoff_hz should flatten everything including the
+% AM-band to be boosted later... but would it increase the boost if I only
+% flattened the sub-10Hz modulations?
+cutoff_hz=30;
+%% --- validation ---
+pipeline=lower(pipeline);
+valid_opts={'compress','flatten','fastam'};
+for k =1:numel(pipeline)
+    assert(ismember(pipeline{k}, valid_opts), ...
+        'Unknown operation "%s". valid opts: compress, flatten, fastam', pipeline{k});
+end
+% assert(sum(strcmp(pipeline,'fastam'))==1, ...
+%     'fastAM must appear exactly once.')
+
 %% --- Load Audio ---
+n_trials=1; %TODO: extend analysis to multiple waveforms -- 
+% don't generate multiple figures in that case though?
 wavs_dir=fullfile(boxdir_mine,'stimuli','wrinkle_wClicks','og');
 wavs=dir(fullfile(wavs_dir,'*.wav'));
 for ii=1:n_trials
@@ -17,12 +58,218 @@ for ii=1:n_trials
 end
 
 t=(0:length(x)-1)'/fs;
-
 disp('Loaded signal')
 
 %% --- Extract the envelope using Hilbert Transform & smooth it---
-env=abs(hilbert(x));
-cutoff_hz=30;
+% needed by 'flatten' but always computed for plotting
+env_og_bb=abs(hilbert(x));
+env_bbsmooth=smooth_bb_env(env_og_bb,fs,cutoff_hz);
+
+%% --- Run pipeline ---
+% accumulate stages struct
+% stages(k).signal - signal after step k
+% stages(k).label - name for legend
+% stages(1) is always the original signal
+
+stages=struct('signal',{},'label',{});
+current_signal=x;
+
+for k=1:numel(pipeline)
+    op=pipeline{k};
+    switch op
+        case 'compress'
+            current_signal=sign(current_signal).*abs(current_signal).^gamma;
+            current_label=sprintf('compress (\\gamma=%.1f)',gamma);
+        case 'flatten'
+            % recompute envelope on whatever signal we have at this stage
+            env_stage_bb=abs(hilbert(current_signal));
+            env_stage_bbsmooth=smooth_bb_env(env_stage_bb,fs,cutoff_hz);
+            current_signal=current_signal./env_stage_bbsmooth;
+            current_label='flatten (env. div.)';
+        case 'fastam'
+            current_signal=apply_AM(current_signal,fs);
+            current_label='fast-AM (10-30 Hz)';
+    end
+    stages(end+1).signal=current_signal; 
+    stages(end).label=current_label; clear current_label
+end
+clear current_signal
+x_final=stages(end).signal;
+
+%% --- build title string for sgtitle ---
+op_labels=[{'original'}, {stages.label}];
+pipeline_str=strjoin(op_labels,' \\rightarrow');
+%% --- compute cochlear modulation spectra before & after ---
+max_ms_freq=40; %hz
+
+[ms_og, ~]=long_audio_ms(x,fs);
+% note that long_audio_ms recomputes envelope with a cochlear filterbank
+[ms_coch_faster, freqs]=long_audio_ms(x_final,fs);
+keep_coch=freqs<max_ms_freq;
+freqs=freqs(keep_coch);
+ms_og=ms_og(keep_coch);
+ms_coch_faster=ms_coch_faster(keep_coch);
+
+disp('Cochlear-based mod spectrum computed.')
+clear keep_coch
+
+%% --- Broadband modulation spectrum: envelope FFT before & after ---
+env_final_bb=abs(hilbert(x_final));
+
+[freqs_bb_og, ms_bb_og, ms_bb_log_og]=bb_ms(env_bbsmooth,fs);
+% Trim to max_ms_freq
+keep_bb = freqs_bb_og < max_ms_freq & freqs_bb_og > 0;
+freqs_bb_og= freqs_bb_og(keep_bb);
+ms_bb_log_og= ms_bb_log_og(keep_bb);
+
+
+[freqs_bb_final, ms_bb_final, ms_bb_log_final]=bb_ms(env_final_bb,fs);
+% Trim to max_ms_freq
+keep_bb = freqs_bb_final < max_ms_freq & freqs_bb_final > 0;
+freqs_bb_final = freqs_bb_final(keep_bb);
+ms_bb_log_final = ms_bb_log_final(keep_bb);
+
+disp('Broadband mod spectrum computed.')
+
+%% --- plot settings ---
+% note: normalized all the plotted quantities
+% to put them on the same scale otherwise
+% hard to see anything
+
+alpha_val=0.45;
+col_orig=[0 .85 0]; % green - original
+col_final=[0.85 0 0]; % red - final stim
+
+
+
+n_intermediate=numel(stages)-1;
+%% --- figure ---
+
+
+figure('Name','fast-modulated speech ("faster"?)', ...
+    'Position', [100 100 1200 600], 'Color', 'w');
+
+
+% --- ax1: waveforms ---
+
+ax1=subplot(3,2,[1 2]); hold on;
+plot(t, rescale(x,-1,1),'Color', [col_orig, alpha_val], ...
+    'DisplayName','Original');
+
+%intermediate stages
+if show_intermediate
+    for k=1:n_intermediate
+        [g,ls]=define_intermediate_linespec(k);
+        plot(t, rescale(stages(k).signal,-1,1), ...
+            'Color',[g g g alpha_val+0.2], 'LineStyle',ls, ...
+            'DisplayName', stages(k).label);
+    end
+end
+
+plot(t, rescale(x_final,-1,1), 'Color', [col_final, alpha_val], ...
+    'DisplayName',stages(end).label);
+legend('Location','northeast');
+title('Waveforms'); xlabel('Time (s)')
+xlim([t(1) t(end)]); grid on
+
+
+% --- ax2: envelopes plot ---
+ax2=subplot(3,2, [3 4]); hold on;
+% original
+plot(t, normalize(env_og_bb,'range'), ...
+    'Color', [col_orig, alpha_val],'DisplayName','Original envelope');
+
+% intermediate envelopes
+if show_intermediate
+    for k=1:n_intermediate
+        [g,ls]=define_intermediate_linespec(k);
+        env_k=abs(hilbert(stages(k).signal));
+        plot(t,normalize(env_k,'range'),'Color',[g g g alpha_val+0.2], ...
+            'DisplayName', ['env: ' stages(k).label]);
+    end
+end
+% final envelope
+plot(t, normalize(env_final_bb,'range'), 'Color', ...
+    [col_final alpha_val], 'DisplayName','Final envelope'); 
+
+legend('Location','northeast');
+title('Envelopes')
+xlabel('Time (s)'), ylabel('Amplitude (a.u)')
+xlim([t(1) t(end)]), grid on
+linkaxes([ax1, ax2], 'x')
+
+% --- ax3 (bottom-left): Broadband modulation spectrum  ---
+ax3=subplot(3,2,5); hold on;
+
+plot(freqs_bb_og,normalize(ms_bb_log_og,'range'),'Color', ...
+    [col_orig, alpha_val],'DisplayName', 'bb MS(original)');
+plot(freqs_bb_final, normalize(ms_bb_log_final,'range'), 'Color', ...
+    [col_final alpha_val], 'DisplayName', 'bb MS(final)');
+
+xline(cutoff_hz, 'k--', sprintf('%d Hz cutoff', cutoff_hz), ...
+    'HandleVisibility','off')
+xline(10, 'b--', '10 Hz', ...
+   'HandleVisibility', 'off')
+title('Broadband Mod. Spectra (log-weighted)')
+xlabel('Modulation frequency (Hz)'); ylabel('Power (a.u.)');
+xlim([freqs_bb_final(1) freqs_bb_final(end)]); grid on
+xscale('log')
+legend('Location', 'northwest','FontSize',9)
+
+% --- ax4: (bottom-right): cochFB modulation spectrum ---
+ax4=subplot(3,2,6);hold on;
+plot(freqs, normalize(ms_og,'range'), ...
+    'Color', [col_orig, alpha_val],'DisplayName','cFB(original)');
+plot(freqs, normalize(ms_coch_faster,'range'), ...
+    'Color', [col_final, alpha_val], 'DisplayName','cFB(final)');
+xline(cutoff_hz, 'k--',sprintf('%d Hz cutoff', cutoff_hz), ...
+    'HandleVisibility', 'off')
+xline(10, 'b--', '10 Hz', ...
+    'HandleVisibility','off')
+legend('Location','northwest','FontSize',9);
+title('CochFB-Mod.Spectrum (semilog)')
+xlabel('modulation frequency (hz)'); ylabel('Power (a.u.)');
+xscale('log')
+xlim([freqs(1) freqs(end)]); grid on
+
+% --- sgtitle to indicate full pipeline ---
+sgtitle(pipeline_str, 'Interpreter', 'tex', 'FontSize', 11);
+%% --- Save figures & audio to tempfig---
+downloads_dir = fullfile(getenv('USERPROFILE'), 'Downloads', 'tempfigs');
+if ~exist(downloads_dir, 'dir')
+    mkdir(downloads_dir);
+end
+
+fig_name = 'fastModSpeech_figure';
+% save pipeline info
+
+save(fullfile(downloads_dir,'info.mat'),'pipeline');
+savefig(gcf, fullfile(downloads_dir, [fig_name '.fig']));
+exportgraphics(gcf, fullfile(downloads_dir, [fig_name '.png']), 'Resolution', 300);
+
+fprintf('Figure saved to: %s\n', downloads_dir);
+disp('saving audiofile...')
+% Save x_faster as wav
+audiowrite(fullfile(downloads_dir, [fig_name '.wav']), x_final / max(abs(x_final)), fs);
+fprintf('Audio saved to: %s\n',downloads_dir);
+
+%% --- helper functions --- 
+function [g, ls]=define_intermediate_linespec(k)
+
+    % intermediate steps: different dotted line styles
+    interm_styles={':','-.','--','-'};
+    gray_base=0.55; % base gray level
+    gray_step=0.10; %darken slightly per step so they're distinguishable
+    % note: max is just to keep it from going negative... but if it's
+    % zero we won't see the line
+    g=max(0,gray_base-(k-1)*gray_step);
+    % note: mod makes it so it cycles through line styles if we do more
+    % than 4 steps in pipeline... which we probably don't need to
+    ls=interm_styles{mod(k-1, numel(interm_styles))+1};
+end
+
+function env_bbsmooth=smooth_bb_env(env_bb,fs,cutoff_hz)
+
 filter_order=4;
 Wn=cutoff_hz/(fs/2);
 [b,a]=butter(filter_order,Wn);
@@ -30,81 +277,86 @@ Wn=cutoff_hz/(fs/2);
 % filtfilt on envelope itself causes ringing artefacts?
 % env_smooth=filtfilt(b,a,env);
 % log-filter to reduce transient artefacts
-log_env = log(env + eps);
+log_env = log(env_bb + eps);
 log_env_smooth = filtfilt(b, a, log_env);
-env_smooth = exp(log_env_smooth);
+env_bbsmooth = exp(log_env_smooth);
 
 % avoid dividing by zero
-min_envelope=0.001*max(env_smooth);
+min_envelope=0.001*max(env_bbsmooth);
+env_bbsmooth=max(env_bbsmooth, min_envelope);
+ 
+end
 
+function [freqs_bb, ms_bb_log, ms_bb]=bb_ms(signal_envelope,fs)
+% Resample envelope to a lower rate to focus on modulation frequencies
+% Use 200 Hz (same effective rate as Modulation_Spectrum input)
+fs_env = 200; % Hz - target modulation analysis rate
+signal_envelope_ds = resample(signal_envelope, fs_env, fs);
+nMaxSegments=1000;
+for ind=1:nMaxSegments
+    % load a 6-seconds duration chunk -- assumes 1D signal
+    try  x_chunk=signal_envelope_ds(fs_env*6*(ind-1)+1:fs_env*6*ind);catch,break;end
+    disp(['...' ' processing chunk ' num2str(ind)])
+    % Power spectrum of the squared envelope (matching Modulation_Spectrum logic)
+    N_bb = length(x_chunk);
+    freqs_bb = (0:N_bb/2-1)' * (fs_env / N_bb);  % one-sided frequency axis
+    
+    vs_bb = abs(fft(x_chunk.^2));
+    ms_bb(:,ind) = vs_bb(1:N_bb/2);  % one-sided 
+end
+if ind<nMaxSegments
+    disp(['The analyzed audio file is segmented into ' num2str(ind) ' chunks.'])
+else
+    error('audio long af')
+end
 
-env_smooth=max(env_smooth, min_envelope);
-%% --- Flatten the signal by dividing ---
-x_flat=x./env_smooth;
+% andre's edit to match my modSpec format in other code
+ms_bb=mean(ms_bb,2);
+ms_bb=ms_bb';
+% Apply the same sqrt(f) log-scale weighting used in Modulation_Spectrum
+ms_bb_log = sqrt(freqs_bb) .* ms_bb;
+end
 
-
-%% --- compute modulation spectra before & after ---
-env_flat=abs(hilbert(x_flat));
-max_ms_freq=40; %hz
-
-[ms_og, ~]=long_audio_ms(x,fs);
-[ms_flat, freqs]=long_audio_ms(x_flat,fs);
-keep_mask_=freqs<max_ms_freq;
-freqs=freqs(keep_mask_);
-ms_og=ms_og(keep_mask_);
-ms_flat=ms_flat(keep_mask_);
-disp('mod spectra computed.')
-clear keep_mask_
-%% --- plot results ---
-% note: normalized all the plotted quantities
-% to put them on the same scale otherwise
-% hard to see anything
-plot_settings=[];
-plot_settings.colors=[[0 1 0];[1 0 0]]; % original; flat
-% plot_settings.linewidths=
-figure('Name','Envelope Flattening', ...
-    'Position', [100 100 1200 600], 'Color', 'w');
-
-ax1=subplot(3,2,[1 2]);
-plot(t, rescale(x,-1,1), 'Color', plot_settings.colors(1,:)); hold on;
-plot(t, rescale(x_flat,-1,1), 'Color',plot_settings.colors(2,:));
-legend('Original', 'Flattened','Location','northeast');
-title('waveforms'); xlabel('Time (s)')
-xlim([t(1) t(end)]); grid on
-
-ax2=subplot(3,2, [3 4]);
-plot(t, normalize(env,'range'), 'Color',plot_settings.colors(1,:)); hold on
-plot(t, normalize(env_flat,'range'),'Color',plot_settings.colors(2,:));
-plot(t, normalize(env_smooth,'range'), 'k--')
-legend('original broadband envelope', 'flattened envelope', ...
-    'divisor envelope', 'Location','northeast');
-title('Envelopes')
-xlabel('Time (s)'), ylabel('Amplitude (a.u)')
-xlim([t(1) t(end)]), grid on
-
-ax3=subplot(3,2,5);
-plot(freqs, normalize(ms_og,'range'), 'Color', plot_settings.colors(1,:)); hold on
-plot(freqs, normalize(ms_flat,'range'), 'Color', plot_settings.colors(2,:));
-xline(cutoff_hz, 'k--',sprintf('%d Hz cutoff', cutoff_hz))
-legend('Original', 'Flattened', 'Location','northeast');
-title('Modulation Spectrum (linear)')
-xlabel('modulation frequency (hz)'); ylabel('Power (a.u.)');
-xlim([freqs(1) freqs(end)]); grid on
-
-ax4=subplot(3,2,6);
-plot(freqs, normalize(ms_og,'range'), 'Color', plot_settings.colors(1,:)); hold on
-plot(freqs, normalize(ms_flat,'range'), 'Color', plot_settings.colors(2,:));
-xline(cutoff_hz, 'k--',sprintf('%d Hz cutoff', cutoff_hz))
-legend('Original', 'Flattened', 'Location','northeast');
-title('Modulation Spectrum (semilog)')
-xlabel('modulation frequency (hz)'); ylabel('Power (a.u.)');
-xscale('log')
-xlim([freqs(1) freqs(end)]); grid on
-
-
-
-
-%% --- helper functions --- 
+function AMx = apply_AM(x,fs)
+    if ~isrow(x)
+        x=x';
+        if ~isvector(x)
+            error('wrong.')
+        end
+    end
+    dur=(length(x))/fs;
+    f = [10 30]; % limits of frequencies in AM signal
+    
+    % frequency and time domain continua
+    F = linspace(0,fs,fs*dur);
+    T = linspace(1./fs,dur,dur*fs);
+    
+    % define the spectrum (maybe this can be non-discrete?)
+    fspec = zeros(1,fs*dur);
+    fspec(F>=f(1)&F<=f(2)) = 1;
+    
+    % define random phase for each freq bin
+    p = (rand(size(fspec))*2-1)*pi;
+    a = sqrt(pi.^2-p.^2).* sign(randn(size(fspec)));
+    z = complex(a,p);
+    
+    % inverse to time domain with only the selected freqs
+    envelope = ifft(fspec.*z,'symmetric');
+    
+    % % Generate noise/sinewave carrier signal
+    % carrier = randn(size(envelope));
+    carrier = x;
+    
+    % Generate onset/offset gate
+    gatetime = 0.01;
+    gatesamp = round(gatetime.*fs);
+    rampu = linspace(1./fs,1,gatesamp);
+    rampd = linspace(1,1./fs,gatesamp);
+    gate = [rampu ones(1,(fs*dur-2.*gatesamp)) rampd];
+    
+    % Apply envelopes and gate to carrier signal
+    AMx = (1+(envelope./-min(envelope))).*carrier.*gate;
+end
 
 function [ms, f]=long_audio_ms(x_full,fs)
 % gets modulation spectrum accounting for cochlear filtering from waveform
@@ -416,4 +668,9 @@ COCHBA=[22.0000000000000 + 6.48879348431515i	22.0000000000000 + 6.78700351282769
 0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	-0.000692363647839752 - 0.116999588921660i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i
 0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	-0.000136472028241710 + 0.224614351563595i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i	0.00000000000000 + 0.00000000000000i];
 end
+
+% --- REFERENCES ---
+% Ewert, Stephan D., and Torsten Dau. “Characterizing Frequency Selectivity
+% for Envelope Fluctuations.” The Journal of the Acoustical Society of
+% America 108, no. 3 (2000): 1181–96. https://doi.org/10.1121/1.1288665.
 
