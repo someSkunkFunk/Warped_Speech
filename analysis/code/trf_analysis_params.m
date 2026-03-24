@@ -14,7 +14,7 @@ end
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
@@ -33,14 +33,16 @@ else
 end
 % use extended timelims for model so TRFs don't include edge artefacts
 
-if ~trf_config.separate_conditions
-    trf_config.do_lambda_optimization=true;
-else
-    % we assume optimization done data from all conditions and get best
-    % lambda from saved checkpoint later
+if trf_config.separate_conditions
+    % we assume optimization done on data from all conditions
+    % find data from all conditions and 
+    % get best lambda from saved checkpoint later
     trf_config_=trf_config;
-    trf_config_.separate_conditions=true;
+    trf_config_.separate_conditions=false;
     trf_config_.do_lambda_optimization=true;
+else
+    trf_config.do_lambda_optimization=true;
+    
 end
 
 

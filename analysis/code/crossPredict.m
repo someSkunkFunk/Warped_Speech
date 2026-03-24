@@ -31,10 +31,11 @@ clear, clc
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
 % subjs=[2:7,9:22];
-subjs=[2:7,9:22];
-% subjs=[2]
+% subjs=[2:7,9:22];
+
+subjs=[2:7,9:12];
 script_config.show_tuning_curves=false;
-script_config.compute_cross_stats=false;
+script_config.compute_cross_stats=true;
 script_config.overwrite_stats_cross=false;
 % trim end of trials for og/slow to match number of samples in fast trials
 script_config.trim_stimuli=true;

@@ -1,4 +1,4 @@
-
+% script for running update_reshash_config on multiple subjects
 %% setup 
 % --- NUISANCE PARAMS IN TRF_ANALYSIS PARAMS ---
 script_config=[];
