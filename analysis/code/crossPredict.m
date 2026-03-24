@@ -1,6 +1,33 @@
+% crossPredict.m
+%
+% PURPOSE:
+%   Test whether EEG/TRF models trained on one speech condition generalize
+%   to neural responses recorded during a different speech condition. E.g. 
+%   If a model trained on "fast" speech can predict EEG to "slow" speech as
+%   well as a model trained on "slow" speech itself, that suggests a shared
+%   underlying neural representation across conditions.
+
+% INTENDED GOAL (vs. current implementation):
+%   The long-term goal is to asses cross-condition generalization as
+%   evidence for condition-invariant auditory-cortical tracking. The
+%   current script, however, tests a simpler proxy question: is
+%   within-condition prediction accuracy (R_within) significantly greater
+%   than cross-condition prediction accuracy (R_cross)? A significant
+%   difference indicates that models are at least partially
+%   condition-specific, i.e. do NOT fully generalize.
+
+% METHOD:
+%   Implemenets the Maris & Oostenveld (2007) cluster-based nonparametric
+%   permutation test across subjects. For each subject:
+%   1. A TRF model is trained on held-out folds of one conditioin (LOOCV)
+%   and its correlation (r) with both within- and cross-condition EEG is
+%   recorded yielding a [trials x trials x electrodes] matrix of r-values. 
+%   2. These are collapsed into a [conditions x conditions x electrodes]
+%   matrix of mean r-values per subject (Rcs).
+
+
 clear, clc
-% use results where we automatically selected bad channels and interpolated
-% them
+%% --- CONFIGURATION ---
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
 % subjs=[2:7,9:22];
@@ -13,16 +40,23 @@ script_config.overwrite_stats_cross=false;
 script_config.trim_stimuli=true;
 script_config.get_all_subj_Rcs=true;
 script_config.avg_cross_trials_rcross=true;
-% note: not sure how to interpret non-averaged results so code really just
-% assumes avg_cross_trials is true
+% note: not sure how to interpret non-averaged results so non-averaged
+% cross-trial reslts are not currently handled downstreamm
 script_config.overwrite_Rcs=false;
 
-%% compute stats_cross... or stats_cross_fair
+%% --- COMPUTE CROSS-PREDICTION STATISTICS (per subject, LOOCV) ---
+% For each subject, trains a TRF model using LOOCV. Within each condition,
+% then evaluates prediction accuracy on:
+%   (1) the held-out trial from the same conditions -> fills diagonal of
+%   stats_cross_cv.r
+%   (2) all trials from every other condition -> fills off-diagonal entries
+% results is saved as stats_cross_cv: a [trials x trials x electrodes]
+% struct of r/err.
+
 
 if script_config.compute_cross_stats
     fair=true;
-    % for reproducibility
-    rng(1);
+    rng(1); % seed for reproducibility
     for subj=subjs
         fprintf('computing stats_cross for subj %d...\n',subj)
         % load saved model
@@ -30,8 +64,6 @@ if script_config.compute_cross_stats
         clear do_nulltest
         trf_=load_checkpoint(trf_config);
         if ~isfield(trf_,'stats_cross_cv')||script_config.overwrite_stats_cross
-            % load preprocessed data/stimuli
-            % preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
             pp_=load_checkpoint(preprocess_config);
             preprocessed_eeg=pp_.preprocessed_eeg;
             stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
@@ -39,66 +71,70 @@ if script_config.compute_cross_stats
                 trf_config);
             cond_labels=preprocessed_eeg.cond;
             resp=preprocessed_eeg.resp';
-
+                
             if script_config.trim_stimuli
+            % trim stimuli so all conditions have equal number of samples
                 min_ns=min(cellfun('size',stim,1));
                 stim=cellfun(@(x) x(1:min_ns),stim,'UniformOutput',false);
                 resp=cellfun(@(x) x(1:min_ns,:),resp,'UniformOutput',false);
             end
         
             if fair
+                % shuffle trial order so LOOCV folds are not
+                % condition-contiguous
                 best_lam=train_params.best_lam;
                 shuff=randperm(numel(cond_labels));
                 cond_labels=cond_labels(shuff);
                 resp=resp(shuff);
                 stim=stim(shuff);
-                % NOTE: can undo the shuffling at the end if trial-level information is
-                % relevant for our statistical test by doing cond(shuff)=cond;
+
                 n_trials=numel(cond_labels);
                 n_electrodes=size(resp{1},2);
-                %initialize variables
-                % each col means score from model trained on cond 1,2,3
-                % test condition determined by the actual condition of the trial
-                stats_cross_cv=struct('r',nan(n_trials,n_trials,n_electrodes), ...
+                %initialize stats_cross_cv.r(i,j,e):
+                % r-value when model was trained on the fold that held out
+                % trial i, evaluated on trial j, at electrode e.
+                % Diagonal (i==j): within-condition held-out prediction.
+                % off-diagonal: cross-condition prediction.
+
+                stats_cross_cv=struct( ...
+                    'r',nan(n_trials,n_trials,n_electrodes), ...
                     'err',nan(n_trials,n_trials,n_electrodes));
         
                 for cc=1:3
                     fprintf('%d of 3 conditions...\n',cc);
-                    % run LOOCV one condition at a time
-                    % note: some subjects missing trials so we can't assume all
-                    % conditions have equal number of folds
                     n_folds=sum(cond_labels==cc);
                     cc_trials=find(cond_labels==cc);
                     cross_trials=find(cond_labels~=cc);
                     for k=1:n_folds
-                        % split condition-specific trials into train,test
                         fprintf('%d of %d folds...\n',k,n_folds)
                         test_trial=cc_trials(k);
                         train_trials=cc_trials(cc_trials~=test_trial);
+                        % train model on all same-condition trials except
+                        % held out one
                         temp_model=mTRFtrain(stim(train_trials),resp(train_trials), ...
                             preprocess_config.fs,1,trf_config.tmin_ms, ...
                             trf_config.tmax_ms,best_lam);
-        
+                        % evaluate on the held-out trial AND all
+                        % cross-condition trials
                         [~,temp_stats]=mTRFpredict([stim(test_trial);stim(cross_trials)] ...
                             ,[resp(test_trial);resp(cross_trials)],temp_model);
-                        
+                        % store within-condition (diagonal) result
                         stats_cross_cv.r(test_trial,test_trial,:)=temp_stats.r(1,:);
                         stats_cross_cv.err(test_trial,test_trial,:,:)=temp_stats.err(1,:);
-        
+                        % store cross-condition (off-diagonal) results
                         stats_cross_cv.r(test_trial,cross_trials,:)=temp_stats.r(2:end,:);
                         stats_cross_cv.err(test_trial,cross_trials,:)=temp_stats.err(2:end,:);
                     end 
                 end
-                %NOTE: need to invert shuffling before saving!
-                % that way their indices correspond with the original order that's saved
-                % in preprocess_config
+                % invert the shuffle so saved indices correspond to the
+                % original trials order stored in preprocess_config
                 stats_cross_cv.r(shuff,shuff,:)=stats_cross_cv.r;
                 stats_cross_cv.err(shuff,shuff,:)=stats_cross_cv.err;
                 %save to file
                 save_checkpoint(stats_cross_cv,trf_config,script_config.overwrite_stats_cross)
             else
                 error('DONT DO THIS')
-                % % this comparison didn't hold out data so is unfair
+                % % unfair (non-LOOCV) comparison, kept for reference
                 % model_data=load(trf_config.trf_model_path,"model");
                 % stats_data=load(trf_config.model_metric_path,"stats_obs");
                 % stats_obs=stats_data.stats_obs(2,:); clear stats_data
@@ -126,9 +162,15 @@ if script_config.compute_cross_stats
         clear trf_
     end
 end
-%% setup r-values for stats
+%% --- COMPILE PER-SUBJECT R-VALUE MATRICES (Rcs) ---
+% Collapses stats_cross_cv (trial x trial x electrode) into Rcs: 
+% a [conditions x conditions x electrodes] matrix of mean r-values per
+% subject. 
+% Diagonal entrials = within-condition r; off-diagonal = cross-condition r. 
+% All subjects are stacked into all_subj_Rcs [subjects x
+% cond x cond x electrodes].
 if script_config.get_all_subj_Rcs 
-    % note: can't figure out how to pre-a
+    % note: could improve by pre-allocating?
     n_electrodes=128; % how to avoid hardcoding? does it even matter?
     n_cond=3;
     n_subjs=numel(subjs);
@@ -165,65 +207,85 @@ if script_config.get_all_subj_Rcs
         all_subj_Rcs(ss,:,:,:)=Rcs; 
     end
 end
+%% --- ORGANIZE R-VALUES AND DEFINE CROSS-CONDITION PAIRS ---
+% separates all_subj_Rcs into:
+%   R_within [subj cond x electrodes]: diagonal entries
+%   R_cross [subj x train_cond x test_cond x electrodes]: off-diagonal entries
+% also enumerates all ordered (train, test) cross-condition pairs.
 
 cond_labels=trf_config.conditions;
-% arrange r_cross/r_within - note: we can probably do this more cleanly
-% with indexing instead of this function
 [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
-% [subj X train cond X electrodes],[subj X train cond X test cond X electrodes]
-%% setup train,test pair labels
-off_diag_pairs=get_off_diag_pairs(n_cond);    
-n_cross=length(off_diag_pairs);
- % note: off_diag_pairs refer to train condition's original index, which
-% needs to be adjusted for numerically by the fact that test condition
-% is missing... when indexing to R_cross
-cross_train_idx=off_diag_pairs(:,1);
-cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))=cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))-1;
+% R_within: [subj x train_cond x electrodes]
+% R_cross:  [subj x train_cond x test_cond x electrodes]
 
+off_diag_pairs=get_off_diag_pairs(n_cond); % [n_cross x 2]: [train_cond, test_cond]
+n_cross=length(off_diag_pairs);
+% adjust train index to account for the missing test condition dimension in
+% R_cross
+cross_train_idx=off_diag_pairs(:,1);
+cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))= ...
+cross_train_idx(off_diag_pairs(:,1)>off_diag_pairs(:,2))-1;
+
+% build readable labels for each cross-condition pair (e.g.
+% "fast,slow,...")
 cross_ids=cell(size(off_diag_pairs,1),1);
 for pp=1:n_cross
     cross_ids{pp}=sprintf('%s,%s',cond_labels{off_diag_pairs(pp,1)},cond_labels{off_diag_pairs(pp,2)});
 end
 
-%% load chanlocs
+
+%% --- load chanlocs ---
 global boxdir_mine
 loc_file=sprintf("%s/data/128chanlocs.mat",boxdir_mine);
 load(loc_file);
 
-%% oostenveld permutation test of within vs cross prediction accuracies
+%%  --- OOSTENVELD PERMUTATION TEST ---
 
-%% generate permuted distribution of contrast maps (preallocate mem)
-% note: some permutations are redundant with this contrast calculation so we
-% could make it more efficient by ignoring those...
-D_config=[]; % use defaults - difference is default (to compare results)
-D_config.metric='percent_change'; %options are percent_change or raw_diff
-D_config.comparison='separate'; % separate or lumped
+%% --- COMPUTE OBSERVED CONTRAST (D_obs) AND PERMUTED CONTRAST (D_perm) ---
+% D is the contrast between within- and cross-condition prediction
+% accuracy, either as a raw difference or percent change (set via
+% D_config.metric). D_config.comparison controls whether cross-condition
+% predictions from all training 
+% conditions are averaged together ('lumped')
+% or kept separate ('separate').
+% The permutation null distribution is built by randomly shuffling
+% condition labels (the train-condition dimension of all_subj_Rcs) within
+% each subject, independently across subjects,n_perm times.
+
+% TODO: I think this is where we have to account for the within-subject
+% design.
+
+D_config=[]; 
+D_config.metric='percent_change'; % 'percent_change' or 'raw_diff'
+D_config.comparison='separate'; % 'separate' or 'lumped'
 disp(D_config)
-%TODO: check 2-way comparisons against R_cross
 [D_obs,D_config]=get_D(R_within,R_cross,D_config);
 n_comp=size(D_obs,1);
-%
-% todo: use wrapper function here? oostveld or something?
+
 n_perm=6000;
-% n_perm=1;
-% n_perm independent permutations per subject per condition
+% generate permutation indices: for each permutation, subject, and
+% condition, produce a random ordering of the condition labels (shuffles
+% the train-condition dim?) %TODO: 4th dimension is test in ndgrid...
+% confirm logic in line below is correct or doesn't matter (i suspect it
+% might not matter because the sizes match....)
 [~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond,n_cond),4);
 
-% generate grids to vectorize indexing and avoid loops
+% build index grids to vectorize permutation indexing (avoids nested loops)
 [~,subj_grid,~,test_grid,elec_grid]=ndgrid(1:n_perm,1:n_subjs, ...
     1:n_cond,1:n_cond,1:n_electrodes);
 % pray for no memory issues
 
-% replace train grid with electrode-expanded random permutations of
-% conditions labels
+% Replicate perm_idx across electrode dimension for vectorized sub2ind
+% call
 perm_train_grid=perm_idx(:,:,:,:,ones(1,n_electrodes));
 lin_perm_idx=sub2ind(size(all_subj_Rcs),subj_grid(:),perm_train_grid(:), ...
     test_grid(:),elec_grid(:));
-
+% apply permutations to all_subj_Rcs to get shuffled r-value arrays
 perm_Rcs=reshape(all_subj_Rcs(lin_perm_idx),n_perm,n_subjs,n_cond, ...
     n_cond,n_electrodes);
 
-%preallocate
+
+% compute D for each permutation
 D_perm=nan(n_comp,n_perm,n_subjs,n_cond,n_electrodes);
 for pp=1:n_perm
     D_perm(:,pp,:,:,:)=get_D(squeeze(perm_Rcs(pp,:,1,:,:)) ...
@@ -231,19 +293,20 @@ for pp=1:n_perm
 end
 
 
-%% compute group-level statistics
-% note: alpha is 0.05 and since t-dist is symmetric about zero can just
-% calculate cdf^-1 up to alpha and abs it 
+%% --- Compute group-level statistics ---
+% one-sample t-statistic across subjects for both observed and permuted
+% contrasts. t_thresh is the two-tailed critical value used to threshold
+% electrode maps before clustering (following Maris & oostenveld 2007).
+
 crit_p=0.05;
 t_thresh=abs(tinv(crit_p,n_subjs-1));
-% preallocate TODO: check this is what we expect
+
 T_perm=nan(n_comp,n_perm,n_cond,n_electrodes);
 T_obs=nan(n_comp,n_cond,n_electrodes);
-% get one-sample t-statistic of mean contrasts
-%TODO: in separate train conditions comparison, is it still a one-sample?
-%probably right...
+
 for dd=1:size(D_obs,1)
-    % compute across-subjects t-statistics 
+    % compute across-subjects t-statistics %TODO: SHOULD BE
+    % WITHIN-SUBJECTS
     D_perm_=D_perm(dd,:,:,:,:);
     T_perm(dd,:,:,:)=squeeze(mean(D_perm_,3)./(std(D_perm_,0,3)/sqrt(n_subjs)));
     clear D_perm_
@@ -251,8 +314,9 @@ for dd=1:size(D_obs,1)
     T_obs(dd,:,:)=squeeze(mean(D_obs_,2)./(std(D_obs_,0,2)/sqrt(n_subjs)));
     clear D_obs_
 end
-%% plot D_obs & T_obs topos
-% T_obs: across subjects
+%% --- Visualize t-statistic and contrast topographies
+
+% Topoplots of across-subjectt-statistics (one per comparison)
 for dd=1:n_comp
     for cc=1:n_cond
         figure
@@ -262,7 +326,7 @@ for dd=1:n_comp
     end
 end
 
-% D_obs: individual subjs
+% Optional: per-subject D topoplot
 if plots_config.show_ind_subj
     for dd=1:n_comp
         for cc=1:n_cond
@@ -277,10 +341,8 @@ if plots_config.show_ind_subj
     end
 end
 
-%% scatter plots D_obs & T_obs
+% --- scatter plots D_obs & T_obs ---
 %TODO: configure these to work in lumped vs not comparisons case... 
-
-% T_obs: across subjects
 for dd=1:n_comp
     pretty_scat(squeeze(T_obs(dd,:,:)),1);
     % there must be a way to do the same plot in one line - also we want to add
@@ -299,7 +361,8 @@ for dd=1:n_comp
     xticklabels(cond_labels)
     hold off
 end
-%% SFN PLOT HERE
+% SFN PLOT HERE (summary of t-stats for all cross-condition pairs)
+figure('Name','SFN-plot','Color','white')
 pretty_scat(reshape(T_obs,n_cross,n_electrodes),1)
 title('Scalp-EEG Crossed-Conditions Prediction Accuracy')
 xlabel('i,j (train,test)')
@@ -307,31 +370,9 @@ ylabel('t-stat(C{i,j})')
 xticks(1:n_cross)
 xticklabels(cross_ids)
 set(gca,'FontSize',28)
-%%
 
-% D_obs: individual subject
-if plots_config.show_ind_subj
-    for ss=1:n_subjs
-        figure
-        for cc=1:n_cond
-            scatter(repmat(cc,n_electrodes,1),squeeze(D_obs(ss,cc,:)));
-            hold on
-        end
-        title(sprintf('subj %d - all electrodes',subjs(ss)))
-        xlabel('condition')
-        ylabel('R_{within}-mean(R_{cross})')
-        xticks(1:n_cond)
-        xticklabels(cond_labels)
-        hold off
-    end
-end
-
-%% Scatterplot R_within and R_Cross
-
-
-%% across all subjects 
-% also TODO: use prettier plotting code wei ching shared
-% note: do we want to average across electrodes also?
+% Scatterplot R_within and R_Cross (group level)
+figure ('Name','R_within - group level')
 pretty_scat(R_within,2)
 
 title('all subj & all electrodes')
@@ -341,11 +382,8 @@ xticks(1:n_cond)
 xticklabels(cond_labels)
 hold off
 
-%rcross
-% get cross condition pairing labels
-%% TODO: check indexing... train/test have been swapped (actually I don't think it matters here
-% also TODO: use prettier plotting code wei ching shared
-% rwithin
+% R_cross: loop version kept for cross-checking vectorized
+% TODO: check indexing... train/test have been swapped (actually I don't think it matters here
 figure
 for pp=1:n_cross
     R_=squeeze(R_cross(:,cross_train_idx(pp),off_diag_pairs(pp,2),:));
@@ -354,8 +392,7 @@ for pp=1:n_cross
     hold on
     title('loop result for reference')
 end
-% TODO: pretty scat does not reproduce the same result as above, which I'm
-% pretty certain is correct JK it looks fine now...??
+% R_cross: vectorized 
 pretty_scat(reshape(R_cross,n_subjs,n_cross,n_electrodes),2)
 title('all subjs & all electrodes')
 xlabel('train->test')
@@ -363,8 +400,9 @@ ylabel('R_{cross}')
 xticks(1:n_cross)
 xticklabels(cross_ids)
 hold off
-%% subject-level
+% --- OPTIONAL subject-level R_scatterplots ---
 % rwithin
+
 if plots_config.show_ind_subj
     figure
     for ss=1:n_subjs
@@ -390,7 +428,7 @@ if plots_config.show_ind_subj
         end
         figure
         for pp=1:n_cross
-            R_=squeeze(R_cross(:,off_diag_pairs(cc,1),off_diag_pairs(cc,2),:));
+            R_=squeeze(R_cross(:,off_diag_pairs(pp,1),off_diag_pairs(pp,2),:));
             R_=R_(:);
             scatter(repmat(pp,n_electrodes*n_subjs,1),R_);
             hold on
@@ -404,18 +442,27 @@ if plots_config.show_ind_subj
         hold off
     end
 end
-%% define electrode neighborhoods
-%TODO: make a config with vis_neighbors as field to imrpove readability...
-% note this will affect clustering results
-adj_config=[];
-adj_config.vis_neighbors=false; % note true will generate 129 figures!
-adj=get_adjacency_mat(chanlocs,adj_config);
-% having trouble keeping head size consistent when calling topoplot
-% consecutively... opting instead to have each neighborhood plotted
-% separately
 
-%% run cluster analysis
-% cluster analysis on T_obs
+%% --- define electrode neighborhoods ---
+% Builds an adjacency matrix over electrodes based on 3D euclidian
+% distance. used by cluster algorithm to define spatially connected
+% electrode groups.
+adj_config=[];
+% note: set true to generate one figure per electrode 
+% (will generate 129 figures!)
+adj_config.vis_neighbors=false; 
+adj=get_adjacency_mat(chanlocs,adj_config);
+
+
+%% --- CLUSTER-BASED PERMUTATION TEST ---
+% for each comparison and condition:
+%   1. identify clusters of spatially adjacent electrodes where T_obs >
+%       t_thresh.
+%   2. Compute the mass (sum of t-values) of each cluster.
+%   3. Compare the observed cluster masses against the null distribution of
+%   max cluster mass obtained from the permuted T_perm maps.
+%   4. Clusters whose mass exceed the (1 - crip_p) quantile of the null
+%   distribution are considered significant.
 obs_clusters=cell(n_comp,n_cond,1);obs_masses=cell(n_comp,n_cond,1);
 cluster_nulldist=cell(n_comp,1);
 for dd=1:n_comp
@@ -429,9 +476,8 @@ for dd=1:n_comp
     disp('generating permutation distributions')
     cluster_nulldist{dd}=get_cluster_nulldist(squeeze(T_perm(dd,:,:,:)),t_thresh,adj);
 end
-%% plot nulldistributions of oostenveld cluster analysis
 
-%plot perm distributions for each condition
+% plot empirical CDFs of null distributions with critical mass threshold
 crit_mass=nan(n_cond,1);
 for dd=1:n_comp
     for cc=1:n_cond
@@ -452,7 +498,8 @@ for dd=1:n_comp
         clear Fmass_null_ F_null_
     end
 end
-%% topoplots above-threshold clusters
+
+%% --- topoplot significant clusters (electrodes belonging to clusteers above crit_mass) ---
 for cc=1:n_cond
     
     
@@ -483,321 +530,21 @@ for cc=1:n_cond
 
     clear clusts_ masses_ sig_clusts_
 end
-%% investigate if observed clusters actually disjoint
-% note: we determined they are disjoint, just have weird morphologies due
-% to how we've defined neighbors
-% [clusters_disjoint_,cluster_intersections_]=check_disjoint(obs_clusters{1});
-%% percent change, rcross/rwithin, bootsrapping analyses (old)
-% %% generate r cross vs r within proportions/%change
-% R_within_expanded_=permute(repmat(R_within,1,1,1,n_cond-1),[1,2,4,3]);
-% R_cross_div_w=R_cross./R_within_expanded_;
-% R_percent_change=100.*(R_cross-R_within_expanded_)./R_within_expanded_;
-% clear R_within_expanded_
-% 
-% n_subjs=size(R_cross_div_w,1);
-% pairs_=get_off_diag_pairs(n_cond);
-% %sort them by train condition
-% [~,Ipairs]=sort(pairs_(:,1));
-% pairs_=pairs_(Ipairs,:);
-% 
-% comparison_ids=cell(size(pairs_,1),1);
-% for pp=1:size(comparison_ids,1)
-%     comparison_ids{pp}=sprintf('%s,%s',cond{pairs_(pp,1)},cond{pairs_(pp,2)});
-% end
-% %% plot r_cross/r_within scatters
-% % is there a good way to show data from multiple electrodes?
-% plot_electrode=85; 
-% 
-% figure
-% hold on
-% loop_=0; % dummy counter
-% for cc=1:n_cond
-%     scatter((loop_+1)+zeros(n_subjs,1),R_cross_div_w(:,cc,1,plot_electrode))
-%     scatter((loop_+2)+zeros(n_subjs,1),R_cross_div_w(:,cc,2,plot_electrode))
-%     loop_=loop_+2;
-% end
-% clear loop_
-% set(gca(),'XTick',1:size(comparison_ids,1),'XTickLabels',comparison_ids)
-% ylabel('R_{cross}/R_{within}')
-% xlabel('Train condition -> test condition')
-% title(sprintf('electrode: %d',plot_electrode))
-% hold off
-% %% plot % change scatters
-% figure
-% hold on
-% loop_=0; % dummy counter
-% for cc=1:n_cond
-%     scatter((loop_+1)+zeros(n_subjs,1),R_percent_change(:,cc,1,plot_electrode))
-%     scatter((loop_+2)+zeros(n_subjs,1),R_percent_change(:,cc,2,plot_electrode))
-%     loop_=loop_+2;
-% end
-% clear loop_
-% set(gca(),'XTick',1:size(comparison_ids,1),'XTickLabels',comparison_ids)
-% ylabel('%change(R_{cross},R_{within})')
-% xlabel('Train condition -> test condition')
-% title(sprintf('electrode: %d',plot_electrode))
-% hold off
-% %% histograms of r_cross/r_within
-% figure
-% loop_=1; % dummy counter
-% for cc_tr=1:n_cond
-%     for cc_te=1:n_cond-1
-%         subplot(n_cond,n_cond-1,loop_)
-%         histogram(R_cross_div_w(:,cc_tr,cc_te,plot_electrode))
-%         xlabel('R_{cross}/R_{within}')
-%         title(sprintf('train -> test %s - electrode: %d', ...
-%             comparison_ids{loop_},plot_electrode))
-%         loop_=loop_+1;
-% 
-%     end
-% end
-% clear loop_
-% %% histograms of percent change
-% figure
-% loop_=1; % dummy counter
-% for cc_tr=1:n_cond
-%     for cc_te=1:n_cond-1
-%         subplot(n_cond,n_cond-1,loop_)
-%         histogram(R_percent_change(:,cc_tr,cc_te,plot_electrode))
-%         xlabel('100*(R_{cross}-R_{within})/R_{within}')
-%         title(sprintf('train -> test %s - electrode: %d', ...
-%             comparison_ids{loop_},plot_electrode))
-%         loop_=loop_+1;
-%     end
-% end
-% clear loop_
-% 
-% %% plot individual subject topos of percent change
-% clims_=[-200,200];
-% for ss=1:n_subjs
-%     figure
-%     p_=1;
-%     for cc_tr=1:n_cond
-%         for cc_te=1:n_cond-1
-%             subplot(n_cond,n_cond-1,p_)
-%             topoplot(R_percent_change(ss,cc_tr,cc_te,:),chanlocs);
-%             title(sprintf('train,test: %s',comparison_ids{p_}))
-%             clim(clims_)
-%             colorbar
-%             p_=p_+1;
-%         end
-%     end
-%     sgtitle(sprintf('Subj %d %%change(r_{within},r_{cross})',subjs(ss)))
-%     clear p_ clims_
-% end
-% 
-% %% plot subj-averaged topos of percent change
-% R_percent_change_mean=mean(R_percent_change,1);
-% figure
-% p_=1;
-% clims_=[-200,200];
-% for cc_tr=1:n_cond
-%     for cc_te=1:n_cond-1
-%         subplot(n_cond,n_cond-1,p_)
-%         topoplot(R_percent_change_mean(:,cc_tr,cc_te,:),chanlocs);
-%         title(sprintf('train,test: %s',comparison_ids{p_}))
-%         clim(clims_)
-%         colorbar
-%         p_=p_+1;
-%     end
-% end
-% sgtitle('subj-avg  %change(r_{cross},r_{within})')
-% clear p_ clims_
-% 
-% %% bootstrap %-change
-% %
-% boot_N=1000; % number of bootstrap samples
-% R_booted_percent_change=R_percent_change(randi(n_subjs,[boot_N,n_subjs]),:,:,:);
-% R_booted_percent_change=reshape(R_booted_percent_change,n_subjs,boot_N,n_cond,n_cond-1,n_electrodes);
-% % average across subjects in each sample
-% R_booted_percent_change=squeeze(mean(R_booted_percent_change,1));
-% %% get quantiles [2.5%,97.5%]
-% qs=[.025,0.975];
-% boot_qtls=quantile(R_booted_percent_change,qs);
-% 
-% %% histogram bootstrap results
-% figure
-% loop_=1; % dummy counter
-% ylims_=[0 0.2];
-% for cc_tr=1:n_cond
-%     for cc_te=1:n_cond-1
-%         subplot(n_cond,n_cond-1,loop_)
-%         histogram(R_booted_percent_change(:,cc_tr,cc_te,plot_electrode), ...
-%             'Normalization','probability')
-%         hold on
-%         % add line at 95% CIs
-%         xci_=boot_qtls(:,cc_tr,cc_te,plot_electrode);
-%         yci_=repmat(ylims_',1,numel(xci_));
-%         xci_=[xci_,xci_];
-%         plot(xci_',yci_,'r--')
-%         xlabel('mean(100*(R_{cross}-R_{within})/R_{within})')
-%         title(sprintf('train -> test %s - electrode: %d', ...
-%             comparison_ids{loop_},plot_electrode))
-%         ylim(ylims_)
-%         loop_=loop_+1;
-%     end
-% end
-% sgtitle('Bootstrap % change')
-% clear loop_ ylims_ xci_ yci_
-% %% topoplot of CI results
-% % plot which electrodes have improved/impoverished prediction accuracy as
-% % determined by 0 being contained within the 95% CI
-% figure
-% p_=1;
-% clims_=[-1 1];
-% for cc_tr=1:n_cond
-%     for cc_te=1:n_cond-1
-%         boot_ci_topo_=sign(squeeze(boot_qtls(:,cc_tr,cc_te,:)));
-%         boot_ci_topo_=sign(sum(boot_ci_topo_));
-%         subplot(n_cond,n_cond-1,p_)
-%         topoplot(boot_ci_topo_,chanlocs);
-%         title(sprintf('train,test: %s',comparison_ids{p_}))
-%         clim(clims_)
-%         colorbar
-%         p_=p_+1;
-%     end
-% end
-% sgtitle('bootstrapped subj-avg %change(r_{cross},r_{within})')
-% clear p_ boot_ci_topo_ clims_
-%% Welch t-test (old)
-% % unshuffle conditions - Note: will just have to re-load them when
-% % iterating over all subjects
-% run_welchtest=false;
-% overwrite_welch=false;
-% % note: welch test assumes datapoints are independent... but cross trials
-% % are tested 25 times on the same trial for each train condition, so aren't
-% % really independent... averaging out might be the best way to deal with
-% % that
-% script_config.avg_cross_trials_rcross=true;
-% if run_welchtest 
-%     subjs=[2:7,9:22];
-%     for subj=subjs
-%         % load saved model
-%         fprintf('subj %d Welch ttest...\n',subj);
-%         preprocess_config=config_preprocess(subj);
-%         do_lambda_optimization=false;
-%         trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
-%         if ~any(ismember({'wttf','wtts'}, ...
-%                 who('-file',trf_config.model_metric_path)))||overwrite_welch
-%             % load preprocessed data/stimuli
-%             preprocessed_eeg=load(trf_config.preprocess_config.preprocessed_eeg_path,"preprocessed_eeg");
-%             preprocessed_eeg=preprocessed_eeg.preprocessed_eeg;
-%             cond=preprocessed_eeg.cond;
-%             stats_cross_cv=load(trf_config.model_metric_path,"stats_cross_cv");
-%             stats_cross_cv=stats_cross_cv.stats_cross_cv;
-%             fprintf('running Welch ttest...\n');
-%             [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,script_config.avg_cross_trials_rcross);
-%             fprintf('saving Welch ttest result...\n')
-%             save(trf_config.model_metric_path,"wttf","wtts","-append")
-%         end
-%     end
-% 
-%     fprintf('saving Welch t-test results for subj %d\n',subj);
-% end
-% 
-% %% plot topos of welch t-statistic
-% %NOTE: not sure if git will copy this file in which case relative paths
-% load(loc_file)
-% subjs=[2:7,9:22];
-% % subjs=2;
-% plotx='tstat';
-% 
-% switch plotx
-%     case 'h'
-%         colorlabel='hypothesis test result';
-%         clims_=[0,1];
-%     case 'p'
-%         colorlabel='p-value';
-%         clims_='auto';
-%     case 'tstat'
-%         colorlabel='t-statistic';
-%         clims_=[-2 2];
-%     otherwise
-%         error('not a name.')
-% end
-% for subj=subjs
-%     % load welch ttest results
-%     preprocess_config=config_preprocess(subj);
-%     do_lambda_optimization=false;
-%     trf_config=config_trf(subj,do_lambda_optimization,preprocess_config);
-%     load(trf_config.model_metric_path,"wttf","wtts")
-% 
-%     figure
-%     if strcmp(plotx,'tstat')
-%         topoplot(wttf.stats.(plotx),chanlocs)
-%     else
-%         topoplot(wttf.(plotx),chanlocs)
-%     end
-%     h=colorbar;
-%     clim(clims_)
-%     ylabel(h,colorlabel);
-%     title(sprintf('Welch test train on fast subj %d',subj));
-% 
-%     figure
-%     if strcmp(plotx,'tstat')
-%         topoplot(wtts.stats.(plotx),chanlocs)
-%     else
-%         topoplot(wtts.(plotx),chanlocs)
-%     end
-%     h=colorbar;
-%     ylabel(h,colorlabel);
-%     clim(clims_)
-%     title(sprintf('Welch test train on slow subj %d',subj));
-% 
-% end
-
-%%
 
 
-%% GLMM analysis (old)
-% 
-% subjs=[2:7,9:22];
-% 
-% disp('GLMM analysis start...')
-% tbl=setup_glmm_data(subjs);
-% % use mismatched conditions as baseline
-% tbl.Match=reordercats(tbl.Match,["false","true"]);
-% % fit GLMM
-% formula='Rval ~ TrainCond*Match+ (1|Subject) + (1|Subject:Electrode) + (1|DataCond)';
-% glme=fitglme(tbl,formula);
-% disp(glme)
+
 
 %% helpers
 function pretty_scat(D,cond_dim)
-% % wrapper for pretty scatter plots
-% % D data matrix with size sz
-% % cond_dim: index of dimension corresponding to the x-axis (train,test
-% % pairs as linear index)
-% sz=size(D);
-% n_cond=sz(cond_dim);
-% if cond_dim~=numel(sz)
-%     dim_ord=1:numel(sz);
-%     % get permute order such that first dimension is conditions
-%     % by shifting
-%     % dim_ord=circshift(dim_ord,1-cond_dim);
-%     dim_ord=[dim_ord(dim_ord~=cond_dim),cond_dim];
-%     D=permute(D,dim_ord);
-%     %update size
-%     sz=size(D);
-% end
-% 
-% % n_per_cc=prod(sz(2:end));
-% n_per_cc=prod(sz(1:end-1));
-% figure('Units','inches','Position', [0 0 8 5])
-% for cc=1:n_cond
-%     % want col vector because columns get separate color
-%     D_cc=D(1+n_per_cc*(cc-1):n_per_cc*(cc))';
-%     % D_cc=squeeze(D(cc,:));
-%     % D_cc=D_cc(:);
-%     scatter(repmat(cc,n_per_cc,1),D_cc);
-%     hold on
-%     % boxplot()
-%     % clear D_cc
-% end
-% PRETTY_SCAT  Aesthetic scatter plot with connecting lines and boxplots
-% D: data matrix (any dimension)
-% cond_dim: index of dimension corresponding to x-axis (conditions)
-
+% PRETTY_SCAT scatterplot with per-sample connecting lines and boxplots.
+%
+% pretty_scat(D, cond_dim)
+%
+% D - data matrix of any dimensionality
+% cond_dim - index of the dimension to use at the x-axis (condition/pairs)
+%
+% Permutes D so that cond_dim is last, then reshapes to [n_smaples x
+% n_cond] and plots grey connecting lines, scatter points, and boxplots.
 sz = size(D);
 n_cond = sz(cond_dim);
 
@@ -841,10 +588,18 @@ xlim([0.5 n_cond+0.5]);
 end
 
 function [D,config]=get_D(R_within,R_cross,config)
+% GET_D Compute contrast between within- and cross-condition predicition
+% accuracies
+% [D, config] = get_D(R_within, R_cross, config)
 % R_within: subjs-by-test_conditions-by-channels
 % R_cross: subjs-by-train_conditions-by-test_conditions-by-channels
+% config - struct with fields: 
+%   .metric - 'raw_diff' or 'percent_change'
+%   .comparison - 'lumped' (average over train conditions) or 'separate'
+%
+% D - contrast array; first dimension indexes train conditions.
+% note: set true to generate one figure per electrode (will generate 129 figures!)
 
-% check config + set defaults if not specified
 defaults=struct( ...
     'metric','raw_diff', ...
     'comparison','lumped');
@@ -884,12 +639,18 @@ end
 
 end
 function cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj)
-% T_perm: permutations x conditions x electrodes
-% note: when testing on T_perm, need to iterate over each condition AND
-% permutation
-% will also need to remember to just keep the max cluster for each
-% permutation
-[n_perm,n_cond,~]=size(T_perm);
+% GET_CLUSTER_NULLDIST  Build the null distribution of maximum cluster mass.
+%
+%   cluster_nulldist = get_cluster_nulldist(T_perm, t_thresh, adj)
+%
+%   For each permutation and condition, finds spatial electrode clusters in the
+%   permuted t-map, computes their mass (sum of t-values), and records the
+%   maximum. The resulting [n_perm x n_cond] matrix is the null distribution
+%   against which observed cluster masses are compared.
+%
+%   T_perm   - [n_perm x n_cond x n_electrodes]
+%   t_thresh - scalar threshold for inclusion in a cluster
+%   adj      - [n_electrodes x n_electrodes] logical adjacency matrix(T_perm);
 cluster_nulldist=nan(n_perm,n_cond);
 for nn=1:n_perm
     fprintf('clustering %d/%d...\n',nn,n_perm)
@@ -901,14 +662,29 @@ end
 
 end
 function [clusters, cluster_masses]=clusterize(t_vals,t_thresh,adj)
-    % t_vals should be a col vector of size [n_electrodes X 1] 
+% CLUSTERIZE  Group suprathreshold electrodes into spatially connected clusters.
+%
+%   [clusters, cluster_masses] = clusterize(t_vals, t_thresh, adj)
+%
+%   Implements a breadth-first-style graph traversal over the electrode
+%   adjacency matrix. Starting from each unvisited suprathreshold electrode,
+%   collects its above-threshold neighbours into a cluster. If a new
+%   electrode's neighbourhood overlaps multiple existing clusters, those
+%   clusters are merged. Returns the cluster mass (sum of t-values within
+%   each cluster) used as the test statistic in the permutation test.
+%
+%   t_vals   - [n_electrodes x 1] vector of t-statistics
+%   t_thresh - scalar threshold; only electrodes above this are clustered
+%   adj      - [n_electrodes x n_electrodes] logical adjacency matrix
+%              (self-adjacency on the diagonal is assumed)
+%
+%   clusters       - cell array; each cell contains electrode indices for one cluster
+%   cluster_masses - vector of summed t-values per cluster (0 if none found)
     tmask=t_vals>t_thresh;
-    %NOTE: if slow... can consider preallocating cell arrays for outputs
-    %with size n_electrodes (since there can't be more clusters than
-    %electrodes), then shrink the array at the end...?
+
     clusters={};
     if any(tmask(:))
-        % cluster_masses={};
+
         n_electrodes=length(adj);
         visited=false(n_electrodes,1);
         % exclude below-threshold electrodes from search
@@ -975,9 +751,13 @@ function [clusters, cluster_masses]=clusterize(t_vals,t_thresh,adj)
 end
 
 function [clusters_disjoint, cluster_intersections]=check_disjoint(clusters)
-% clusters_disjoint=check_disjoint(clusters)
-% clusters_disjoint: bool, clusters: cell arrays of vectors with hopefully
-% disjoint integers
+% CHECK_DISJOINT  Verify that no electrode belongs to more than one cluster.
+%
+%   [clusters_disjoint, cluster_intersections] = check_disjoint(clusters)
+%
+%   Computes pairwise intersections of all cluster index vectors. Returns
+%   true if all off-diagonal intersections are empty (clusters are disjoint).
+%   Used as a debugging check inside clusterize when double_check_ is true.
     n_clusters=length(clusters);
     cluster_intersections=cell(n_clusters,n_clusters);
     [cx, cy]=ndgrid(1:n_clusters,1:n_clusters);
@@ -998,6 +778,19 @@ function [clusters_disjoint, cluster_intersections]=check_disjoint(clusters)
 end
 
 function adj=get_adjacency_mat(chanlocs,config)
+% GET_ADJACENCY_MAT  Build a binary electrode adjacency matrix from 3D coordinates.
+%
+%   adj = get_adjacency_mat(chanlocs, config)
+%
+%   Two electrodes are considered neighbours if their Euclidean distance is
+%   below dist_thresh (default 0.35, in the same units as chanlocs XYZ).
+%   The diagonal is included (each electrode is its own neighbour), which
+%   simplifies cluster mass calculations.
+%
+%   chanlocs     - EEGLAB channel location struct with fields X, Y, Z
+%   config       - struct with optional fields:
+%                    .dist_thresh  - distance threshold (default 0.35)
+%                    .vis_neighbors - if true, plot each electrode's neighbourhood
     defaults=struct( ...
         'dist_thresh',0.35, ...
         'vis_neighbors',false);
@@ -1021,6 +814,7 @@ function adj=get_adjacency_mat(chanlocs,config)
     figure, imagesc(adj), axis square; colorbar 
     title(sprintf('electrode ajacancy matrix - dist thresh: %0.2f',dist_thresh))
     if vis_neighbors
+        warning('Will generate 129 plots.')
     % check adjacency matrix
         for chn_=1:n_electrodes
             figure
@@ -1028,15 +822,19 @@ function adj=get_adjacency_mat(chanlocs,config)
                 find(adj(chn_,:)),'emarker',{'o','b',10,1},'headrad',.5);
             title(sprintf('%s + neighbors, distance threshold: %0.3f', ...
                 chanlocs(chn_).labels),dist_thresh)
-            % topoplot([],chanlocs(chn_),'conv','off','numcontour',0);
-            % plot(X_(chn_),Y_(chn_),chanlocs)
-            % hold off
         end
     end
 end
 
 
 function pairs=get_off_diag_pairs(n_cond)
+% GET_OFF_DIAG_PAIRS  Enumerate all ordered off-diagonal index pairs for an n_cond grid.
+%
+%   pairs = get_off_diag_pairs(n_cond)
+%
+%   Returns an [n_cross x 2] matrix where each row is [train_cond, test_cond]
+%   for every cross-condition combination (diagonal pairs excluded).
+%   Sorted by test condition.
     [ptrain,ptest]=ndgrid(1:n_cond,1:n_cond);
     pairs=[ptrain(:),ptest(:)];
     % remove diagonals
@@ -1047,13 +845,18 @@ function pairs=get_off_diag_pairs(n_cond)
 end
 
 function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
-% assumes all_subj_Rcs has size [subjs,cond,cond,electrodes]
-% returns R_within as [subjs,cond,electrodes]
+% SPLIT_ALL_SUBJ_RS  Separate diagonal (within) and off-diagonal (cross) r-values.
+%
+%   [R_within, R_cross] = split_all_subj_Rs(all_subj_Rcs)
+%
+%   all_subj_Rcs - [n_subjs x n_cond x n_cond x n_electrodes]
+%
+%   R_within  - [n_subjs x n_cond x n_electrodes]         (diagonal entries)
+%   R_cross   - [n_subjs x (n_cond-1) x n_cond x n_electrodes] (off-diagonal)
+%
+%   The off-diagonal entries are reshaped to [n_cond-1 x n_cond] per subject/electrode,
+%   where rows index which training condition is missing from the test set.
     [n_subjs,n_cond,~,n_electrodes]=size(all_subj_Rcs);
-    % m_w=logical(repmat(eye(n_cond),n_subj,1,1,n_electrodes));
-    % R_within=all_subj_Rcs()
-    % note: I'm pretty sure there's a way to do this without having to use
-    % loops but it's breaking my brain so just gonna say fuckit
 
     %permute first so looping is more efficient across electrodes:
     all_subj_Rcs=permute(all_subj_Rcs,[4,1,2,3]);
@@ -1066,7 +869,7 @@ function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
             R_within(ee,ss,:)=diag(R_);
             R_cross(ee,ss,:,:)=reshape(R_(~logical(eye(n_cond))),n_cond-1,n_cond);
             
-            % R_cross(ee,ss,:,:)=
+
         end
     end
     % permute back so subjs is first dim and electrodes last since not
@@ -1075,22 +878,30 @@ function [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs)
     R_cross=permute(R_cross,[2 3 4 1]);
 end
 function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
-    % helper function to compile single-subject crossvalidated
-    % r-values into single matrix for furthermath
+    % COMPILE_RVALS  Collapse the trial-level r-value matrix into a per-condition summary.
+%
+%   Rs = compile_rvals(stats_cross_cv, cond, avg_cross_trials)
+%
+%   Takes stats_cross_cv.r [trials x trials x electrodes], where entry (i,j,e)
+%   is the r-value when the model (trained leaving trial i out) predicted trial j
+%   at electrode e. Collapses this into Rs [n_cond x n_cond x electrodes] by:
+%     - Diagonal: averaging r-values of the within-condition LOOCV held-out predictions.
+%     - Off-diagonal: averaging r-values across all train/test trial pairings for
+%       each cross-condition combination (if avg_cross_trials is true).
+%
+%   stats_cross_cv  - struct with field .r [trials x trials x electrodes]
+%   cond            - [n_trials x 1] condition label vector
+%   avg_cross_trials - logical; if true, average over trial pairs (currently assumed true)
+
     n_electrodes=size(stats_cross_cv.r,3);
     n_cond=numel(unique(cond));
     % preallocate
     Rs=nan(n_cond,n_cond,n_electrodes);
-    % fast_trials=find(cond==1);
-    % og_trials=find(cond==2);
-    % slow_trials=find(cond==3);
-    % flag subjects with missing trials for errors
     cond_ids={find(cond==1),find(cond==2),find(cond==3)};
 
-    % if ~((numel(fast_trials)==numel(og_trials))&&(numel(og_trials)==numel(slow_trials)))
-    %     disp('subject has uneven number of trials per condition, handle with care....')
-    % end
+
     if numel(unique((cellfun(@numel, cond_ids))))>1
+        % flag subjects with missing trials for errors
         disp('subject has uneven number of trials per condition, handle with care.')
         disp('number of trials per condition:')
         disp(cellfun(@numel,cond_ids))
@@ -1100,6 +911,9 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
 
     
     function R_within=get_within(idx)
+        % GET_WITHIN  Average the LOOCV diagonal r-values for a set of trial indices.
+        %   Extracts the [idx x idx] submatrix of stats_cross_cv.r, takes the diagonal
+        %   (one held-out prediction per fold), and averages across folds.
         % trials x trials x electrodes
         R_=stats_cross_cv.r(idx,idx,:);
         m=logical(repmat(eye(numel(idx)),1,1,n_electrodes));
@@ -1115,10 +929,6 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
         R_within=mean(reshape(vals,[],n_electrodes),1);
         clear R_
     end
-%note: can also replace this loop easily
-    % R_ff=get_within(cond_ids{1});
-    % R_oo=get_within(cond_ids{2});
-    % R_ss=get_within(cond_ids{3});
 
     for ww=1:n_cond
         Rs(ww,ww,:)=get_within(cond_ids{ww});
@@ -1158,7 +968,15 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
 end
 
 function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
-% [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
+% WELCHTTEST_WRAPPER  Welch's t-test comparing within vs cross-condition r-values.
+%   (Legacy function - predates the cluster-based permutation test pipeline.)
+%
+%   Tests two comparisons using independent-samples Welch t-tests:
+%     wttf: R_ff (train fast, test fast) vs R_fs (train fast, test slow)
+%     wtts: R_ss (train slow, test slow) vs R_sf (train slow, test fast)
+%
+%   Note: this function uses compile_rvals in a way that relies on specific
+%   positional outputs that no longer match its current return signature.
     n_electrodes=size(stats_cross_cv.r,3);
     [R_ff,~,R_fs,...
     ~, ~, ~,...
@@ -1171,81 +989,7 @@ function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
         reshape(R_sf,[],n_electrodes),"Vartype","unequal");
 end
 
-function tbl=setup_glmm_data(subjs)
-    % subjs=[2:7,9:22];
-    % preallocate
-    n_subjs=numel(subjs);
-    rows=0;
-    for subj=subjs
-        tmp_pcnfg=config_preprocess(subj);
-        tmp_tcnfg=config_trf(subj,false,tmp_pcnfg);
-        tmp_sc=load(tmp_tcnfg.model_metric_path,"stats_cross"); % should only have 3x3 shaped vars
-        tmp_sc=tmp_sc.stats_cross;
-        for ii=1:3
-            for jj=1:3
-                [n_trials,~,n_electrodes]=size(tmp_sc(ii,jj).r);
-                rows=rows+n_trials*n_electrodes;
-            end
-        end
-    end
 
-    Subject=categorical(repmat("",rows,1));
-    DataCond=categorical(repmat("",rows,1));
-    TrainCond=categorical(repmat("",rows,1));
-    Match=categorical(repmat("",rows,1));
-    Electrode=zeros(rows,1);
-    Rval=zeros(rows,1);
-
-    % populate table
-    row=1;
-    % for subj=subjs
-    %     tmp_pcnfg=config_preprocess(subj);
-    %     tmp_tcnfg=config_trf(subj,false,tmp_pcnfg);
-    %     tmp_sc=load(tmp_tcnfg.model_metric_path,"stats_cross"); % should only have 3x3 shaped vars
-    %     tmp_sc=tmp_sc.stats_cross;
-    %     for ii=1:3 % data condition
-    %         for jj=1:3 % training condition
-    %             R=tmp_sc(ii,jj).r;
-    %             [n_trials,~,n_electrodes]=size(R);
-    %             for tt=1:n_trials
-    %                 for ee=1:n_electrodes
-    %                     Rval(row)=R(tt,1,ee);
-    %                     Subject(row)=categorical(subj); % does it have to be a string?
-    %                     DataCond(row)=categorical(ii);
-    %                     TrainCond(row)=categorical(jj);
-    %                     Match(row)=categorical(DataCond(row)==TrainCond(row));
-    %                     Electrode(row)=ee;
-    %                     row=row+1;
-    %                 end
-    %             end
-    %         end
-    %     end
-    % end
-    for subj=subjs
-        tmp_pcnfg=config_preprocess(subj);
-        tmp_tcnfg=config_trf(subj,false,tmp_pcnfg);
-        tmp_sc=load(tmp_tcnfg.model_metric_path,"stats_cross_cv"); 
-        tmp_sc=tmp_sc.stats_cross;
-        for ii=1:3 % data condition
-            for jj=1:3 % training condition
-                R=tmp_sc(ii,jj).r;
-                [n_trials,~,n_electrodes]=size(R);
-                for tt=1:n_trials
-                    for ee=1:n_electrodes
-                        Rval(row)=R(tt,1,ee);
-                        Subject(row)=categorical(subj); % does it have to be a string?
-                        DataCond(row)=categorical(ii);
-                        TrainCond(row)=categorical(jj);
-                        Match(row)=categorical(DataCond(row)==TrainCond(row));
-                        Electrode(row)=ee;
-                        row=row+1;
-                    end
-                end
-            end
-        end
-    end
-
-    tbl=table(Subject,DataCond,TrainCond,Match,Electrode,Rval);
-end
-
-
+%Maris, Eric, and Robert Oostenveld. "Nonparametric Statistical Testing of 
+% EEG- and MEG-Data.” Journal of Neuroscience Methods 164, no. 1 (2007): 
+% 177–90. https://doi.org/10.1016/j.jneumeth.2007.03.024.
