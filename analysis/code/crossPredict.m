@@ -264,21 +264,19 @@ disp(D_config)
 n_comp=size(D_obs,1);
 
 n_perm=6000;
-% generate permutation indices: for each permutation, subject, and
-% condition, produce a random ordering of the condition labels (shuffles
-% the train-condition dim?) %TODO: 4th dimension is test in ndgrid...
-% confirm logic in line below is correct or doesn't matter (i suspect it
-% might not matter because the sizes match....)
-[~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond,n_cond),4);
+% generate permutation indices: one permutation of condition labels per
+% subject per draw -- applied across all train conditions
+[~,perm_idx]=sort(rand(n_perm,n_subjs,n_cond), 3);
 
-% build index grids to vectorize permutation indexing (avoids nested loops)
-[~,subj_grid,~,test_grid,elec_grid]=ndgrid(1:n_perm,1:n_subjs, ...
+% build index grids to vectorize permutation indexing (avoids 5D nested loops)
+[perm_grid,subj_grid,train_grid,test_grid,elec_grid]=ndgrid(1:n_perm,1:n_subjs, ...
     1:n_cond,1:n_cond,1:n_electrodes);
 % pray for no memory issues
 
-% Replicate perm_idx across electrode dimension for vectorized sub2ind
-% call
-perm_train_grid=perm_idx(:,:,:,:,ones(1,n_electrodes));
+% Replicate perm_idx across electrode and test condition dimensions 
+% for vectorized sub2ind call
+perm_train_grid=perm_idx(:,:,:,ones(1,n_cond),ones(1,n_electrodes));
+
 lin_perm_idx=sub2ind(size(all_subj_Rcs),subj_grid(:),perm_train_grid(:), ...
     test_grid(:),elec_grid(:));
 % apply permutations to all_subj_Rcs to get shuffled r-value arrays

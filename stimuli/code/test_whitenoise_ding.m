@@ -1,9 +1,10 @@
 % test broadband white noise thru cochlear modulation spectrum
 fs=44100;
 dur=64; % in s
+max_ms_freq=40;
 t=(0:1/fs:dur)';
 x_rand=rand([1,numel(t)]);
-[ms_rand, ~]=long_audio_ms(x_rand,fs);
+[ms_rand, freqs]=long_audio_ms(x_rand,fs);
 keep_mask_=freqs<max_ms_freq;
 ms_rand=ms_rand(keep_mask_);
 

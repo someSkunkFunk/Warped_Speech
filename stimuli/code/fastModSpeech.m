@@ -143,7 +143,20 @@ col_final=[0.85 0 0]; % red - final stim
 
 
 n_intermediate=numel(stages)-1;
-%% --- figure ---
+%% --- random white noise figure ---
+figure('Name','Random White noise modulation spectrum','Color','white')
+plot(freqs, normalize(ms_og,'range'), 'Color', plot_settings.colors(1,:)); hold on
+plot(freqs, normalize(ms_rand,'range'), 'Color', plot_settings.colors(2,:));
+xline(cutoff_hz, 'k--',sprintf('%d Hz cutoff', cutoff_hz))
+legend('Original', 'random white noise', 'Location','northeast');
+title('Modulation Spectrum (semilog)')
+xlabel('modulation frequency (hz)'); ylabel('Power (a.u.)');
+xscale('log')
+xlim([freqs(1) freqs(end)]); grid on
+
+
+%% --- MAIN figure ---
+
 
 
 figure('Name','fast-modulated speech ("faster"?)', ...
@@ -354,7 +367,7 @@ function AMx = apply_AM(x,fs)
     rampd = linspace(1,1./fs,gatesamp);
     gate = [rampu ones(1,(fs*dur-2.*gatesamp)) rampd];
     
-    % Apply envelopes and gate to carrier signal
+    % Apply AM-envelope and gate to carrier signal
     AMx = (1+(envelope./-min(envelope))).*carrier.*gate;
 end
 
