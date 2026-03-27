@@ -129,11 +129,7 @@ switch script_config.experiment
         subjs=script_config.custom_subjs;
 end
 
-% subjs=[2:3]
-
-
 % for reg-irreg:
-% mtrf_plot_chns=[1 97 98 65 66 87 86 85 84 83 107 62];
 select_plot_chns='all'; % 'all' or vector with indices
 
 mtrf_plot_chns=normalize_channels(select_plot_chns);
