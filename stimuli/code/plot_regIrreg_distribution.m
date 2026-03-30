@@ -8,7 +8,7 @@ clear, clc
 global boxdir_mine
 %% set params
 % pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
-warp_dir='rule14_seg_textgrid_4p545Hz_0_0_0500msMax';
+warp_dir='rule14_seg_textgrid_4p545Hz_0_0_1000msMax';
 regularity=1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
@@ -108,12 +108,12 @@ if show_uniform_time
     rand_intervals=(min_stretch_interval+(max_stretch_interval-min_stretch_interval).*rand(N,1));
     
     % plot intervals
-    figure
+    figure('Name','random uniform intervals')
     histogram(rand_intervals);
     xlabel('time (s)')
     title('intervals dist')
     % plot rates
-    figure
+    figure('Name','1/(random uniform intervals)')
     histogram(1./rand_intervals);
     xlabel('freq (Hz)')
 
@@ -264,7 +264,7 @@ if numel(bin_edges)==1
     bin_edges=[min(x)-50 max(x)+0.50];
 end
 
-figure('Units','inches','Position',[0 0 6 6])
+figure('Units','inches','Position',[0 0 6 6],'Color','white')
 if isempty(bin_edges)
     h=histogram(x,n_bins,'Normalization',normalization);
 else

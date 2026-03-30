@@ -31,9 +31,8 @@ clear, clc
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
 % subjs=[2:7,9:22];
-% subjs=[2:7,9:22];
+subjs=[2:7,9:22];
 
-subjs=[2:7,9:12];
 script_config.show_tuning_curves=false;
 script_config.compute_cross_stats=true;
 script_config.overwrite_stats_cross=false;
@@ -467,13 +466,14 @@ cluster_nulldist=cell(n_comp,1);
 for dd=1:n_comp
     fprintf('comp %d of %d\n',dd,n_comp)
     for cc=1:n_cond
-        fprintf('getting observed cluster statistics')
+        fprintf('getting %s observed cluster statistics\n',cond_labels{cc})
         [obs_clusters{dd,cc}, obs_masses{dd,cc}]=clusterize(squeeze(T_obs(dd,cc,:)),t_thresh,adj);
     end
 
     % do cluster test on T_perm
     disp('generating permutation distributions')
-    cluster_nulldist{dd}=get_cluster_nulldist(squeeze(T_perm(dd,:,:,:)),t_thresh,adj);
+    cluster_nulldist{dd}=get_cluster_nulldist(squeeze(T_perm(dd,:,:,:)), ...
+        t_thresh,adj,n_perm);
 end
 
 % plot empirical CDFs of null distributions with critical mass threshold
@@ -498,7 +498,7 @@ for dd=1:n_comp
     end
 end
 
-%% --- topoplot significant clusters (electrodes belonging to clusteers above crit_mass) ---
+%% --- topoplot significant clusters (electrodes belonging to clusters above crit_mass) ---
 for cc=1:n_cond
     
     
@@ -512,12 +512,10 @@ for cc=1:n_cond
         any(sig_clusts_))
     if any(sig_clusts_)
         for sc=1:numel(sig_clusts_)
-            figure
-            % clust_ts_=zeros(n_electrodes,1);
-            % clust_ts_(clusts_{sc})=T_obs(cc,clusts_{sc});
-            % 
-            % topoplot(clust_ts_,chanlocs)
-            %just show locations
+            figure('Name', ...
+                sprintf('(%s)topoplot of significant cluster %d/%d', ...
+                cond_labels{cc},sc,numel(sig_clusts_)))
+
             topoplot([],chanlocs,'electrodes','on','style','blank', ...
                 'plotchans', clusts_{sc},'emarker',{'o','b',10,1});
             title(sprintf('test cond:%s, cluster %d of %d',cond_labels{cc},sc,numel(sig_clusts_)))
@@ -637,7 +635,7 @@ for dd=1:size(D,1)
 end
 
 end
-function cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj)
+function cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj,n_perm)
 % GET_CLUSTER_NULLDIST  Build the null distribution of maximum cluster mass.
 %
 %   cluster_nulldist = get_cluster_nulldist(T_perm, t_thresh, adj)
@@ -650,6 +648,7 @@ function cluster_nulldist=get_cluster_nulldist(T_perm,t_thresh,adj)
 %   T_perm   - [n_perm x n_cond x n_electrodes]
 %   t_thresh - scalar threshold for inclusion in a cluster
 %   adj      - [n_electrodes x n_electrodes] logical adjacency matrix(T_perm);
+[n_perm, n_cond, n_electrodes]=size(T_perm);
 cluster_nulldist=nan(n_perm,n_cond);
 for nn=1:n_perm
     fprintf('clustering %d/%d...\n',nn,n_perm)

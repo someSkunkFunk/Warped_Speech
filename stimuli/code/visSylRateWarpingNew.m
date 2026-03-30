@@ -1,4 +1,5 @@
-
+% visualize different syllable rate distritbutions & compare 
+% DEPRECATED
 clear, clc
 
 % want order of warped stimuli to match plots 
