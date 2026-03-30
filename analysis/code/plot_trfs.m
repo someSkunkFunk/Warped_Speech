@@ -272,7 +272,9 @@ for cc=1:numel(experiment_conditions)
     gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
 end
 
-%% estimate components via microstate analysis
+%% estimate components via microstate analysis OR 
+% basic gfp-peak picking algorithm
+
 script_config.run_microstates=false;
 script_config.run_basic_components=true;
 if script_config.run_microstates
@@ -280,6 +282,19 @@ if script_config.run_microstates
 end
 if script_config.run_basic_components
     get_basic_components
+end
+
+% route whichever component source was run to a neutral variable
+% plotting block below on reads active_components -- it never touches
+% components or basic components directly
+if script_config.run_microstates
+    active_components=components;
+    % components.result is a scalar struct (condition-pooled boundaries)
+    get_active_result = @(cc) active_components.result;
+elseif script_config.run_basic_components
+    active_components=basic_components;
+    % basic_components.result is a per-condition struct array
+    get_active_Result=@(cc) active_components.result(cc);
 end
 %% stack butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
@@ -325,12 +340,9 @@ for cc=1:numel(experiment_conditions)
     box off
 
     % --- Annotate Component Windows ---
-    % for kk=1:size(component_windows{cc},1)
-        % t1=avg_models(cc).t(min(component_windows{cc}(kk,:)));
-        % t2=avg_models(cc).t(max(component_windows{cc}(kk,:)));
-    for kk=1:length(components.result.starts)
-        t1=components.result.starts(kk);
-        t2=components.result.ends(kk);
+    for kk=1:length(get_active_result(cc).starts)
+        t1=get_active_result(cc).starts(kk);
+        t2=get_active_result(cc).ends(kk);
         T=repmat([t1,t2],2,1);
         % put line in gfp plot
         hold(ax_gfp,"on");
@@ -347,11 +359,11 @@ for cc=1:numel(experiment_conditions)
     xlim(butterfly_fig.t_lims)
     % sgtitle(sprintf('%s Components',experiment_conditions{cc}))
     % plot topos for each component
-    for kk=1:size(components.result.topos,1)
+    for kk=1:size(get_active_result(cc).topos,1)
         figure('Units','inches','Position',[0 0 1 1.2])
-        topoplot(components.result.topos(kk,:),chanlocs)
+        topoplot(get_active_result(cc).topos(kk,:),chanlocs)
         title(sprintf('%s, %0.0fms-%0.0fms',experiment_conditions{cc}, ...
-            components.result.starts(kk),components.result.ends(kk)))
+            get_active_result(cc).starts(kk),get_active_result(cc).ends(kk)))
         ax = gca;
         ax.LooseInset = max(ax.TightInset, 0.02);
     end

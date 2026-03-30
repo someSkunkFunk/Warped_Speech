@@ -1,6 +1,16 @@
 % BASIC COMPONENTS
+% Output: basic_components struct with fields:
+%   basic_components.result.starts - component window start times (ms),
+%       [n_components x1]
+%   basic_components.result.ends - component window end times (ms),
+%       [n_components x 1]
+%   basic_components.result.topos - mean topography per window,
+%       [n_components x n_channels]
+% Schema intentionally matches components.result from get_microstates.m so
+% either source can be passed to the butterfly+GFP plotting block in
+% plot_trfs.m
 
-%% time-based TRF component identification
+% time-based TRF component identification
 % assumes GFP computed in plot_trfs
 % For each condition:
 %   - collapse across electrodes
@@ -88,3 +98,27 @@ for cc=1:numel(experiment_conditions)
     end
 end
 disp('GFP peaks identified and fixed-window topo average around them plotted.')
+
+%% pack results into shared schema
+basic_components=struct('param',[],'result',[]);
+basic_components.param.method = 'grp_peaks';
+basic_components.param.tbounds=basic_component_analysis.tbounds;
+basic_components.param.window_ms=basic_component_analysis.component_window_ms;
+
+% collect starts/ends/topos across all conditions
+% (one struct entry per condition, parallel to components from
+% get_microstates)
+for cc=1:numel(experiment_conditions)
+    n_comp=numel(component_idx{cc});
+    starts_=nan(n_comp,1);
+    ends_=nan(n_comp,1);
+    for kk=1:n_comp
+        starts_(kk)=avg_models(cc).t(component_windows{cc}(kk,1));
+        ends_(kk)=avg_models(cc).t(component_windows{cc}(kk, 2));
+    end
+    basic_components.result(cc).starts=starts_;
+    basic_components.result(cc).ends=ends_;
+    basic_components.result(cc).topos=component_topos{cc}; % [n_comp x n_chns]
+    clear starts_ ends_ n_comp
+end
+disp('basic_components struct packed.')
