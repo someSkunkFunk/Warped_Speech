@@ -9,13 +9,6 @@
 %% Identify candidate component latencies
 
 basic_component_analysis.keep_top_n=[]; % leave empty if keeping all
-% plot pre-smoothed GFP:
-gfp_plots=cell(size(experiment_conditions));
-for cc=1:numel(experiment_conditions)
-    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
-end
-
-
 % limit number of peaks to consider a component based on amplitude...
 component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));

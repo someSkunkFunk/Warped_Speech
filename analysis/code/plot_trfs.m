@@ -110,7 +110,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 close all
 
 script_config=[];
-script_config.run_microstates=false;
+
 script_config.experiment='fast-slow';
 script_config.custom_subjs=[];
 script_config.topos_from_peak_windows=false;
@@ -154,9 +154,12 @@ butterfly_fig.lw=2; %linewidth in plot
 butterfly_fig.leg_lw=6; % linewidth in legend
 butterfly_fig.fz=28; % fontsize
 butterfly_fig.title_fz=28;
-% fast is red, black is slow, green is og
-butterfly_fig.condition_colors=struct('slow',[255 0 0]./255,'original',[1 150 55]./206, ...
-    'fast',[0 0 0],'reg',[255 0 0]./255, ...
+% picked from Okabe and Ito pallete
+butterfly_fig.condition_colors=struct( ...
+    'slow',normalize([000 158 115],'norm'), ...
+    'original',normalize([086 180 233],'norm'), ...
+    'fast',normalize([230 159 000],'norm'), ...
+    'reg',[255 0 0]./255, ...
     'irreg',[0 0 0]);
 % r_thresh: correlation-based filter on TRF weights to show
 % leave empty if all chns should be kept for sbj-averaged plot
@@ -263,7 +266,15 @@ for cc = 1:numel(experiment_conditions)
     % gfp(cc, :) = rms(W,2);
     clear W
 end
+% plot per-condition GFP:
+gfp_plots=cell(size(experiment_conditions));
+for cc=1:numel(experiment_conditions)
+    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
+end
+
 %% estimate components via microstate analysis
+script_config.run_microstates=false;
+script_config.run_basic_components=true;
 if script_config.run_microstates
     get_microstates
 end
@@ -633,14 +644,15 @@ end
 %% Helpers
 function h=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
 % plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
-    h.fig=figure;
+    h.fig=figure('Name',sprintf('GFP-only %s',experiment_conditions{cc}), ...
+        'Color','White');
     h.ax=axes(h.fig);
     hold(h.ax,"on");
     h.line=plot(avg_models(cc).t,gfp(cc,:), 'Color',...
         trf_fig_param.condition_colors.(experiment_conditions{cc}));
     set(h.ax,'YLim',trf_fig_param.ylims,'XLim',trf_fig_param.t_lims)
     
-    h.title=title(h.ax,sprintf('Pre-smoothed GFP - %s', experiment_conditions{cc}));
+    h.title=title(h.ax,sprintf('GFP - %s', experiment_conditions{cc}));
 end
 function lh=legend_helper(ax,color_labels,color_rgbs)
     % condition_colors is struct with condition names 
