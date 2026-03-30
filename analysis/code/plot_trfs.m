@@ -294,7 +294,7 @@ if script_config.run_microstates
 elseif script_config.run_basic_components
     active_components=basic_components;
     % basic_components.result is a per-condition struct array
-    get_active_Result=@(cc) active_components.result(cc);
+    get_active_result=@(cc) active_components.result(cc);
 end
 %% stack butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
@@ -384,10 +384,7 @@ if script_config.show_individual_weights
                 %should do so on individual subject basis though probably?
                 % if isempty(trf_fig_param.r_thresh)
                 h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
-                % else
-                %     fprintf(['filtering channels plotted based ' ...
-                %         'on r_thresh=%d...\n'],r_thresh)
-                % end
+ 
                 title(title_str_)
                 title(title_str_,'FontSize',butterfly_fig.fz)
                 set(h_,'LineWidth',butterfly_fig.lw)
@@ -407,7 +404,7 @@ if script_config.show_avg_weights
             if cc>1&&butterfly_fig.stack
                 % skip adding fig
             else
-                figure('Units','inches','Position',butterfly_fig.pos)
+                figure('Units','inches','Position',butterfly_fig.pos,'Color','White')
             end
 
             if isempty(butterfly_fig.r_thresh)
@@ -418,23 +415,19 @@ if script_config.show_avg_weights
             % make all the lines within a condition the same color
             set(h_,'LineWidth',butterfly_fig.lw, ...
                 'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
-            if cc>1&&butterfly_fig.stack
-                % skip adding title
-            elseif butterfly_fig.stack
-                % add title once
-                title_str=sprintf('subj-avg TRF - chns: %s ',num2str(mtrf_plot_chns));
-                title(title_str,'FontSize',butterfly_fig.title_fz)
-            else
-                title_str=sprintf('subj-avg TRF - chns: %s - condition: %s', ...
-                    num2str(mtrf_plot_chns),experiment_conditions{cc});
-                title(title_str,'FontSize',butterfly_fig.fz)
-            end
+
+            title_str='Grand-Average TRFs';
+            title(title_str,'FontSize',butterfly_fig.title_fz)
             xlim(butterfly_fig.t_lims)
             ylim(butterfly_fig.ylims)
             ylabel('Amplitude (a.u.)')
-            grid off
+            grid on
             set(gca,'FontSize',butterfly_fig.fz)
-            if butterfly_fig.stack,hold on,end
+            if butterfly_fig.stack
+                hold on
+            else
+                legend(experiment_conditions{cc})
+            end
         else
             % useful for pilot subjects that only listen to a single
             % condition...
@@ -442,12 +435,8 @@ if script_config.show_avg_weights
         end
     end
     if butterfly_fig.stack
-        % otherwise title has condition name
         hold off
         legend_helper(gca,experiment_conditions,butterfly_fig.condition_colors);
-        % set(lh,'LineWidth',trf_fig_param.leg_lw) % ended up not being
-        % useful since it just makes box around legend thicker
-        
     end
     clear  h_ lg_
 end
@@ -667,6 +656,7 @@ function h=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
     h.title=title(h.ax,sprintf('GFP - %s', experiment_conditions{cc}));
 end
 function lh=legend_helper(ax,color_labels,color_rgbs)
+% only needed in stacked plot case to put legend in correct place
     % condition_colors is struct with condition names 
     line_objs=cell2struct(cell(size(color_labels))',color_labels);
     legend_lines=[];
