@@ -168,7 +168,7 @@ butterfly_fig.condition_colors=struct( ...
 % for reg-irreg
 butterfly_fig.r_thresh=[];
 % if false, separate TRF weight plots by condition
-butterfly_fig.stack=false;
+butterfly_fig.stack=true;
 % x y width height - set to inches in figure
 butterfly_fig.pos=[0 0 1.82 4.72];
 
@@ -296,7 +296,7 @@ elseif script_config.run_basic_components
     % basic_components.result is a per-condition struct array
     get_active_result=@(cc) active_components.result(cc);
 end
-%% stack butterly + GFP plots with component boundaries
+%% stacked butterly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
 switch script_config.experiment
     case 'fast-slow'
@@ -308,8 +308,9 @@ switch script_config.experiment
 end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
-    figure('Units','inches','Position',[0 0 7 3])
-    
+    figure('Units','inches','Position',[0 0 7 3],'Name',...
+    sprintf('GFP with components plot %cc', experiment_conditions{cc}));
+    grid on
     % Define normalized axis positions
     ax_gfp_pos = [0.12 0.70 0.83 0.22];   
     ax_trf_pos = [0.12 0.12 0.83 0.58];
@@ -654,6 +655,7 @@ function h=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
     set(h.ax,'YLim',trf_fig_param.ylims,'XLim',trf_fig_param.t_lims)
     
     h.title=title(h.ax,sprintf('GFP - %s', experiment_conditions{cc}));
+
 end
 function lh=legend_helper(ax,color_labels,color_rgbs)
 % only needed in stacked plot case to put legend in correct place

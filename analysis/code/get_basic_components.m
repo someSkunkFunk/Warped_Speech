@@ -18,7 +18,7 @@
 
 %% Identify candidate component latencies
 
-basic_component_analysis.keep_top_n=[]; % leave empty if keeping all
+basic_component_analysis.keep_top_n=2; % leave empty if keeping all
 % limit number of peaks to consider a component based on amplitude...
 component_idx=cell(size(experiment_conditions));
 component_times=cell(size(experiment_conditions));
