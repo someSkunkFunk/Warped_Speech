@@ -97,9 +97,7 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 
 %%TODO / known issues
 %
-% - Refactor automatic subplot tiling out of the main weight-plotting helper
 % - Improve PSD/SNR analyses (currently simplistic RMS-based)
-% - Clean up handling of missing conditions when computing r values
 % - Make model-loading logic a standalone function
 % - Consider generating TRF topo movies across time instead of fixed latencies
 % - Resolve plotting issues when conditions are plotted separately
@@ -170,7 +168,7 @@ butterfly_fig.r_thresh=[];
 % if false, separate TRF weight plots by condition
 butterfly_fig.stack=true;
 % x y width height - set to inches in figure
-butterfly_fig.pos=[0 0 1.82 4.72];
+butterfly_fig.pos=[0 0 3 3];
 
 % params for component plots (gpf + butterfly)
 component_fig=butterfly_fig;
@@ -309,8 +307,9 @@ end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
     figure('Units','inches','Position',[0 0 7 3],'Name',...
-    sprintf('GFP with components plot %s', experiment_conditions{cc}));
-    grid on
+    sprintf('GFP with components plot %s', experiment_conditions{cc}), ...
+    'Color','w');
+    
     % Define normalized axis positions
     ax_gfp_pos = [0.12 0.70 0.83 0.22];   
     ax_trf_pos = [0.12 0.12 0.83 0.58];
@@ -319,6 +318,8 @@ for cc=1:numel(experiment_conditions)
     ax_gfp = axes('Position', ax_gfp_pos);
     plot(avg_models(cc).t,gfp(cc,:), ...
         'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+    title(experiment_conditions{cc})
+    grid on
     hold(ax_gfp,"on")
     
     % add baseline indicator
@@ -332,6 +333,7 @@ for cc=1:numel(experiment_conditions)
     % --- Butterfly axis ---
     ax_trf = axes('Position', ax_trf_pos);
     h_=plot(avg_models(cc).t, squeeze(avg_models(cc).w));   % butterfly
+    grid on
     % make them all the same color within a conditon
     set(h_,'LineWidth',butterfly_fig.lw, ...
                 'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
@@ -361,7 +363,8 @@ for cc=1:numel(experiment_conditions)
     % sgtitle(sprintf('%s Components',experiment_conditions{cc}))
     % plot topos for each component
     for kk=1:size(get_active_result(cc).topos,1)
-        figure('Units','inches','Position',[0 0 1 1.2])
+        figure('Units','inches','Position',[0 0 1 1.2], ...
+            'Name',sprintf('component topo %s %0.0fms-0.0fms',experiment_conditions{cc}))
         topoplot(get_active_result(cc).topos(kk,:),chanlocs)
         title(sprintf('%s, %0.0fms-%0.0fms',experiment_conditions{cc}, ...
             get_active_result(cc).starts(kk),get_active_result(cc).ends(kk)))
@@ -405,7 +408,8 @@ if script_config.show_avg_weights
             if cc>1&&butterfly_fig.stack
                 % skip adding fig
             else
-                figure('Units','inches','Position',butterfly_fig.pos,'Color','White')
+                figure('Units','inches','Position',butterfly_fig.pos, ...
+                    'Color','White','Name','Grand-Average Butterfly solo')
             end
 
             if isempty(butterfly_fig.r_thresh)
