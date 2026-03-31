@@ -309,7 +309,7 @@ end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
     figure('Units','inches','Position',[0 0 7 3],'Name',...
-    sprintf('GFP with components plot %cc', experiment_conditions{cc}));
+    sprintf('GFP with components plot %s', experiment_conditions{cc}));
     grid on
     % Define normalized axis positions
     ax_gfp_pos = [0.12 0.70 0.83 0.22];   
