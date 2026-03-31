@@ -152,8 +152,8 @@ butterfly_fig.t_lims=[-100 500];
 
 butterfly_fig.lw=2; %linewidth in plot
 butterfly_fig.leg_lw=6; % linewidth in legend
-butterfly_fig.fz=28; % fontsize
-butterfly_fig.title_fz=28;
+butterfly_fig.fz=11; % fontsize
+butterfly_fig.title_fz=12;
 % picked from Okabe and Ito pallete
 butterfly_fig.condition_colors=struct( ...
     'slow',normalize([000 158 115],'norm'), ...
