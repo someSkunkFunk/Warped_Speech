@@ -70,7 +70,7 @@ set(gca(),'XLim',xlims);
 % sorted by condition
 figure("Name",'avg(PSD(TRFs)',"Color","white")
 for cc=1:n_cond
-    ax_avglast=subplot(3,1,cc); hold on;
+    ax_avglast=subplot(3,2,2*cc-1); hold on;
     plot(freqs,squeeze(psds_3d_subjavg(:,cc,:)), ...
         'Color',psd_fig.condition_colors.(experiment_conditions{cc}))
     grid on
@@ -79,23 +79,41 @@ for cc=1:n_cond
     title(sprintf('%s', ...
         experiment_conditions{cc}), 'FontSize',psd_fig.title_fz)
     set(gca(),'XLim',xlims,'YLim',ylims1)
+
+    ax_avglast=subplot(3,2,cc*2); hold on;
+    plot(freqs,squeeze(mean(psds_3d_subjavg(:,cc,:),3)), ...
+        'Color',psd_fig.condition_colors.(experiment_conditions{cc}))
+    grid on
+    xlabel('Frequency (Hz)')
+    ylabel('PSD? (a.u.)')
+    title(sprintf('%s', ...
+        experiment_conditions{cc}), 'FontSize',psd_fig.title_fz)
+    set(gca(),'XLim',xlims,'YLim',ylims1)
 end
-sgtitle('avg(PSD(TRFs)) - individual electrodes')
+sgtitle('avg(PSD(TRFs)) - individual electrodes (left) averaged across electrodes (right)')
 
 %% plot PSD(avg(TRFs)) 
 ylims2=[0,.006];
 figure('Name','PSD(avg(TRFs))','Color','w')
 % sorted by condition
 for cc=1:n_cond
-    ax_avgfirst=subplot(3,1,cc);
+    ax_avgfirst=subplot(3,2,cc*2-1);
     plot(freqs,squeeze(psds_3d_subjavgfirst(:,cc,:)), ...
         'Color',psd_fig.condition_colors.(experiment_conditions{cc}))
     grid on
     xlabel('Frequency (Hz)')
     title(experiment_conditions{cc},'FontSize',psd_fig.title_fz)
     set(gca(),'XLim',xlims,'YLim',ylims2)
+
+    ax_avgfirst=subplot(3,2,cc*2);
+    plot(freqs,squeeze(mean(psds_3d_subjavgfirst(:,cc,:),3)), ...
+        'Color',psd_fig.condition_colors.(experiment_conditions{cc}))
+    grid on
+    xlabel('Frequency (Hz)')
+    title(experiment_conditions{cc},'FontSize',psd_fig.title_fz)
+    set(gca(),'XLim',xlims,'YLim',ylims2)
 end
-sgtitle('PSD(AVG(TRFs) - individual electrodes')
+sgtitle('PSD(AVG(TRFs) - Left: individual electrodes Right: averaged across electrodes')
 % plot subject-averaged, sorted by condition, for a particular electrode
 % show_single_elec=true;
 % if show_single_elec
