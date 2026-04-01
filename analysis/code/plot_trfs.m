@@ -104,9 +104,8 @@ clearvars -except user_profile boxdir_mine boxdir_lab
 % - Remove assumptions that all configs except subject ID are identical
 % TRF plot
 %% plotting params
-
+addpath('./trf_plot_lib/')
 close all
-
 script_config=[];
 
 script_config.experiment='fast-slow';
@@ -257,17 +256,18 @@ avg_models=construct_avg_models(ind_models);
 % calculates GFP (using standard deviation and not RMS because
 % mastoid-referenced)
 % w has size: [1 x time x channels]
-gfp=nan(numel(experiment_conditions),size(avg_models(1).w,2));
-for cc = 1:numel(experiment_conditions)
-    W = squeeze(avg_models(1,cc).w);
-    gfp(cc,:)=std(W,0,2);
-    % gfp(cc, :) = rms(W,2);
-    clear W
-end
+gfp_grand=compute_gfp(avg_models, experiment_conditions);
+% gfp_grand=nan(numel(experiment_conditions),size(avg_models(1).w,2));
+% for cc = 1:numel(experiment_conditions)
+%     W = squeeze(avg_models(1,cc).w);
+%     gfp_grand(cc,:)=std(W,0,2);
+%     % gfp(cc, :) = rms(W,2);
+%     clear W
+% end
 % plot per-condition GFP:
 gfp_plots=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
-    gfp_plots{cc}=plot_gfp(gfp,avg_models,cc,experiment_conditions,butterfly_fig);
+    gfp_plots{cc}=plot_gfp(gfp_grand,avg_models,cc,experiment_conditions,butterfly_fig);
 end
 
 %% estimate components via microstate analysis OR 
@@ -306,62 +306,66 @@ switch script_config.experiment
 end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
-    figure('Units','inches','Position',[0 0 7 3],'Name',...
-    sprintf('GFP with components plot %s', experiment_conditions{cc}), ...
-    'Color','w');
-    
-    % Define normalized axis positions
-    ax_gfp_pos = [0.12 0.70 0.83 0.22];   
-    ax_trf_pos = [0.12 0.12 0.83 0.58];
-    
-    % --- GFP axis ---
-    ax_gfp = axes('Position', ax_gfp_pos);
-    plot(avg_models(cc).t,gfp(cc,:), ...
-        'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
-    title(experiment_conditions{cc})
-    grid on
-    hold(ax_gfp,"on")
-    
-    % add baseline indicator
-    plot(ax_gfp,butterfly_fig.t_lims,[baseline(cc), baseline(cc)],'--', ...
-        'Color',baseline_color,'LineWidth',1);
-    hold(ax_gfp,"off")
-    ylabel('GFP')
-    set(ax_gfp, 'XTickLabel', [],'YLim',gfp_ylim)   % no x labels on top
-    box off
-    
-    % --- Butterfly axis ---
-    ax_trf = axes('Position', ax_trf_pos);
-    h_=plot(avg_models(cc).t, squeeze(avg_models(cc).w));   % butterfly
-    grid on
-    % make them all the same color within a conditon
-    set(h_,'LineWidth',butterfly_fig.lw, ...
-                'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
-    set(ax_trf, 'YLim',trf_ylim)
-    ylabel('Amplitude')
-    xlabel('Time (ms)')
-    box off
+    h = plot_butterfly_gfp(avg_models(cc), gfp_grand(cc,:), get_active_result(cc), ...
+                                 experiment_conditions{cc}, butterfly_fig, ...
+                                 gfp_ylim, trf_ylim, baseline(cc));
+    plot_component_topos(get_active_result(cc), chanlocs, experiment_conditions{cc});
+    % figure('Units','inches','Position',[0 0 7 3],'Name',...
+    % sprintf('GFP with components plot %s', experiment_conditions{cc}), ...
+    % 'Color','w');
+    % 
+    % % Define normalized axis positions
+    % ax_gfp_pos = [0.12 0.70 0.83 0.22];   
+    % ax_trf_pos = [0.12 0.12 0.83 0.58];
+    % 
+    % % --- GFP axis ---
+    % ax_gfp = axes('Position', ax_gfp_pos);
+    % plot(avg_models(cc).t,gfp_grand(cc,:), ...
+    %     'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+    % title(experiment_conditions{cc})
+    % grid on
+    % hold(ax_gfp,"on")
+    % 
+    % % add baseline indicator
+    % plot(ax_gfp,butterfly_fig.t_lims,[baseline(cc), baseline(cc)],'--', ...
+    %     'Color',baseline_color,'LineWidth',1);
+    % hold(ax_gfp,"off")
+    % ylabel('GFP')
+    % set(ax_gfp, 'XTickLabel', [],'YLim',gfp_ylim)   % no x labels on top
+    % box off
+    % 
+    % % --- Butterfly axis ---
+    % ax_trf = axes('Position', ax_trf_pos);
+    % h_=plot(avg_models(cc).t, squeeze(avg_models(cc).w));   % butterfly
+    % grid on
+    % % make them all the same color within a conditon
+    % set(h_,'LineWidth',butterfly_fig.lw, ...
+    %             'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+    % set(ax_trf, 'YLim',trf_ylim)
+    % ylabel('Amplitude')
+    % xlabel('Time (ms)')
+    % box off
+    % 
+    % % --- Annotate Component Windows ---
+    % for kk=1:length(get_active_result(cc).starts)
+    %     t1=get_active_result(cc).starts(kk);
+    %     t2=get_active_result(cc).ends(kk);
+    %     T=repmat([t1,t2],2,1);
+    %     % put line in gfp plot
+    %     hold(ax_gfp,"on");
+    %     plot(ax_gfp,T, gfp_ylim, '--k')
+    %     hold(ax_gfp,"off");
+    %     % put line in trf plot
+    %     hold(ax_trf,"on");
+    %     plot(ax_trf,T, trf_ylim, '--k')
+    %     hold(ax_trf,"off");
+    %     clear t1 t2
+    % end
+    % % --- Synchronize ---
+    % linkaxes([ax_gfp, ax_trf], 'x')
+    % xlim(butterfly_fig.t_lims)
 
-    % --- Annotate Component Windows ---
-    for kk=1:length(get_active_result(cc).starts)
-        t1=get_active_result(cc).starts(kk);
-        t2=get_active_result(cc).ends(kk);
-        T=repmat([t1,t2],2,1);
-        % put line in gfp plot
-        hold(ax_gfp,"on");
-        plot(ax_gfp,T, gfp_ylim, '--k')
-        hold(ax_gfp,"off");
-        % put line in trf plot
-        hold(ax_trf,"on");
-        plot(ax_trf,T, trf_ylim, '--k')
-        hold(ax_trf,"off");
-        clear t1 t2
-    end
-    % --- Synchronize ---
-    linkaxes([ax_gfp, ax_trf], 'x')
-    xlim(butterfly_fig.t_lims)
-    % sgtitle(sprintf('%s Components',experiment_conditions{cc}))
-    % plot topos for each component
+    % --- plot topos for each component ---
     for kk=1:size(get_active_result(cc).topos,1)
         figure('Units','inches','Position',[0 0 1 1.2], ...
             'Name',sprintf('component topo %s %0.0fms-0.0fms',experiment_conditions{cc}))
@@ -476,55 +480,55 @@ if script_config.show_rgb_topo
     title("XYZ->RGB")
 end
 
-%% plot topos at particular latency
-
-% note: we should perhaps generate a topo-movie across entire timeframe..
-
-if script_config.show_topos
-    if script_config.show_avg_weights && n_subjs>1
-        for tt=1:numel(topo_fig_param.latencies)
-            for cc_topo=1:numel(configs(end).trf_config.conditions)
-                % finding time closest to those latencies to plot
-                [~,t_ii]=min(abs(avg_models(cc_topo).t-topo_fig_param.latencies(tt)));
-                figure
-                topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
-                title(sprintf(['subject-averaged trf model weights %0.1f ms, ' ...
-                    'condition: %s'] ...
-                    ,avg_models(1,cc_topo).t(t_ii),configs(end).trf_config.conditions{cc_topo}));
-                colorbar
-            end
-        end
-    end
-end
-
-
-
-
-
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% estimate snr per subject (simplified)
-if n_subjs>1&&script_config.show_snr
-    snr_per_subj=nan(n_subjs,3);
-    for ss=1:n_subjs
-        subset_avg_model=construct_avg_models(ind_models(1:ss,:));
-        %TODO: need to transpose?
-        snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
-    end
-    figure
-    for cc=1:numel(configs(end).trf_config.conditions)
-         plot(1:n_subjs,snr_per_subj(:,cc))
-         hold on
-    end
-    legend(configs(end).trf_config.conditions)
-    xlabel('n subjects')
-ylabel('snr')
-end
+% %% plot topos at particular latency
+% 
+% % note: we should perhaps generate a topo-movie across entire timeframe..
+% 
+% if script_config.show_topos
+%     if script_config.show_avg_weights && n_subjs>1
+%         for tt=1:numel(topo_fig_param.latencies)
+%             for cc_topo=1:numel(configs(end).trf_config.conditions)
+%                 % finding time closest to those latencies to plot
+%                 [~,t_ii]=min(abs(avg_models(cc_topo).t-topo_fig_param.latencies(tt)));
+%                 figure
+%                 topoplot(avg_models(1,cc_topo).w(1,t_ii,:),chanlocs)
+%                 title(sprintf(['subject-averaged trf model weights %0.1f ms, ' ...
+%                     'condition: %s'] ...
+%                     ,avg_models(1,cc_topo).t(t_ii),configs(end).trf_config.conditions{cc_topo}));
+%                 colorbar
+%             end
+%         end
+%     end
+% end
+% 
+% 
+% 
+% 
+% 
+% 
+% 
+% 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %% estimate snr per subject (simplified)
+% if n_subjs>1&&script_config.show_snr
+%     snr_per_subj=nan(n_subjs,3);
+%     for ss=1:n_subjs
+%         subset_avg_model=construct_avg_models(ind_models(1:ss,:));
+%         %TODO: need to transpose?
+%         snr_per_subj(ss,:)=estimate_snr(subset_avg_model);
+%     end
+%     figure
+%     for cc=1:numel(configs(end).trf_config.conditions)
+%          plot(1:n_subjs,snr_per_subj(:,cc))
+%          hold on
+%     end
+%     legend(configs(end).trf_config.conditions)
+%     xlabel('n subjects')
+% ylabel('snr')
+% end
 %% project back to subjects?
 % %% plot average TRF peak latencies across electrodes - use findpeaks 
 % if script_config.analyze_pk_latencies
@@ -648,101 +652,97 @@ end
 %     end
 % end
 %% Helpers
-function h=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
-% plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
-    h.fig=figure('Name',sprintf('GFP-only %s',experiment_conditions{cc}), ...
-        'Color','White');
-    h.ax=axes(h.fig);
-    hold(h.ax,"on");
-    h.line=plot(avg_models(cc).t,gfp(cc,:), 'Color',...
-        trf_fig_param.condition_colors.(experiment_conditions{cc}));
-    set(h.ax,'YLim',trf_fig_param.ylims,'XLim',trf_fig_param.t_lims)
-    
-    h.title=title(h.ax,sprintf('GFP - %s', experiment_conditions{cc}));
+% function h=plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
+% % plot_gfp(gfp,avg_models,cc,experiment_conditions,trf_fig_param)
+%     h.fig=figure('Name',sprintf('GFP-only %s',experiment_conditions{cc}), ...
+%         'Color','White');
+%     h.ax=axes(h.fig);
+%     hold(h.ax,"on");
+%     h.line=plot(avg_models(cc).t,gfp(cc,:), 'Color',...
+%         trf_fig_param.condition_colors.(experiment_conditions{cc}));
+%     set(h.ax,'YLim',trf_fig_param.ylims,'XLim',trf_fig_param.t_lims)
+% 
+%     h.title=title(h.ax,sprintf('GFP - %s', experiment_conditions{cc}));
+% 
+% end
+% function lh=legend_helper(ax,color_labels,color_rgbs)
+% % only needed in stacked plot case to put legend in correct place
+%     % condition_colors is struct with condition names 
+%     line_objs=cell2struct(cell(size(color_labels))',color_labels);
+%     legend_lines=[];
+%     for ff=1:numel(color_labels)
+%         line_objs.(color_labels{ff})=findobj(ax,'Type','Line','Color',color_rgbs.(color_labels{ff}));
+%         legend_lines(ff)=line_objs.(color_labels{ff})(1);
+%     end
+%     lh=legend(legend_lines,color_labels);
+% end
 
-end
-function lh=legend_helper(ax,color_labels,color_rgbs)
-% only needed in stacked plot case to put legend in correct place
-    % condition_colors is struct with condition names 
-    line_objs=cell2struct(cell(size(color_labels))',color_labels);
-    legend_lines=[];
-    for ff=1:numel(color_labels)
-        line_objs.(color_labels{ff})=findobj(ax,'Type','Line','Color',color_rgbs.(color_labels{ff}));
-        legend_lines(ff)=line_objs.(color_labels{ff})(1);
-    end
-    lh=legend(legend_lines,color_labels);
-end
+% function snr_plot(snr_per_subj)
+%     [n_subjs,n_cond]=size(snr_per_subj);
+%     for cc=1:n_cond
+%         plot(1:n_subjs,snr_per_subj(ss,cc));
+% 
+%     end
+% end
 
-function snr_plot(snr_per_subj)
-    [n_subjs,n_cond]=size(snr_per_subj);
-    for cc=1:n_cond
-        plot(1:n_subjs,snr_per_subj(ss,cc));
-        
-    end
-end
-
-function snr=estimate_snr(avg_models,noise_window,signal_window)
-% assumes (1,3) avg models given
-arguments
-    avg_models (1,3) struct
-    noise_window (1,2) = [-200, 0]
-    signal_window (1,2) = [100,300]
-end
-snr=nan(1,3);
-n_conditions=size(avg_models,2);
-
-for cc=1:n_conditions
-    noise_mask=avg_models(1,cc).t<max(noise_window)&avg_models(1,cc).t>min(noise_window);
-    signal_mask=avg_models(1,cc).t<max(signal_window)&avg_models(1,cc).t>min(signal_window);
-    snr(cc)=rms(avg_models(1,cc).w(signal_mask))/rms(avg_models(1,cc).w(noise_mask));
-end
-
-end
-
-function avg_model=construct_avg_models(ind_models)
-    [n_subjs,n_conditions]=size(ind_models);
-    [~,n_weights,n_chans]=size(ind_models(1).w);
-    
-    avg_model=struct();
-    model_fields=fieldnames(ind_models(1,1));
-    warning(['NOTE: avg model below will only have correct average weights',...
-    'other fields which may vary at individual subject level could',...
-    'be incorrect...\n'])
-    for cc=1:n_conditions
-        W_stack=nan(n_subjs,n_weights,n_chans);
-        for ss=1:n_subjs
-            if ~isempty(ind_models(ss,cc).w)
-                W_stack(ss,:,:)=ind_models(ss,cc).w;
-            else
-                warning('no weights for ss=%d, cc=%d',ss,cc)
-            end
-        end
-        for ff=1:numel(model_fields)
-            ff_field=model_fields{ff};
-            if strcmp(ff_field,'w')
-                if all(isnan(W_stack))
-                    avg_model(1,cc).(ff_field)=[];
-                else
-                    % can still compute mean weights if not all the
-                    % subjects are missing conditioins
-                    avg_model(1,cc).(ff_field)=mean(W_stack,1,"omitnan") ;
-                end
-            elseif strcmp(ff_field,'b')
-                % safe to ignore bias... I think?
-                continue
-            else
-                avg_model(1,cc).(ff_field)=ind_models(1,cc).(ff_field);
-            end
-        end
-    %add dummy field to distinguish from native trf toolbox model
-    avg_model(1,cc).avg=true;
-    end
-    
-end
-
-function model=load_individual_model(trf_config)
-
-end
+% function snr=estimate_snr(avg_models,noise_window,signal_window)
+% % assumes (1,3) avg models given
+% arguments
+%     avg_models (1,3) struct
+%     noise_window (1,2) = [-200, 0]
+%     signal_window (1,2) = [100,300]
+% end
+% snr=nan(1,3);
+% n_conditions=size(avg_models,2);
+% 
+% for cc=1:n_conditions
+%     noise_mask=avg_models(1,cc).t<max(noise_window)&avg_models(1,cc).t>min(noise_window);
+%     signal_mask=avg_models(1,cc).t<max(signal_window)&avg_models(1,cc).t>min(signal_window);
+%     snr(cc)=rms(avg_models(1,cc).w(signal_mask))/rms(avg_models(1,cc).w(noise_mask));
+% end
+% 
+% end
+% 
+% function avg_model=construct_avg_models(ind_models)
+%     [n_subjs,n_conditions]=size(ind_models);
+%     [~,n_weights,n_chans]=size(ind_models(1).w);
+% 
+%     avg_model=struct();
+%     model_fields=fieldnames(ind_models(1,1));
+%     warning(['NOTE: avg model below will only have correct average weights',...
+%     'other fields which may vary at individual subject level could',...
+%     'be incorrect...\n'])
+%     for cc=1:n_conditions
+%         W_stack=nan(n_subjs,n_weights,n_chans);
+%         for ss=1:n_subjs
+%             if ~isempty(ind_models(ss,cc).w)
+%                 W_stack(ss,:,:)=ind_models(ss,cc).w;
+%             else
+%                 warning('no weights for ss=%d, cc=%d',ss,cc)
+%             end
+%         end
+%         for ff=1:numel(model_fields)
+%             ff_field=model_fields{ff};
+%             if strcmp(ff_field,'w')
+%                 if all(isnan(W_stack))
+%                     avg_model(1,cc).(ff_field)=[];
+%                 else
+%                     % can still compute mean weights if not all the
+%                     % subjects are missing conditioins
+%                     avg_model(1,cc).(ff_field)=mean(W_stack,1,"omitnan") ;
+%                 end
+%             elseif strcmp(ff_field,'b')
+%                 % safe to ignore bias... I think?
+%                 continue
+%             else
+%                 avg_model(1,cc).(ff_field)=ind_models(1,cc).(ff_field);
+%             end
+%         end
+%     %add dummy field to distinguish from native trf toolbox model
+%     avg_model(1,cc).avg=true;
+%     end
+% 
+% end
 
 % REFERENCES
 % Lalor, Edmund C., Alan J. Power, Richard B. Reilly, and John J. Foxe. 

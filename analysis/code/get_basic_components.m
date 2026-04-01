@@ -33,11 +33,11 @@ for cc = 1:numel(experiment_conditions)
     % Using same as Lalor et al. (2009) - twice the mean GFP during
     % -100ms,0ms window
     baseline_window_m=avg_models(cc).t<0 & avg_models(cc).t>-100;
-    baseline(cc)=2*mean(gfp(cc,baseline_window_m),2);
+    baseline(cc)=2*mean(gfp_grand(cc,baseline_window_m),2);
     % Find local maxima above threshold
     % TODO: enforce minimum separation between peaks (did lalor et al do this?)
     % also, what would be a principled way to set that minimum separation value?
-    [component_amplitudes,component_idx{cc}]=findpeaks(gfp(cc,:), ...
+    [component_amplitudes,component_idx{cc}]=findpeaks(gfp_grand(cc,:), ...
         "MinPeakHeight",baseline(cc)+eps);
 
 
@@ -78,7 +78,7 @@ for cc = 1:numel(experiment_conditions)
         clear t_range_ms_ t_start_idx_ t_end_idx_
     end
 end
-disp('Windowing around GFP peaks done.')
+disp('Windowing around gfp_grand peaks done.')
 % extract and plot component topographies
 component_topos=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
@@ -97,7 +97,7 @@ for cc=1:numel(experiment_conditions)
         title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
     end
 end
-disp('GFP peaks identified and fixed-window topo average around them plotted.')
+disp('gfp_grand peaks identified and fixed-window topo average around them plotted.')
 
 %% pack results into shared schema
 basic_components=struct('param',[],'result',[]);
