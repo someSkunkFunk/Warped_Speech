@@ -23,7 +23,8 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 
 do_nulltest=false;
 train_params=struct('tmin_ms', -500,'tmax_ms',800);
-
+trf_config.tmin_ms=train_params.tmin_ms;
+trf_config.tmax_ms=train_params.tmax_ms;
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if subj<23
