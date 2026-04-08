@@ -114,21 +114,26 @@ script_config.topos_from_peak_windows=false;
 
 % best fast-slow subjs: 
 % subjs=[9,12];
-switch script_config.experiment
-    case 'fast-slow'
-        % fast-slow subjs:
-        subjs=[2:7,9:22];
-        % subjs=22;
-        butterfly_fig.ylims=[-.5 .6];
-    case 'reg-irreg'
-        % reg-irreg subjects:
-        subjs=[23,96,97,98];
-        butterfly_fig.ylims=[-1 1];
-        % subjs=[96:98];
-    otherwise
-        warning('script_config.experiment=',script_config.experiment);
-        disp('plotting custom subjs...')
-        subjs=script_config.custom_subjs;
+if isempty(script_config.custom_subjs)
+    switch script_config.experiment
+        case 'fast-slow'
+            % fast-slow subjs:
+            subjs=[2:7,9:22];
+            % subjs=22;
+            butterfly_fig.ylims=[-.5 .6];
+        case 'reg-irreg'
+            % reg-irreg subjects:
+            subjs=[23,96,97,98];
+            butterfly_fig.ylims=[-1 1];
+            % subjs=[96:98];
+        otherwise
+            warning('script_config.experiment=',script_config.experiment);
+            disp('plotting custom subjs...')
+    end
+else
+    % script_config.experiment=[];
+    subjs=script_config.custom_subjs;
+    butterfly_fig.ylims=[-1 1];
 end
 
 % for reg-irreg:

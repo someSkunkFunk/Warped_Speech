@@ -30,7 +30,9 @@ if ~isfile(registry_file)
 end
 
 registry=jsondecode(fileread(registry_file));
-
+% hash needs to be path-independent
+new_config=remove_nested_paths(new_config);
+new_hash=char(upper(DataHash(new_config)));
 %loop through each file linked to registry
 D=dir(sprintf('%s/*.mat',output_dir));
 for dd=1:length(D)
@@ -38,9 +40,7 @@ for dd=1:length(D)
     S_=load(fullfile(output_dir,D(dd).name));
     old_config=S_.config;
     clear S_
-    % after replacing, new config should not have paths
-    new_config=remove_nested_paths(new_config);
-    new_hash=char(upper(DataHash(new_config)));
+    
 
     % NOTE: not sure why but old_hash sometimes doesn't match hash stored
     % in registry, or in filename... so get from registry instead since it
