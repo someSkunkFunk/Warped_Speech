@@ -8,7 +8,7 @@ clear, clc
 global boxdir_mine
 %% set params
 % pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
-warp_dir='rule14_seg_textgrid_4p545Hz_0_0_1000msMax';
+warp_dir='rule14_seg_textgrid_4p545Hz_0_0_0750msMax';
 regularity=1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);

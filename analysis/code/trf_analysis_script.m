@@ -13,7 +13,8 @@ clc
 % for subj=[2:7,9:22,96,98] % next need to run for separate conditions on all subjects
 % for subj=[2:7,9:23,96,98]
 % for subj=[23, 96:98]
-for subj=[2:7,9:22]
+% for subj=[2:7,9:22]
+for subj=[2]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -110,13 +111,14 @@ if (~preload_stats_obs && trf_config.crossvalidate)
    %%%%%SAVE_CHECKPOINT
 end
 
-%%
+%% --- obtain best peak ridge parameter ---
 if ~trf_config.separate_conditions
     % otherwise it gets set in trf_analysis_params
     % note if we want to crossvalidate with manual lam value this will
     % cause bug
     train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
 end
+%% --- train TRF model for analyzing weights ---
 if ~preload_model
     model=train_model(stim,preprocessed_eeg,trf_config,train_params);
     save_checkpoint(model,trf_config,overwrite);

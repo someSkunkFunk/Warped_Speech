@@ -109,7 +109,7 @@ close all
 script_config=[];
 
 script_config.experiment='fast-slow';
-script_config.custom_subjs=[];
+script_config.custom_subjs=[2];
 script_config.topos_from_peak_windows=false;
 
 % best fast-slow subjs: 
@@ -117,8 +117,8 @@ script_config.topos_from_peak_windows=false;
 switch script_config.experiment
     case 'fast-slow'
         % fast-slow subjs:
-        % subjs=[2:7,9:22];
-        subjs=22;
+        subjs=[2:7,9:22];
+        % subjs=22;
         butterfly_fig.ylims=[-.5 .6];
     case 'reg-irreg'
         % reg-irreg subjects:

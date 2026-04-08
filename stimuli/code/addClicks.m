@@ -25,7 +25,7 @@ for cc=1:length(conditions)
         case {'reg', 'rand'}
             wavs_dir=sprintf('%s/stimuli/wrinkle/stretchy_compressy_temp',boxdir_mine);
             % choose particular warp rule to add clicks to 
-            warp_spec='rule11_seg_textgrid_4.545Hz_0_0';
+            warp_spec='rule14_seg_textgrid_4p545Hz_0_0_0500msMax';
             switch condition
                 case 'reg'
                     wavs_source_dir=sprintf('%s/compressy_reg/%s',wavs_dir,warp_spec);

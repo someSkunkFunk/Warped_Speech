@@ -14,7 +14,7 @@ end
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
 % this is false hasn't been properly programmed into the analysis script
 % logic partially because I'm not sure what kind of behavior we want but
@@ -22,9 +22,9 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 % value in which case we'd set lam_range as well probably...?
 
 do_nulltest=false;
-train_params=struct('tmin_ms', -500,'tmax_ms',800);
-trf_config.tmin_ms=train_params.tmin_ms;
-trf_config.tmax_ms=train_params.tmax_ms;
+train_params=struct('tmin_ms', -150,'tmax_ms',450);
+% trf_config.tmin_ms=train_params.tmin_ms;
+% trf_config.tmax_ms=train_params.tmax_ms;
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if subj<23
@@ -42,6 +42,7 @@ if trf_config.separate_conditions
     trf_config_.separate_conditions=false;
     trf_config_.do_lambda_optimization=true;
 else
+    % is false by default
     trf_config.do_lambda_optimization=true;
     
 end
@@ -65,6 +66,7 @@ trf_config=config_trf(trf_config,preprocess_config);
 if exist("trf_config_","var")
     % load best_lambda from condition-agnostic crossvalidation with same
     % preprocessing params
+    disp('initializing condition-agnostic config for lookup')
     trf_config_=config_trf(trf_config_,preprocess_config);
     S_=load_checkpoint(trf_config_);
     train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
