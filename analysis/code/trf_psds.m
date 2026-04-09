@@ -23,8 +23,8 @@ psd_fig.title_fz=butterfly_fig.title_fz;
 psd_fig.leg_lw=butterfly_fig.leg_lw;
 psd_fig.lw=butterfly_fig.lw;
 psd_fig.freqlims=[0,15]; % Hz
-psd_fig.ylims1=[0 0.022];
-psd_fig.ylims2=[0 .012];
+psd_fig.ylims_avglast=[0 0.033];
+psd_fig.ylims_avgfirst=[0 .012];
 
 
 %% --- Compute PSDS ---
@@ -94,7 +94,7 @@ for cc=1:n_cond
     ylabel('PSD? (a.u.)')
     title(sprintf('%s', ...
         experiment_conditions{cc}), 'FontSize',psd_fig.title_fz)
-    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims1)
+    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims_avglast)
 
     ax_avglast=subplot(3,2,cc*2); hold on;
     plot(freqs,squeeze(mean(psds_3d_subjavglast(:,cc,:),3)), ...
@@ -104,7 +104,7 @@ for cc=1:n_cond
     ylabel('PSD? (a.u.)')
     title(sprintf('%s', ...
         experiment_conditions{cc}), 'FontSize',psd_fig.title_fz)
-    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims1)
+    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims_avglast)
 end
 sgtitle('avg(PSD(TRFs)) - individual chns (left) avg across chns (right)')
 
@@ -119,7 +119,7 @@ for cc=1:n_cond
     grid on
     xlabel('Frequency (Hz)')
     title(experiment_conditions{cc},'FontSize',psd_fig.title_fz)
-    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims2)
+    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims_avgfirst)
 
     ax_avgfirst=subplot(3,2,cc*2);
     plot(freqs,squeeze(mean(psds_3d_subjavgfirst(:,cc,:),3)), ...
@@ -127,7 +127,7 @@ for cc=1:n_cond
     grid on
     xlabel('Frequency (Hz)')
     title(experiment_conditions{cc},'FontSize',psd_fig.title_fz)
-    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims2)
+    set(gca(),'XLim',psd_fig.freqlims,'YLim',psd_fig.ylims_avgfirst)
 end
 sgtitle('PSD(AVG(TRFs) - individual chns (left) avg across chns (right)')
 % plot subject-averaged, sorted by condition, for a particular electrode
@@ -140,7 +140,7 @@ sgtitle('PSD(AVG(TRFs) - individual chns (left) avg across chns (right)')
 %         xlabel('frequency (Hz)')
 %         ylabel('PSD (a.u.)')
 %         title(sprintf('reliable electrodes - PSD(avg(TRFs)) - condition: %s',conditions{cc}))
-%         set(gca(),'XLim',xlims,'YLim',psd_fig.ylims2)
+%         set(gca(),'XLim',xlims,'YLim',psd_fig.ylims_avgfirst)
 %     end
 % end
 %% compare PSDs post-onset only against entire timespan ?

@@ -150,7 +150,7 @@ script_config.analyze_pk_latencies=false;
 % params for select latency topos
 topo_fig_param.latencies=[54 164]; % in ms
 % params for butterfly with all conditions
-butterfly_fig.t_lims=[-100 500];
+butterfly_fig.t_lims=[-100 400];
 
 
 butterfly_fig.lw=2; %linewidth in plot
@@ -300,7 +300,7 @@ elseif script_config.run_basic_components
     % basic_components.result is a per-condition struct array
     get_active_result=@(cc) active_components.result(cc);
 end
-%% stacked butterly + GFP plots with component boundaries
+%% stacked butterfly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
 switch script_config.experiment
     case 'fast-slow'
