@@ -12,9 +12,14 @@ for ss=1:n_subjs
         t_=ind_models(ss,cc).t;
         for ci = size(component_windows{cc},1)
             win_=component_windows{cc}(ci,:); % indices, not time
-            % win_mask_=(t_>=win_(1))&(t_<=win_(2));
-            % note: have to loop findpeaks...
-            [~,peaktimes_subjlvl{cc}{ci}]=squeeze(findpeaks(w_(1,win_(1):win_(2),:),ind_models(ss,cc).fs),'NPeaks',1);
+      
+            for ee=1:128
+                [~,peak_]=findpeaks(w_(1,win_(1):win_(2),ee), ...
+                    ind_models(ss,cc).fs,'NPeaks',1);
+                if ~isempty(peak_)
+                    peaktimes_subjlvl{cc}{ci}(ss,ee)=peak_;
+                end
+            end
         end
     end
 end
