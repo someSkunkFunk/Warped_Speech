@@ -6,7 +6,7 @@
 psd=struct('param',[],'result',[]);
 % average -> psd OR psd -> average
 psd.param.method='pwelch';
-psd.param.time_range_idx=find(avg_models(1).t>0&avg_models(1).t<=500);
+psd.param.time_range_idx=find(avg_models(1).t>0&avg_models(1).t<=400); 
 psd.param.time_range=[avg_models(1).t(psd.param.time_range_idx(1)), ...
                         avg_models(1).t(psd.param.time_range_idx(end))];
 psd.param.fs=ind_models(1).fs;

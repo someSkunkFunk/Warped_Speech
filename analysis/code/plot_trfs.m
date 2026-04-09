@@ -109,7 +109,7 @@ close all
 script_config=[];
 
 script_config.experiment='fast-slow';
-script_config.custom_subjs=[2];
+script_config.custom_subjs=[];
 script_config.topos_from_peak_windows=false;
 
 % best fast-slow subjs: 
