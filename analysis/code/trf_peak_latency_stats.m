@@ -14,9 +14,9 @@ for ss=1:n_subjs
         % analysis... not sure we'll come back to it though
         % component window indices are relative to tbounds defined in basic
         % component analysis, correct for it here
-        component_tmas_=t_>basic_component_analysis.tbounds(1)&t_<basic_component_analysis.tbounds(2);
-        w_=w_(:,component_tmas_,:);
-        t_=t_(component_tmas_);
+        % component_tmas_=t_>basic_component_analysis.tbounds(1)&t_<basic_component_analysis.tbounds(2);
+        % w_=w_(:,component_tmas_,:);
+        % t_=t_(component_tmas_);
 
         for ci = 1:size(component_windows{cc},1)
             win_=component_windows{cc}(ci,:); % indices, not time
@@ -31,13 +31,14 @@ for ss=1:n_subjs
                     else
                         peaklocs_sorted_=peaklocs_;
                     end
-                    peaktimes_subjlvl{cc}{ci}(ss,ee)=t_(peaklocs_sorted_(1));
+                    t_win_=t_(win_(1):win_(2));
+                    peaktimes_subjlvl{cc}{ci}(ss,ee)=t_win_(peaklocs_sorted_(1));
                 end
             end
         end
     end
 end
-clear w_ t_ component_tmas_ peakvals_ peaklocs_ peaklocs_sorted_
+clear w_ t_ component_tmas_ peakvals_ peaklocs_ peaklocs_sorted_ t_win_
 %% --- scatterplot: peak latency per subject, one fig per condition ---
 % x-axis: subject index
 % y-axis: peak latency (ms) - each point is one electrode; overlapping
