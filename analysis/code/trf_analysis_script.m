@@ -8,7 +8,7 @@ clc
 % for subj=[2:7,9:22]
 % for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
 % successfully for all conditions
-for subj=[3:7,9:22]
+for subj=[2:7,9:22]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -52,17 +52,13 @@ else
 end
 clear pp_checkpoint_
 
-% disp('rescaling trf vars...')
-
 %% TRF ANALYSIS
 
-%% check if variables for current config can be preloaded
-
-% function starts here...
 preload_stats_null=false;
 preload_stats_obs=false;
 preload_model=false;
-%% preload trf results (TODO: DEBUG EVERYTHING BELOW THIS LINE)
+
+% preload trf results
 
 if ~isempty(trf_checkpoint_)
     disp('loading trf checkpoint data...')

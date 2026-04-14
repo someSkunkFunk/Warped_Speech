@@ -83,12 +83,13 @@ disp('Windowing around gfp_grand peaks done.')
 component_topos=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
     for kk=1:numel(component_idx{cc})
-        win=component_windows{cc}(kk,1):component_windows{cc}(kk,2);
+        win_=component_windows{cc}(kk,1):component_windows{cc}(kk,2);
         % average out the weights (TODO: do we wanna look at pre-averaged
         % topos too?)
-        component_topos{cc}(kk,:)=squeeze(mean(avg_models(cc).w(1,win,:),2));
+        component_topos{cc}(kk,:)=squeeze(mean(avg_models(cc).w(1,win_,:),2));
     end
 end
+clear win_
 % plotting topos
 for cc=1:numel(experiment_conditions)
     for kk=1:numel(component_idx{cc})
