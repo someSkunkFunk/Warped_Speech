@@ -2,6 +2,10 @@
 % computes a spatial average over electrodes (optionally confined to an ROI
 % defined by peak prominence
 %% -- GENERAL ANALYSIS SETTINGS ---
+
+% copy component_windows so we can manipulate it independently of component
+% analysis script result here
+stats_windows=component_windows;
 peaktime_stats={};
 peaktime_stats.opts=struct('prominence_thresh',[], ...
     'match_component_windows',[],'drop_peaks',[]);
@@ -44,17 +48,17 @@ peaktime_stats.opts.match_component_windows='min';
 if ~isempty(peaktime_stats.opts.match_component_windows)
     % assumes component windows line up across conditions, otherwise this
     % doesn't make sense
-    components_per_condition_=cellfun(@(x) size(x,1), component_windows);
+    components_per_condition_=cellfun(@(x) size(x,1), stats_windows);
     switch peaktime_stats.opts.match_component_windows
         case 'max'
             N_=max(components_per_condition_);
         case 'min'
             N_=min(components_per_condition_);
     end
-    template_windows_=component_windows{find(components_per_condition_==N_,1)};
-    for cc=1:length(component_windows)
+    template_windows_=stats_windows{find(components_per_condition_==N_,1)};
+    for cc=1:length(stats_windows)
         if components_per_condition_(cc)~=N_
-            component_windows{cc}=template_windows_;
+            stats_windows{cc}=template_windows_;
         end
     end
 end
@@ -65,17 +69,17 @@ clear N_ components_per_condition_ template_windows_
 
 % preallocate cell array to contain prominence-threshold masks
 selected_electrodes=cellfun(@(x) repmat({false(1,128)},1,size(x,1)), ...
-    component_windows,'UniformOutput',false); %{1 x conditions}, {1 x components}, [1 x electrodes]
+    stats_windows,'UniformOutput',false); %{1 x conditions}, {1 x components}, [1 x electrodes]
 peaktimes_grand=cellfun(@(x) repmat(cell(1,128),size(x,1),1), ...
-    component_windows,'UniformOutput',false); %{1 x conditions}, {components x electrodes}
+    stats_windows,'UniformOutput',false); %{1 x conditions}, {components x electrodes}
 % -- plot topo with selected electrodes marked alongside color-coded
 % butterfly 
 for cc=1:numel(experiment_conditions)
     w_=avg_models(cc).w;
     % rectify weights before peak-picking
     w_rect_=sign(w_).*w_;
-    for ci=1:size(component_windows{cc},1)
-        win_=component_windows{cc}(ci,:); % indices, not time 
+    for ci=1:size(stats_windows{cc},1)
+        win_=stats_windows{cc}(ci,:); % indices, not time 
         % (relative to full lag window)
         t_win_=avg_models(cc).t(win_(1):win_(2));
         for ee=1:128
@@ -105,10 +109,9 @@ clear peaklocs_ t_win_ win_ w_ w_rect_ ee
 %% -- visualize electrode selection on grand-TRFs
 % --- layout constraints ---
 N_=numel(experiment_conditions);
-M_=max(cellfun(@(x) size(x,1), component_windows));
+M_=max(cellfun(@(x) size(x,1), stats_windows));
 ncols_=M_*2; % each component window occupies two subplot columns
 nrows_=N_;
-% cmap_=colormap('RdBu'); 
 topo_limits_=[]; % []= auto or some numeric values
 if isempty(topo_limits_)
     topo_limits_='absmax';
@@ -116,9 +119,9 @@ end
 % -------
 titles_=cell(N_,M_);
 for cc=1:N_
-    for ci=1:size(component_windows{cc},1)
+    for ci=1:size(stats_windows{cc},1)
         times_ms_=avg_models(cc).t; % [1 x time] in ms
-        win_=component_windows{cc}(ci,:);
+        win_=stats_windows{cc}(ci,:);
         start_t_=times_ms_(win_(1));
         end_t_=times_ms_(win_(2));
         titles_{cc,ci}=sprintf('%s, %0.0f ms-%0.0f ms', ...
@@ -129,7 +132,8 @@ end
 clear cc ci times_ms_ start_t_ end_t_
 %
 figure('Name', 'selected electrodes for subject-level peak latency analysis', ...
-    'Units', 'inches','Position',[1 1 8 6])
+    'Units', 'inches','Position',[1 1 8 6], ...
+    'Color','w')
 t=tiledlayout(nrows_,ncols_,'TileSpacing','tight','Padding','tight');
 for cc=1:N_
     for ci=1:M_
@@ -150,17 +154,17 @@ for cc=1:N_
             tile_idx_topo=(cc-1)*ncols_+col_topo;
             
             % --- Butterfly plot ---
-            nexttile(tile_idx_but);grid on
+            nexttile(tile_idx_but);
             
             % Note: check plot below has correct dimensions
             plot(times_ms_, trf_(prominent_elecs_mask_,:), ...
                 'Color', [0.6 0.6 0.6 0.4],'LineWidth',0.8)
-            hold on;
+            hold on;grid on
             plot(times_ms_, mean(trf_(prominent_elecs_mask_,:),1),'k','LineWidth',2);
         
             % shade topoplot window
             ylims_=ylim;
-            win_=component_windows{cc}(ci,:);
+            win_=stats_windows{cc}(ci,:);
             toi_ms_=[times_ms_(win_(1)),times_ms_(win_(2))];
             patch([toi_ms_(1) toi_ms_(2) toi_ms_(2) toi_ms_(1)], ...
                 [ylims_(1) ylims_(1) ylims_(2) ylims_(2)], ...
@@ -196,7 +200,7 @@ title(t, sprintf('min prominence: %0.2f',peaktime_stats.opts.prominence_thresh),
 
 
 peaktimes_subjlvl=cellfun(@(x) repmat({nan(n_subjs,1)},1,size(x,1)), ...
-    component_windows,'UniformOutput',false); % {1 x conditions}, {1 x components}, [subjs x 1]
+    stats_windows,'UniformOutput',false); % {1 x conditions}, {1 x components}, [subjs x 1]
 
 for ss=1:n_subjs
     for cc=1:numel(experiment_conditions)
@@ -207,8 +211,8 @@ for ss=1:n_subjs
         w_avg_rect_=sign(w_avg_).*w_avg_;
 
 
-        for ci = 1:size(component_windows{cc},1)
-            win_=component_windows{cc}(ci,:); % indices, not time
+        for ci = 1:size(stats_windows{cc},1)
+            win_=stats_windows{cc}(ci,:); % indices, not time
             % [peakvals_,peaklocs_]=findpeaks(w_avg_rect_(win_(1):win_(2)));
             % some TRFs just dont peak in expected windows based on grand
             % averages
@@ -246,15 +250,14 @@ for ss=1:n_subjs
     end
 end
 clear w_ t_ component_tmas_ peakvals_ peaklocs_ peaklocs_sorted_ t_win_ w_avg_ w_avg_rect_
-%% --- TODO: permutation test on final peaktimes ---
-%
+
 %% -- Visualize peaks picked per subject --
 % WILL GENERATE MANY PLOTS POTENTIALLY BE CAREFUL
-show_individual_trfs_=true;
-if show_individual_trfs_
+show_individual_trfs=false;
+if show_individual_trfs
 % --- layout constraints ---
 N_=numel(experiment_conditions);
-M_=max(cellfun(@(x) size(x,1), component_windows));
+M_=max(cellfun(@(x) size(x,1), stats_windows));
 ncols_=M_*2; % each component window occupies two subplot columns
 nrows_=N_;
 topo_limits_=[]; % []= auto or some numeric values
@@ -266,8 +269,8 @@ titles_=cell(N_,M_);
 
 for cc=1:N_
     t_ms_=avg_models(1).t; % [1 x time, ms]
-    for ci=1:size(component_windows{cc},1)
-        win_=component_windows{cc}(ci,:);
+    for ci=1:size(stats_windows{cc},1)
+        win_=stats_windows{cc}(ci,:);
         t_start_=t_ms_(win_(1));
         t_end_=t_ms_(win_(2));
         titles_{cc,ci}=sprintf('%s, %0.0f ms-%0.0f ms', ...
@@ -280,12 +283,13 @@ clear cc ci win_ t_ms_ t_start_ t_end_
 for ss=1:n_subjs
     figure('Name', ...
         sprintf('subj %d selected electrodes for subject-level peak latency analysis',subjs(ss)), ...
-        'Units', 'inches','Position',[1 1 10 6])
+        'Units', 'inches','Position',[1 1 8 6], ...
+        'Color','w')
     t=tiledlayout(nrows_,ncols_,'TileSpacing','tight','Padding','tight');
     for cc=1:N_
         for ci=1:M_
             % note : since moving across tiled layout using nexttile, if
-            % condition,window pair is not in original component_windows, we
+            % condition,window pair is not in original stats_windows, we
             % should skip this tile -- ONLY APPLIES WHEN COMPONENT WINDOW
             % NUMBER VARIES WITH CONDITION
             if ci<=numel(selected_electrodes{cc})       
@@ -302,12 +306,12 @@ for ss=1:n_subjs
                 tile_idx_topo=(cc-1)*ncols_+col_topo;
                 
                 % --- Butterfly plot ---
-                nexttile(tile_idx_but);grid on
+                nexttile(tile_idx_but);
                 
                 % Note: check plot below has correct dimensions
                 plot(times_ms_, trf_(prominent_elecs_mask_,:), ...
                     'Color', [0.6 0.6 0.6 0.4],'LineWidth',0.8)
-                hold on;
+                hold on; grid on
                 plot(times_ms_, mean(trf_(prominent_elecs_mask_,:),1),'k','LineWidth',2);
                 % label peak picked
                 peak_time_=peaktimes_subjlvl{cc}{ci}(ss);
@@ -316,7 +320,7 @@ for ss=1:n_subjs
             
                 % shade topoplot window
                 ylims_=ylim;
-                win_=component_windows{cc}(ci,:);
+                win_=stats_windows{cc}(ci,:);
                 toi_ms_=[times_ms_(win_(1)),times_ms_(win_(2))];
                 patch([toi_ms_(1) toi_ms_(2) toi_ms_(2) toi_ms_(1)], ...
                     [ylims_(1) ylims_(1) ylims_(2) ylims_(2)], ...
@@ -352,60 +356,90 @@ end
 end
 clear N_ M_ titles_ ncols_ nrows_ cmap_ titles_ prominent_elecs_mask_ ttl_ times_ms_ ylims_ win_ toi_ms_ topo_data_ toi_mask_ topo_data_
 clear peak_time_
-clear show_trfs_
+%% -- Repeated-Measures ANOVA + summary statistics plot of peak latency --
+% setup data
+peak_lat=nan(n_subjs,length(experiment_conditions));
+% for ss=1:n_subjs
+for cc=1:length(experiment_conditions)
+    peak_lat(:,cc)=peaktimes_subjlvl{cc}{:};
+end
+
+% package latencies into table (required by fitrm)
+T_peak_lat=array2table(peak_lat,'VariableNames', experiment_conditions);
+
+% define within-subject factor specified as 
+% r-by-k table that contains the values of the k within-subject factors.
+rm_conditions=table(experiment_conditions', 'VariableNames',{'SpeechRate'});
+% fit repeated measures model
+rm=fitrm(T_peak_lat,'fast-slow ~ 1', 'WithinDesign',rm_conditions);
+%run rm-anova
+ranova_result=ranova(rm);
+% to interpret results, should confirm sphericity assuption of ranova
+mauchly_result=mauchly(rm);
+% is p<0.005, should use GG-corrected p-value instead
+fprintf('Sphericity: %0.3f\n',0.005<=mauchly_result.pValue)
 %% --- scatterplot: peak latency per subject, one fig per condition ---
+figure('Name','peak latency statistics summary','Color','w', ...
+    'Units', 'inches','Position', [1 1 3 2])
+fig_jitter_width_=0.5;
+fig_jitter_=2*(fig_jitter_width_)*rand(n_subjs,1)-fig_jitter_width_;
+plot(1:length(experiment_conditions),peak_lat+fig_jitter_,'k.'); hold on
+boxplot(peak_lat)
+xticks(1:length(experiment_conditions));
+xticklabels(experiment_conditions);
+title('TRF P1 Peak Latency vs Speech Rate')
+xlim([0 4])
+ylim([140 210])
+ylabel('P1 latency (ms)')
+clear fig_jitter_
+
 % x-axis: subject index
 % y-axis: peak latency (ms) - each point is one electrode; overlapping
 % electrodes are jittered horizontally to stay readable
 % color: electrodes also colored by their index to give spatial context
-
-latency_fig.jitter_amt=0.35;
-cmap=parula(128);
-
-for cc=1:numel(experiment_conditions)
-    n_comp=size(component_windows{cc},1);
-
-    fig=figure("Name",experiment_conditions{cc}, ...
-        "Color",'w');
-
-    for ci= 1:n_comp
-        ax=subplot(n_comp,1,ci);
-        hold(ax,'on');
-        
-        data_=peaktimes_subjlvl{cc}{ci}; % nan where no peak, [n_subj x 128]
-
-        for ee=1:128
-            x_vals= (1:n_subjs)+(rand(1,n_subjs)-0.5)+latency_fig.jitter_amt;
-            y_vals=data_(:,ee); % TIME SHOULD ALREADY BE IN MS???
-            valid_=~isnan(y_vals);
-            if any(valid_)
-                scatter(ax,x_vals(valid_),y_vals(valid_),10, ...
-                    cmap(ee,:),'filled','MarkerFaceAlpha',0.45);
-            end
-            % overlay per-subject median across electrodes
-            % med_=median(data_,2,'omitnan')*1000;
-            % plot(ax,1:n_subjs,med_,'k-o',...
-            %     'LineWidth',1.5,'MarkerSize',6, ...
-            %     'MarkerFaceColor','k','DisplayName','Electrode median')
-
-            % visual stuff
-            xlim(ax,[0.5 n_subjs+0.5]);
-            xticks(ax,1:n_subjs);
-            xlabel(ax, 'Subject');
-            ylabel(ax, 'Peak Latency (ms)');
-            
-            % need to convert to time:
-            win_=component_windows{cc}(ci,:);
-            win_ms=ind_models(1).t(win_);
-            title(ax, sprintf('%s - Component %d (%0.0f-%0.0f ms)', ...
-                experiment_conditions{cc},ci,win_ms(1),win_ms(2)))
-
-
-        end
-    end
-end
-%% --- do some statistical test across subjects ---
-% should compare across conditions, within subjects
-
-
-
+% 
+% latency_fig.jitter_amt=0.35;
+% cmap=parula(128);
+% 
+% for cc=1:numel(experiment_conditions)
+%     n_comp=size(stats_windows{cc},1);
+% 
+%     fig=figure("Name",experiment_conditions{cc}, ...
+%         "Color",'w');
+% 
+%     for ci= 1:n_comp
+%         ax=subplot(n_comp,1,ci);
+%         hold(ax,'on');
+% 
+%         data_=peaktimes_subjlvl{cc}{ci}; % nan where no peak, [n_subj x 128]
+% 
+%         for ee=1:128
+%             x_vals= (1:n_subjs)+(rand(1,n_subjs)-0.5)+latency_fig.jitter_amt;
+%             y_vals=data_(:,ee); % TIME SHOULD ALREADY BE IN MS???
+%             valid_=~isnan(y_vals);
+%             if any(valid_)
+%                 scatter(ax,x_vals(valid_),y_vals(valid_),10, ...
+%                     cmap(ee,:),'filled','MarkerFaceAlpha',0.45);
+%             end
+%             % overlay per-subject median across electrodes
+%             % med_=median(data_,2,'omitnan')*1000;
+%             % plot(ax,1:n_subjs,med_,'k-o',...
+%             %     'LineWidth',1.5,'MarkerSize',6, ...
+%             %     'MarkerFaceColor','k','DisplayName','Electrode median')
+% 
+%             % visual stuff
+%             xlim(ax,[0.5 n_subjs+0.5]);
+%             xticks(ax,1:n_subjs);
+%             xlabel(ax, 'Subject');
+%             ylabel(ax, 'Peak Latency (ms)');
+% 
+%             % need to convert to time:
+%             win_=stats_windows{cc}(ci,:);
+%             win_ms=ind_models(1).t(win_);
+%             title(ax, sprintf('%s - Component %d (%0.0f-%0.0f ms)', ...
+%                 experiment_conditions{cc},ci,win_ms(1),win_ms(2)))
+% 
+% 
+%         end
+%     end
+% end
