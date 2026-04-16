@@ -57,7 +57,7 @@ end
 
 %% define component latency windows
 % component start,end in ms relative to component time
-basic_component_analysis.component_window_ms=[-25 25];
+basic_component_analysis.component_window_ms=[-30 30];
 % doing this somewhat arbitrarily based on the minimum size of windows
 % reported in Lalor et al. 2009 - but it would be cool to use the actual
 % microstates analysis they used to determine a better component...

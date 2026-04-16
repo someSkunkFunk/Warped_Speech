@@ -4,24 +4,56 @@
 %% -- GENERAL ANALYSIS SETTINGS ---
 peaktime_stats={};
 peaktime_stats.opts=struct('prominence_thresh',[], ...
-    'match_component_windows',[]); 
+    'match_component_windows',[],'drop_peaks',[]);
+
 % roi_selection: reduce TRFs for more reliable statistics
 % 'all': compute spatial average across all electrodes.
 % 'prominent peaks': defines an ROI based on which electrodes have
 % above-threshold peak prominence in grand average
 peaktime_stats.opts.prominence_thresh=0;
-% match_component_windows: if true, normalizes component windows to be the
-% same across conditions, assuming the same underlying windows make sense
-% across conditions (as in fast-slow)
-peaktime_stats.opts.match_component_windows=true;
-if peaktime_stats.opts.match_component_windows
+% drop_peaks: ignore components whose bounds contain peak at latency
+% specified (using because N1 not reliable in individual subject TRFs)
+% do this operation before match_component_windows so extra components
+% aren't added just to be removed again
+% peaktime_stats.opts.drop_peaks=100; % in ms
+% if ~isempty(peaktime_stats.opts.drop_peaks)
+%     drop_peaks_=peaktime_stats.opts.drop_peaks;
+%     drop_peaks_
+%     for tt=1:length(drop_peaks_)
+%         for cc=1:length(experiment_conditions)
+%             t_=avg_models(cc).t;
+%             for ci=size(component_windows{cc},1)
+%                 win_=component_windows{cc}(ci,:);
+%                 if drop_peaks_(tt)>t_(win_(1)) && drop_peaks_(tt)<t_(win_(2))
+% 
+%                 end
+%             end
+%         end
+%     end
+% end
+% % remove outside of loop to avoid indexing errors from in-place removal
+% clear drop_peaks_ t_ win_
+% match_component_windows: empty,'max' or 'min', normalizes component 
+% windows to be the same across conditions, assuming the same underlying 
+% windows make sense across conditions (as in fast-slow)
+% 'max': matches component windows in each condition to the condition with
+% the maximum number of components
+% 'min': matches component windows in each condition to the condition with
+% the minimum number of components
+peaktime_stats.opts.match_component_windows='min';
+if ~isempty(peaktime_stats.opts.match_component_windows)
     % assumes component windows line up across conditions, otherwise this
     % doesn't make sense
     components_per_condition_=cellfun(@(x) size(x,1), component_windows);
-    N_=max(components_per_condition_);
+    switch peaktime_stats.opts.match_component_windows
+        case 'max'
+            N_=max(components_per_condition_);
+        case 'min'
+            N_=min(components_per_condition_);
+    end
     template_windows_=component_windows{find(components_per_condition_==N_,1)};
     for cc=1:length(component_windows)
-        if components_per_condition_(cc)<N_
+        if components_per_condition_(cc)~=N_
             component_windows{cc}=template_windows_;
         end
     end
@@ -31,7 +63,7 @@ clear N_ components_per_condition_ template_windows_
 % subsequent analyses then restricted to average subject-level TRFs across
 % ROI defined by peak-prominence
 
-% preallocate cell array to contain prominences
+% preallocate cell array to contain prominence-threshold masks
 selected_electrodes=cellfun(@(x) repmat({false(1,128)},1,size(x,1)), ...
     component_windows,'UniformOutput',false); %{1 x conditions}, {1 x components}, [1 x electrodes]
 peaktimes_grand=cellfun(@(x) repmat(cell(1,128),size(x,1),1), ...
@@ -85,15 +117,20 @@ end
 titles_=cell(N_,M_);
 for cc=1:N_
     for ci=1:size(component_windows{cc},1)
+        times_ms_=avg_models(cc).t; % [1 x time] in ms
+        win_=component_windows{cc}(ci,:);
+        start_t_=times_ms_(win_(1));
+        end_t_=times_ms_(win_(2));
         titles_{cc,ci}=sprintf('%s, %0.0f ms-%0.0f ms', ...
-            experiment_conditions{cc},component_windows{cc}(ci,1), ...
-            component_windows{cc}(ci,2));
+            experiment_conditions{cc},start_t_, ...
+            end_t_);
     end
 end
-clear cc ci
+clear cc ci times_ms_ start_t_ end_t_
 %
-figure('Name', 'selected electrodes for subject-level peak latency analysis')
-t=tiledlayout(nrows_,ncols_,'TileSpacing','compact','Padding','compact');
+figure('Name', 'selected electrodes for subject-level peak latency analysis', ...
+    'Units', 'inches','Position',[1 1 8 6])
+t=tiledlayout(nrows_,ncols_,'TileSpacing','tight','Padding','tight');
 for cc=1:N_
     for ci=1:M_
         % note : since moving across tiled layout using nexttile, if
@@ -120,8 +157,7 @@ for cc=1:N_
                 'Color', [0.6 0.6 0.6 0.4],'LineWidth',0.8)
             hold on;
             plot(times_ms_, mean(trf_(prominent_elecs_mask_,:),1),'k','LineWidth',2);
-            
-            % TODO: add component window markers?
+        
             % shade topoplot window
             ylims_=ylim;
             win_=component_windows{cc}(ci,:);
@@ -146,7 +182,7 @@ for cc=1:N_
             topoplot(topo_data_, chanlocs, ...
                 'maplimits', topo_limits_, ...
                 'electrodes', 'on', ...
-                'emarker2', {find(prominent_elecs_mask_), 'x', 'k', 8, 1})
+                'emarker2', {find(prominent_elecs_mask_), 'x', 'k', 1, .1})
             colorbar;
             axis off;
         end
@@ -227,18 +263,25 @@ if isempty(topo_limits_)
 end
 % -------
 titles_=cell(N_,M_);
+
 for cc=1:N_
+    t_ms_=avg_models(1).t; % [1 x time, ms]
     for ci=1:size(component_windows{cc},1)
+        win_=component_windows{cc}(ci,:);
+        t_start_=t_ms_(win_(1));
+        t_end_=t_ms_(win_(2));
         titles_{cc,ci}=sprintf('%s, %0.0f ms-%0.0f ms', ...
-            experiment_conditions{cc},component_windows{cc}(ci,1), ...
-            component_windows{cc}(ci,2));
+            experiment_conditions{cc},t_start_, ...
+            t_end_);
     end
 end
-clear cc ci
+clear cc ci win_ t_ms_ t_start_ t_end_
 %
 for ss=1:n_subjs
-    figure('Name', sprintf('subj %d selected electrodes for subject-level peak latency analysis',ss))
-    t=tiledlayout(nrows_,ncols_,'TileSpacing','compact','Padding','compact');
+    figure('Name', ...
+        sprintf('subj %d selected electrodes for subject-level peak latency analysis',subjs(ss)), ...
+        'Units', 'inches','Position',[1 1 10 6])
+    t=tiledlayout(nrows_,ncols_,'TileSpacing','tight','Padding','tight');
     for cc=1:N_
         for ci=1:M_
             % note : since moving across tiled layout using nexttile, if
@@ -295,7 +338,7 @@ for ss=1:n_subjs
                 topoplot(topo_data_, chanlocs, ...
                     'maplimits', topo_limits_, ...
                     'electrodes', 'on', ...
-                    'emarker2', {find(prominent_elecs_mask_), 'x', 'k', 8, 1})
+                    'emarker2', {find(prominent_elecs_mask_), 'x', 'k', 1, 0.1})
                 colorbar;
                 axis off;
             end
@@ -303,7 +346,8 @@ for ss=1:n_subjs
     end
     
     
-    title(t, sprintf('subj: (min prominence: %0.2f)',peaktime_stats.opts.prominence_thresh), 'FontSize',14)
+    title(t, sprintf('subj: %d (min prominence: %0.2f)',subjs(ss), ...
+        peaktime_stats.opts.prominence_thresh), 'FontSize',14)
 end
 end
 clear N_ M_ titles_ ncols_ nrows_ cmap_ titles_ prominent_elecs_mask_ ttl_ times_ms_ ylims_ win_ toi_ms_ topo_data_ toi_mask_ topo_data_
