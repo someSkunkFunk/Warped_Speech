@@ -380,14 +380,14 @@ mauchly_result=mauchly(rm);
 fprintf('Sphericity: %0.3f\n',0.005<=mauchly_result.pValue)
 %% --- scatterplot: peak latency per subject, one fig per condition ---
 figure('Name','peak latency statistics summary','Color','w', ...
-    'Units', 'inches','Position', [1 1 3 2])
+    'Units', 'inches','Position', [1 1 5 2.5])
 fig_jitter_width_=0.5;
 fig_jitter_=2*(fig_jitter_width_)*rand(n_subjs,1)-fig_jitter_width_;
 plot(1:length(experiment_conditions),peak_lat+fig_jitter_,'k.'); hold on
 boxplot(peak_lat)
 xticks(1:length(experiment_conditions));
 xticklabels(experiment_conditions);
-title('TRF P1 Peak Latency vs Speech Rate')
+title(sprintf('TRF P1 Peak Latency vs Speech Rate (%d subjects)',n_subjs),'FontSize',14)
 xlim([0 4])
 ylim([140 210])
 ylabel('P1 latency (ms)')
