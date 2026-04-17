@@ -1,5 +1,10 @@
 % model SL response
+%% --- GENERAL SETTINGS ---
 config=[];
+config.SKIP_DATA=false; % if true -> skip parts of script that require
+config.RELOAD=false; % if need to load data, first check if it's already been loaded
+% data because they are slow
+
 config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
 config.fs=128;
 config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
@@ -12,25 +17,65 @@ config.model='env';
 config.fit_trfs=false;
 config.normalize_envs='range';
 config.demo_klim=false;
-config.sim_trials=[10]; % 1:120 to simulate all of them
+% 1:120 to simulate all of them, shorten to speed up trf training time
+config.sim_trials=[10]; 
+% find parameter by optimizing if true, otherwise use hard-coded (in future
+% should look up saved optimized parameters -- or maybe that can be part of
+% optimization script also)
+config.optimize_sl=true;
+
 %% select SL parameters
 
 sl_param=[];
 sl_param.f_nat=4; % in Hz -> converted to radians when running model
 switch config.model
     case 'env'
-        % optimal parameters wei ching previously gave 
-        sl_param.lambda=0.1;
-        sl_param.gamma=13.83;
-        sl_param.k=80;
-        % sl_param.lambda=.01;
-        % sl_param.gamma=1;
-        rs=sqrt(sl_param.lambda/sl_param.gamma);
-        % sl_param.k=2*rs;
-        % sl_param.k=rs/2;
+        if config.optimize_sl && ~config.SKIP_DATA
+            subjs=[2:7,9:22];
+            % subjs=2:3;
+
+
+            if config.RELOAD
+                disp('loading all subj stim,resp')
+                tic
+                stim_trials=cell(size(subjs));
+                eeg_trials=cell(size(subjs));
+                for ss=1:length(subjs)
+                    [stim_trials{ss},eeg_trials{ss}]=load_fastSlow_data(subjs(ss));
+                end
+                disp('all subj data loaded')
+                toc
+            elseif ~config.RELOAD&&(~exist('stim_trials', 'var')||~exist('eeg_trials','var'))
+                error('MISSING EITHER STIM OR VAR -- RESET RELOAD TO TRUE')
+            end
+            %% ----optimize_sl_env----
+            best_params_sl=cell(size(subjs));
+            best_r_sl=cell(size(subjs));
+            for ss=1:length(subjs)
+                fprintf('running gridsearch, subj %d/%d\n', ss, length(subjs))
+                [best_params_sl{ss}, best_r_sl{ss}]=gridsearch_SL(eeg_trials{ss}, ...
+                    stim_trials{ss},sl_param.f_nat, config);
+            end
+
+        else
+            warning('Setting SL parameters with hard-coded parameters.')
+            % optimal parameters wei ching previously gave 
+            sl_param.lambda=0.1;
+            sl_param.gamma=13.83;
+            sl_param.k=80;
+            % sl_param.lambda=.01;
+            % sl_param.gamma=1;
+            rs=sqrt(sl_param.lambda/sl_param.gamma);
+            % sl_param.k=2*rs;
+            % sl_param.k=rs/2;
+        end
 
     case 'reset'
-        optimize_sl_reset
+        if config.optimize_sl
+            optimize_sl_reset
+        else
+            warning('hard coded parameters not yet specified.')
+        end
 end
 
 %% UNFORCED MODEL CHARACTERIZATION
@@ -167,19 +212,19 @@ if ~isempty(config.plot_individual_trials)
 end
 %% derive TRFs from simulated responses
 if config.fit_trfs
-    trf_config=[];
-    trf_config.add_noise=false;
-    trf_config.optimize_lambda=false;
-    trf_config.lam_range=10.^(-3:8);
+    sl_trf_config=[];
+    sl_trf_config.add_noise=false;
+    sl_trf_config.optimize_lambda=false;
+    sl_trf_config.lam_range=10.^(-3:8);
     % note: used 400ms previously but if we're looking at effects for syllables
     % up to 1000ms apart... think it makes sense to extend the range a bit
-    trf_config.cvtlims=[0, 400];
-    trf_config.trtlims=[-500,800];
+    sl_trf_config.cvtlims=[0, 400];
+    sl_trf_config.trtlims=[-500,800];
     % add 1/f noise to simulated responses to make them "realistic"
     % Oganian et al 2023 did this by using firls on gaussian white noise
     % they also used an snr of 1/10... not sure why
     %note: leaving this out for now to look at "pure" model response behavior 
-    if trf_config.add_noise
+    if sl_trf_config.add_noise
         %TODO: add 1/f noise
     end
     
@@ -192,30 +237,30 @@ if config.fit_trfs
     %previously used std(all envelopes) for simplicity...
     trf_env=cellfun(@(x) normalize(x,"scale"), env,'UniformOutput',false);
     trf_response=cellfun(@(x) x(:,1), sl_responses(:,2),'UniformOutput',false);
-    if trf_config.optimize_lambda
+    if sl_trf_config.optimize_lambda
         stats_obs=mTRFcrossval(trf_env,trf_response,config.fs,1, ...
-            trf_config.cvtlims(1),trf_config.cvtlims(2),trf_config.lam_range);
+            sl_trf_config.cvtlims(1),sl_trf_config.cvtlims(2),sl_trf_config.lam_range);
         % plot TRFs
         % plot lambda tuning curve, select best lambda
         r_tuning_curve=mean(stats_obs.r, 1);
         [~,max_lam_idx]=max(r_tuning_curve);
-        trf_config.best_lam=trf_config.lam_range(max_lam_idx);
+        sl_trf_config.best_lam=sl_trf_config.lam_range(max_lam_idx);
         figure('Color', 'white')
-        plot(trf_config.lam_range,r_tuning_curve)
+        plot(sl_trf_config.lam_range,r_tuning_curve)
         title('tuning curve')
         xlabel('\lambda')
         ylabel('r (crossvalidated)')
     else
         % seems unnecessary if no noise
-        trf_config.best_lam=0;
+        sl_trf_config.best_lam=0;
     end
     %% train using best lambda on entire dataset
     trf_model=mTRFtrain(trf_env,trf_response,config.fs,1, ...
-        trf_config.trtlims(1),trf_config.trtlims(2),trf_config.best_lam);
+        sl_trf_config.trtlims(1),sl_trf_config.trtlims(2),sl_trf_config.best_lam);
     %% plot model-TRF
     figure('Color', 'white'), plot(trf_model.t,trf_model.w)
-    xticks(trf_config.trtlims(1):100:trf_config.trtlims(2))
-    xlim([-100,trf_config.trtlims(2)])
+    xticks(sl_trf_config.trtlims(1):100:sl_trf_config.trtlims(2))
+    xlim([-100,sl_trf_config.trtlims(2)])
     title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
 end
 %% quantify event-based phase concentration of output across all stimuli?
@@ -224,6 +269,72 @@ end
 
 
 %% helpers
+function [stim, eeg]=load_fastSlow_data(subj)
+    script_config.show_tuning_curves=false;
+    trf_analysis_params
+    S_=load_checkpoint(preprocess_config);
+    preprocessed_eeg=S_.preprocessed_eeg;
+    eeg=preprocessed_eeg.resp;
+    stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
+end
+
+
+function [best_params, best_rs]=gridsearch_SL(eeg_trials,stim_trials,f_nat,config)
+% [best_params, best_r]=gridsearch_SL(eeg,stim,fs)
+% eeg_trials: {1 x trials}-> [time x chns] SINGLE SUBJECT!
+% stim_trials: {trials x 1}->[time x 1] SINGLE SUBJECT!
+% f_nat: sl model natural frequency in Hz -- we set this manually outside
+% the function rather than optimizing since related to hypothesis
+
+% set up parameter grid %TODO: flag when best_params occur near grid edge
+grid_len=20; % number of points in grid
+lambda_vec=linspace(0.01,1,grid_len); %TODO: see if this is a plausible range or need to extend
+gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
+k_vec=linspace(0.01, 1.0, grid_len); %TODO: ^ (check z-scored EEG rms range to see if appropriate to assume 1 max??) 
+
+n_trials=length(eeg_trials);
+n_chns=size(eeg_trials{1},2);
+
+best_rs=-Inf(n_chns,1);
+best_params=nan(n_chns,3);
+pred_trials=cellfun(@(x) nan(size(x)),eeg_trials,'UniformOutput',false);
+%--- loop gridsearch over trials, electrodes
+tic
+
+for ch=1:n_chns
+%---- actual gridsearch start ----
+for li=1:numel(lambda_vec)
+    for gi=1:numel(gamma_vec)
+        for ki=1:numel(k_vec)
+            % loop thru trials before concatenating predictions to get corr
+            for tr=1:n_trials
+                params=struct('lambda',lambda_vec(li), ...
+                    'gamma',gamma_vec(gi), ...
+                    'k',k_vec(ki), ...
+                    'f_nat',f_nat); %gets passed to gridsearch so not fit
+                [~, sl_pred_trial]=run_sl_env(config,params,stim_trials{tr});
+                % assuming x is the observable response
+                pred_trials{tr}(:,ch)=sl_pred_trial(:,1);
+            end
+            % concatenate trials to get corr -- cell2mat concatenates rows
+            % like vertcat so need to transpose cell coming out of cellfun
+            pred_concat=cell2mat(cellfun(@(x) x(:,ch), pred_trials,'UniformOutput',false)');
+            eeg_concat=cell2mat(cellfun(@(x) x(:,ch), eeg_trials,'UniformOutput',false)');
+            r_pred=corr(pred_concat,eeg_concat);
+            if r_pred>best_rs(ch)
+                best_rs(ch)=r_pred;
+                best_params(ch,:)=[lambda_vec(li) gamma_vec(gi), k_vec(ki)];
+            end
+            clear pred_concat eeg_concat
+        end
+    end
+end
+end
+toc
+
+% compute 
+
+end
 function env_normed=norm_env_doelling(env_data)
 % normalize stim as in Doelling et al 2023
 env_bar=mean(env_data);
@@ -268,11 +379,12 @@ function x0=init_limit_cycle(sl_param)
     x0=lim_rad.*[cos(rand_theta);sin(rand_theta)];
 end
 function [t, model_out]=run_sl_env(config,sl_param,s_data)
-% [t, model_out]=run_sl_model(config,sl_param,input_fun)
+% [t, model_out]=run_sl_env(config,sl_param,s_data)
 % arguments
 %     config (1,1) struct
 %     sl_param (1,1) struct
-%     s_data double = 0;
+%     s_data (n,1) double = 0; stimulus as a vector -- 0 gives spontaneous
+%     response 
 % end
 if ~exist('s_data','var')
     tspan=0:1/config.fs:config.tmax_zero_input;
