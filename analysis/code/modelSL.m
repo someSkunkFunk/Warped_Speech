@@ -1,51 +1,60 @@
 % model SL response
 %% --- GENERAL SETTINGS ---
-config=[];
-config.SKIP_DATA=false; % if true -> skip parts of script that require
-config.RELOAD=false; % if need to load data, first check if it's already been loaded
+sl_config=[];
+sl_config.SKIP_DATA=false; % if true -> skip parts of script that require
+sl_config.RELOAD=true; % if need to load data, first check if it's already been loaded
 % data because they are slow
 
-config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
-config.fs=128;
-config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
-config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
-config.plot_individual_trials=[10]; % look at simulated response for trials specified here
+sl_config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
+sl_config.fs=128;
+sl_config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
+sl_config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
+sl_config.plot_individual_trials=[10]; % look at simulated response for trials specified here
 % --- model options --- 
 % 'env' : envelope-coupled by some constant
 % 'reset': phase-reset model 
-config.model='env'; 
-config.fit_trfs=false;
-config.normalize_envs='range';
-config.demo_klim=false;
+sl_config.model='env'; 
+sl_config.fit_trfs=false;
+sl_config.normalize_envs='range';
+sl_config.demo_klim=false;
 % 1:120 to simulate all of them, shorten to speed up trf training time
-config.sim_trials=[10]; 
+sl_config.sim_trials=[10]; 
 % find parameter by optimizing if true, otherwise use hard-coded (in future
 % should look up saved optimized parameters -- or maybe that can be part of
 % optimization script also)
-config.optimize_sl=true;
+sl_config.optimize_sl=true;
 
+sl_config.match_syllable_frequency=false;
+sl_config.avg_syllable_rate=4;
+sl_config.rms_normalize=true;
 %% select SL parameters
 
 sl_param=[];
-sl_param.f_nat=4; % in Hz -> converted to radians when running model
-switch config.model
+if sl_config.match_syllable_frequency
+    %TODO: match average syllable frequency in each condition -- then make code downstream account for variable f_nat
+    sl_param.f_nat=sl_config.*[2/3 1 3/2];
+else
+    sl_param.f_nat=sl_config.avg_syllable_rate; % in Hz -> converted to radians when running model
+end
+switch sl_config.model
     case 'env'
-        if config.optimize_sl && ~config.SKIP_DATA
+        if sl_config.optimize_sl && ~sl_config.SKIP_DATA
             subjs=[2:7,9:22];
             % subjs=2:3;
 
 
-            if config.RELOAD
+            if sl_config.RELOAD
                 disp('loading all subj stim,resp')
                 tic
-                stim_trials=cell(size(subjs));
-                eeg_trials=cell(size(subjs));
+                stim_subjs_trials=cell(size(subjs));
+                eeg_subjs_trials=cell(size(subjs));
                 for ss=1:length(subjs)
-                    [stim_trials{ss},eeg_trials{ss}]=load_fastSlow_data(subjs(ss));
+                    [stim_subjs_trials{ss},eeg_subjs_trials{ss}]=load_fastSlow_data(subjs(ss));
                 end
                 disp('all subj data loaded')
                 toc
-            elseif ~config.RELOAD&&(~exist('stim_trials', 'var')||~exist('eeg_trials','var'))
+                
+            elseif ~sl_config.RELOAD&&(~exist('stim_subjs_trials', 'var')||~exist('eeg_subjs_trials','var'))
                 error('MISSING EITHER STIM OR VAR -- RESET RELOAD TO TRUE')
             end
             %% ----optimize_sl_env----
@@ -53,8 +62,8 @@ switch config.model
             best_r_sl=cell(size(subjs));
             for ss=1:length(subjs)
                 fprintf('running gridsearch, subj %d/%d\n', ss, length(subjs))
-                [best_params_sl{ss}, best_r_sl{ss}]=gridsearch_SL(eeg_trials{ss}, ...
-                    stim_trials{ss},sl_param.f_nat, config);
+                [best_params_sl{ss}, best_r_sl{ss}]=gridsearch_SL(eeg_subjs_trials{ss}, ...
+                    stim_subjs_trials{ss},sl_param.f_nat, sl_config);
             end
 
         else
@@ -71,7 +80,7 @@ switch config.model
         end
 
     case 'reset'
-        if config.optimize_sl
+        if sl_config.optimize_sl
             optimize_sl_reset
         else
             warning('hard coded parameters not yet specified.')
@@ -80,20 +89,20 @@ end
 
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
-switch config.model
+switch sl_config.model
     case 'env'
-        [t, sl_nostim]=run_sl_env(config,sl_param);
+        [t, sl_nostim]=run_sl_env(sl_config,sl_param);
     case 'reset'
-        [t, sl_nostim]=run_sl_reset(config,sl_param);
+        [t, sl_nostim]=run_sl_reset(sl_config,sl_param);
     otherwise
-        error('config.model: %s', config.model)
+        error('config.model: %s', sl_config.model)
 end
 
 %% plot unforced model output
 figure('Color','white')
 plot(t,sl_nostim(:,1)), hold on
 plot(t,sl_nostim(:,2))
-title(sprintf('%s without stimulus',config.model))
+title(sprintf('%s without stimulus',sl_config.model))
 legend('x', 'y')
 xlabel('time (s)')
 % xlim([min(t) max(t)])
@@ -105,7 +114,7 @@ plot(sl_nostim(:,1),sl_nostim(:,2))
 axis equal
 xlabel('x')
 ylabel('y')
-title(sprintf('Undriven %s phase portrait',config.model))
+title(sprintf('Undriven %s phase portrait',sl_config.model))
 %% arnold tongue
 %% phase sensitivity curve?
 %% FORCED RESPONSE CHARACTERIZATION
@@ -114,12 +123,12 @@ title(sprintf('Undriven %s phase portrait',config.model))
 %% simulate response to stimuli envelopes
 envelopes_path=sprintf(['C:/Users/ninet/Box/my box/LALOR LAB/', ...
     'oscillations project/MATLAB/Warped Speech/stimuli/wrinkle/', ...
-    'regIrregEnvelopes128hz_%04dmsMax.mat'],config.irreg_maxt);
+    'regIrregEnvelopes128hz_%04dmsMax.mat'],sl_config.irreg_maxt);
 load(envelopes_path,"env");
 % some cell entries intentionally left empty - only care about third row
 % anyway
-env=env(3,config.sim_trials);
-switch config.normalize_envs
+env=env(3,sl_config.sim_trials);
+switch sl_config.normalize_envs
 % normalize envelopes as in Doelling et al 2023
     case 'doelling'
         env=cellfun(@(x) norm_env_doelling(x),env,'UniformOutput',false);
@@ -130,30 +139,30 @@ end
 
 %%
 % run sl model for each trial's envelope OR demo k limit
-if config.demo_klim
+if sl_config.demo_klim
     % show deviation from limit cycle as stimulus exrets maximum force away
     % from limit cycle
     sl_responses=cell(1,2);
-    [sl_responses{1,:}]=run_sl_env(config,sl_param,ones(size(env{1})));
+    [sl_responses{1,:}]=run_sl_env(sl_config,sl_param,ones(size(env{1})));
 else
     sl_responses=cell(length(env),2);
     for ii=1:length(env)
-        fprintf('running %s model for %d/%d\n',config.model,ii,length(env))
-        switch config.model
+        fprintf('running %s model for %d/%d\n',sl_config.model,ii,length(env))
+        switch sl_config.model
             case 'env'
-                [sl_responses{ii,:}]=run_sl_env(config,sl_param,env{ii});
+                [sl_responses{ii,:}]=run_sl_env(sl_config,sl_param,env{ii});
             case 'reset'
-                [sl_responses{ii,:}]=run_sl_reset(config,sl_param);
+                [sl_responses{ii,:}]=run_sl_reset(sl_config,sl_param);
             otherwise
-                error('config.model: %s', config.model)
+                error('config.model: %s', sl_config.model)
         end
     end
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
-if ~isempty(config.plot_individual_trials)
-    for tt=1:length(config.plot_individual_trials)
-        if isequal(config.sim_trials,1:120)
-            plot_idx=config.plot_individual_trials(tt);
+if ~isempty(sl_config.plot_individual_trials)
+    for tt=1:length(sl_config.plot_individual_trials)
+        if isequal(sl_config.sim_trials,1:120)
+            plot_idx=sl_config.plot_individual_trials(tt);
         else
             plot_idx=tt;
         end
@@ -161,7 +170,7 @@ if ~isempty(config.plot_individual_trials)
         %note: time returned by model simulation should match fs samples of
         %stimulus because of how we defined tspan arg of ode45
         tstr_=sprintf('normalized stimulus envelope -trial %d, %04dms max', ...
-            plot_idx,config.irreg_maxt);
+            plot_idx,sl_config.irreg_maxt);
         plot(sl_responses{plot_idx,1},env{plot_idx})
         xlabel('time (s)')
         ylabel('S(t)')
@@ -169,7 +178,7 @@ if ~isempty(config.plot_individual_trials)
 
         %xy plot
         tstr_=sprintf('%s speech response - trial %d, %04dms max', ...
-            config.model,plot_idx,config.irreg_maxt);
+            sl_config.model,plot_idx,sl_config.irreg_maxt);
         figure('Color', 'white')
         plot(sl_responses{plot_idx,1},[sl_responses{plot_idx,2}, env{plot_idx}])
         title(tstr_)
@@ -193,7 +202,7 @@ if ~isempty(config.plot_individual_trials)
         legend('SL simulation','limit cycle')
        
         tstr_=sprintf('%s speech-phase portrait - trial %d, %04dms max', ...
-            config.model,plot_idx,config.irreg_maxt);
+            sl_config.model,plot_idx,sl_config.irreg_maxt);
         title(tstr_)
 
         
@@ -205,13 +214,13 @@ if ~isempty(config.plot_individual_trials)
         xlabel('S(t)')
         ylabel('x(t)')
         tstr_=sprintf('%s input-output - trial %d, %04dms max', ...
-            config.model,plot_idx,config.irreg_maxt);
+            sl_config.model,plot_idx,sl_config.irreg_maxt);
         title(tstr_)
         clear tstr_
     end
 end
 %% derive TRFs from simulated responses
-if config.fit_trfs
+if sl_config.fit_trfs
     sl_trf_config=[];
     sl_trf_config.add_noise=false;
     sl_trf_config.optimize_lambda=false;
@@ -238,7 +247,7 @@ if config.fit_trfs
     trf_env=cellfun(@(x) normalize(x,"scale"), env,'UniformOutput',false);
     trf_response=cellfun(@(x) x(:,1), sl_responses(:,2),'UniformOutput',false);
     if sl_trf_config.optimize_lambda
-        stats_obs=mTRFcrossval(trf_env,trf_response,config.fs,1, ...
+        stats_obs=mTRFcrossval(trf_env,trf_response,sl_config.fs,1, ...
             sl_trf_config.cvtlims(1),sl_trf_config.cvtlims(2),sl_trf_config.lam_range);
         % plot TRFs
         % plot lambda tuning curve, select best lambda
@@ -255,13 +264,13 @@ if config.fit_trfs
         sl_trf_config.best_lam=0;
     end
     %% train using best lambda on entire dataset
-    trf_model=mTRFtrain(trf_env,trf_response,config.fs,1, ...
+    trf_model=mTRFtrain(trf_env,trf_response,sl_config.fs,1, ...
         sl_trf_config.trtlims(1),sl_trf_config.trtlims(2),sl_trf_config.best_lam);
     %% plot model-TRF
     figure('Color', 'white'), plot(trf_model.t,trf_model.w)
     xticks(sl_trf_config.trtlims(1):100:sl_trf_config.trtlims(2))
     xlim([-100,sl_trf_config.trtlims(2)])
-    title(sprintf('%s-TRF %d max irreg interval',config.model,config.irreg_maxt));
+    title(sprintf('%s-TRF %d max irreg interval',sl_config.model,sl_config.irreg_maxt));
 end
 %% quantify event-based phase concentration of output across all stimuli?
 % to what end?
@@ -279,7 +288,8 @@ function [stim, eeg]=load_fastSlow_data(subj)
 end
 
 
-function [best_params, best_rs]=gridsearch_SL(eeg_trials,stim_trials,f_nat,config)
+function [best_params, best_rs]=gridsearch_SL(eeg_trials,stim_trials, ...
+    f_nat,sl_config)
 % [best_params, best_r]=gridsearch_SL(eeg,stim,fs)
 % eeg_trials: {1 x trials}-> [time x chns] SINGLE SUBJECT!
 % stim_trials: {trials x 1}->[time x 1] SINGLE SUBJECT!
@@ -298,6 +308,31 @@ n_chns=size(eeg_trials{1},2);
 best_rs=-Inf(n_chns,1);
 best_params=nan(n_chns,3);
 pred_trials=cellfun(@(x) nan(size(x)),eeg_trials,'UniformOutput',false);
+
+% normalize EEG & stim RMS to restrain k-range
+if sl_config.rms_normalize
+    disp('normalizing stim/eeg by to unit RMS')
+    %[time x 1]:
+    stim_trials_concat_=cell2mat(cellfun(@(x) x, ...
+        stim_trials,'UniformOutput',false));
+    stim_global_rms_=rms(stim_trials_concat_);
+    stim_trials=cellfun(@(x)x./stim_global_rms_,stim_trials, ...
+        'UniformOutput',false);
+    
+    % [time x chns]:
+    eeg_trials_concat_=cell2mat(cellfun(@(x) x, ...
+        eeg_trials,'UniformOutput',false)');
+    eeg_global_rms_=rms(eeg_trials_concat_);
+    % RMS operates along columns, which works because we
+    % have channels as columns -- broadcast divide
+    eeg_trials=cellfun(@(x) x./eeg_global_rms_, ...
+        eeg_trials,'UniformOutput',false);
+    
+    clear stim_trials_concat_ stim_global_rms_ eeg_trials_concat_ eeg_global_rms_
+
+end
+
+
 %--- loop gridsearch over trials, electrodes
 tic
 
@@ -306,13 +341,15 @@ for ch=1:n_chns
 for li=1:numel(lambda_vec)
     for gi=1:numel(gamma_vec)
         for ki=1:numel(k_vec)
+            fprintf('Gridpoint %d of %d...\n',sum([li,gi,ki]), ...
+                sum([numel(lambda_vec),numel(gamma_vec),numel(k_vec)]))
             % loop thru trials before concatenating predictions to get corr
             for tr=1:n_trials
                 params=struct('lambda',lambda_vec(li), ...
                     'gamma',gamma_vec(gi), ...
                     'k',k_vec(ki), ...
                     'f_nat',f_nat); %gets passed to gridsearch so not fit
-                [~, sl_pred_trial]=run_sl_env(config,params,stim_trials{tr});
+                [~, sl_pred_trial]=run_sl_env(sl_config,params,stim_trials{tr});
                 % assuming x is the observable response
                 pred_trials{tr}(:,ch)=sl_pred_trial(:,1);
             end
