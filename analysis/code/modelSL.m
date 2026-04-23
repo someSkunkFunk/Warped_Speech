@@ -16,7 +16,7 @@ sl_config.plot_individual_trials=[10]; % look at simulated response for trials s
 sl_config.model='env'; 
 sl_config.fit_trfs=false;
 sl_config.normalize_envs='range';
-sl_config.demo_klim=false;
+sl_config.demo_klim=false;  
 % 1:120 to simulate all of them, shorten to speed up trf training time
 sl_config.sim_trials=[10]; 
 % find parameter by optimizing if true, otherwise use hard-coded (in future
@@ -25,8 +25,10 @@ sl_config.sim_trials=[10];
 sl_config.optimize_sl=true;
 
 sl_config.match_syllable_frequency=false;
-sl_config.avg_syllable_rate=4;
+sl_config.avg_syllable_rate=4; % Hz
 sl_config.rms_normalize=true;
+% 
+sl_config.use_solver='RK4';
 %% select SL parameters
 
 sl_param=[];
@@ -120,11 +122,11 @@ title(sprintf('Undriven %s phase portrait',sl_config.model))
 %% FORCED RESPONSE CHARACTERIZATION
 % goal: characterize model response to speech generally, not an individual
 % envelope
-%% simulate response to stimuli envelopes
-envelopes_path=sprintf(['C:/Users/ninet/Box/my box/LALOR LAB/', ...
-    'oscillations project/MATLAB/Warped Speech/stimuli/wrinkle/', ...
-    'regIrregEnvelopes128hz_%04dmsMax.mat'],sl_config.irreg_maxt);
-load(envelopes_path,"env");
+%% simulate response to irreg stimuli envelopes
+global boxdir_mine
+irreg_envelopes_path=sprintf(['%s/stimuli/wrinkle/', ...
+    'regIrregEnvelopes128hz_%04dmsMax.mat'],boxdir_mine,sl_config.irreg_maxt);
+load(irreg_envelopes_path,"env");
 % some cell entries intentionally left empty - only care about third row
 % anyway
 env=env(3,sl_config.sim_trials);
@@ -297,7 +299,7 @@ function [best_params, best_rs]=gridsearch_SL(eeg_trials,stim_trials, ...
 % the function rather than optimizing since related to hypothesis
 
 % set up parameter grid %TODO: flag when best_params occur near grid edge
-grid_len=20; % number of points in grid
+grid_len=5; % number of points in grid
 lambda_vec=linspace(0.01,1,grid_len); %TODO: see if this is a plausible range or need to extend
 gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
 k_vec=linspace(0.01, 1.0, grid_len); %TODO: ^ (check z-scored EEG rms range to see if appropriate to assume 1 max??) 
@@ -423,14 +425,25 @@ function [t, model_out]=run_sl_env(config,sl_param,s_data)
 %     s_data (n,1) double = 0; stimulus as a vector -- 0 gives spontaneous
 %     response 
 % end
-if ~exist('s_data','var')
-    tspan=0:1/config.fs:config.tmax_zero_input;
-    input_fun=@(t,x) 0; % zero-function
-else
-    % envelope was given - convert to "continuous time" for ode solver via
-    % anonymous function with interp
-    tspan=0:1/config.fs:(length(s_data)-1)/config.fs;
-    input_fun=@(t,~) interp1(tspan,s_data,t,"pchip",0);
+switch config.use_solver
+    case 'ode45'
+        if ~exist('s_data','var')
+            tspan=0:1/config.fs:config.tmax_zero_input; % custom time limit for no input response
+            input_fun=@(t,x) 0; % zero-function
+        else
+            % envelope was given - convert to "continuous time" for ode solver via
+            % anonymous function with interp
+            tspan=0:1/config.fs:(length(s_data)-1)/config.fs;
+            input_fun=@(t,~) interp1(tspan,s_data,t,"pchip",0);
+        end
+    case 'RK4'
+       if ~exist('s_data','var')
+           tspan=0:1/config.fs:config.tmax_zero_input; % custom time limit for no input response
+           s_data=zeros(size(tspan));
+       else
+           % just need to define tspan based on s_data
+           tspan=0:1/config.fs:(length(s_data)-1)/config.fs;
+       end
 end
 %TODO: how to flexibly switch between sl and wc models?
 switch config.init
@@ -442,12 +455,45 @@ switch config.init
     otherwise
         error('initialization config param not recognized.')
 end
-
-% use ode solver to get sl model output:
-[t, model_out]=ode45(@(t,x) sl_model(t,x,sl_param,input_fun),tspan,x0);
+switch config.use_solver
+    case 'ode45'
+        % use ode solver to get sl model output:
+        [t, model_out]=ode45(@(t,x) sl_model_cont(t,x,sl_param,input_fun),tspan,x0);
+    case 'RK4'
+        t=tspan;
+        model_out=simulate_SL_RK4(sl_param,s_data,tspan,x0);
+end
 end
 
-function dxdt=sl_model(t, x, sl_param, s_fun)
+function model_out=simulate_SL_RK4(sl_param, s_data,t,x0)
+    T=length(t);
+    dt=t(2)-t(1);
+    x=x0; % [x; y] - col vector
+    
+    model_out=nan(T,2); % [time x  x, y]
+    for ii=1:T
+        %RK4 estimation
+        s=s_data(ii);
+        k1=sl_model_step(x,sl_param,s);
+        k2=sl_model_step(x+dt/2*k1,sl_param,s);
+        k3=sl_model_step(x+dt/2*k2,sl_param,s);
+        k4=sl_model_step(x+dt*k3,sl_param,s);
+        x=x + (dt/6).*(k1 + 2*k2 + 2*k3 + k4);
+        model_out(ii,:)=x;
+    end
+end
+function dxdt=sl_model_step(x,sl_param,s)
+    lambda=sl_param.lambda; gamma=sl_param.gamma;k=sl_param.k;
+    omega=sl_param.f_nat*2*pi;
+    r2=x(1)^2+x(2)^2;
+    dxdt=nan(2,1);
+    % x differential equation
+    dxdt(1)=lambda*x(1)-omega*x(2)-gamma*r2*x(1)+k*s;
+    % y differential equation
+    dxdt(2)=lambda*x(2)+omega*x(1)-gamma*r2*x(2);
+end
+
+function dxdt=sl_model_cont(t, x, sl_param, s_fun)
 % dxdt=sl_model(t, x, sl_param, Sfun)
 % t: times to sample SL activity at
 % x: col vector of x and y in SL equations

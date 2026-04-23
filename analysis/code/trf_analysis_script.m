@@ -8,7 +8,7 @@ clc
 % for subj=[2:7,9:22]
 % for subj=[9, 12, 96, 97, 98] %note: do this after 12 and up run
 % successfully for all conditions
-for subj=[2:7,9:22]
+for subj=[24]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 

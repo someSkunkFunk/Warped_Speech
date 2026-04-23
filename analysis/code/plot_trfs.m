@@ -153,15 +153,15 @@ topo_fig_param.latencies=[54 164]; % in ms
 butterfly_fig.t_lims=[-100 400];
 
 
-butterfly_fig.lw=2; %linewidth in plot
-butterfly_fig.leg_lw=6; % linewidth in legend
-butterfly_fig.fz=11; % fontsize
-butterfly_fig.title_fz=12;
+butterfly_fig.lw=0.5; %linewidth in plot
+butterfly_fig.leg_lw=3; % linewidth in legend
+butterfly_fig.fz=9; % fontsize
+butterfly_fig.title_fz=11;
 % picked from Okabe and Ito pallete
 butterfly_fig.condition_colors=struct( ...
-    'slow',normalize([000 158 115],'norm'), ...
-    'original',normalize([086 180 233],'norm'), ...
-    'fast',normalize([230 159 000],'norm'), ...
+    'slow',normalize([255 0 0],'norm'), ...
+    'original',normalize([0 255 0],'norm'), ...
+    'fast',[0 0 0], ...
     'reg',[255 0 0]./255, ...
     'irreg',[0 0 0]);
 % r_thresh: correlation-based filter on TRF weights to show
@@ -172,8 +172,6 @@ butterfly_fig.condition_colors=struct( ...
 butterfly_fig.r_thresh=[];
 % if false, separate TRF weight plots by condition
 butterfly_fig.stack=true;
-% x y width height - set to inches in figure
-butterfly_fig.pos=[0 0 3 3];
 
 % params for component plots (gpf + butterfly)
 component_fig=butterfly_fig;
@@ -263,13 +261,7 @@ avg_models=construct_avg_models(ind_models);
 % mastoid-referenced)
 % w has size: [1 x time x channels]
 gfp_grand=compute_gfp(avg_models, experiment_conditions);
-% gfp_grand=nan(numel(experiment_conditions),size(avg_models(1).w,2));
-% for cc = 1:numel(experiment_conditions)
-%     W = squeeze(avg_models(1,cc).w);
-%     gfp_grand(cc,:)=std(W,0,2);
-%     % gfp(cc, :) = rms(W,2);
-%     clear W
-% end
+
 % plot per-condition GFP:
 gfp_plots=cell(size(experiment_conditions));
 for cc=1:numel(experiment_conditions)
@@ -312,79 +304,16 @@ switch script_config.experiment
 end
 baseline_color=[.85 .85 .85];
 for cc=1:numel(experiment_conditions)
+    
     h = plot_butterfly_gfp(avg_models(cc), gfp_grand(cc,:), get_active_result(cc), ...
                                  experiment_conditions{cc}, butterfly_fig, ...
                                  gfp_ylim, trf_ylim, baseline(cc));
     plot_component_topos(get_active_result(cc), chanlocs, experiment_conditions{cc});
-    % figure('Units','inches','Position',[0 0 7 3],'Name',...
-    % sprintf('GFP with components plot %s', experiment_conditions{cc}), ...
-    % 'Color','w');
-    % 
-    % % Define normalized axis positions
-    % ax_gfp_pos = [0.12 0.70 0.83 0.22];   
-    % ax_trf_pos = [0.12 0.12 0.83 0.58];
-    % 
-    % % --- GFP axis ---
-    % ax_gfp = axes('Position', ax_gfp_pos);
-    % plot(avg_models(cc).t,gfp_grand(cc,:), ...
-    %     'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
-    % title(experiment_conditions{cc})
-    % grid on
-    % hold(ax_gfp,"on")
-    % 
-    % % add baseline indicator
-    % plot(ax_gfp,butterfly_fig.t_lims,[baseline(cc), baseline(cc)],'--', ...
-    %     'Color',baseline_color,'LineWidth',1);
-    % hold(ax_gfp,"off")
-    % ylabel('GFP')
-    % set(ax_gfp, 'XTickLabel', [],'YLim',gfp_ylim)   % no x labels on top
-    % box off
-    % 
-    % % --- Butterfly axis ---
-    % ax_trf = axes('Position', ax_trf_pos);
-    % h_=plot(avg_models(cc).t, squeeze(avg_models(cc).w));   % butterfly
-    % grid on
-    % % make them all the same color within a conditon
-    % set(h_,'LineWidth',butterfly_fig.lw, ...
-    %             'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
-    % set(ax_trf, 'YLim',trf_ylim)
-    % ylabel('Amplitude')
-    % xlabel('Time (ms)')
-    % box off
-    % 
-    % % --- Annotate Component Windows ---
-    % for kk=1:length(get_active_result(cc).starts)
-    %     t1=get_active_result(cc).starts(kk);
-    %     t2=get_active_result(cc).ends(kk);
-    %     T=repmat([t1,t2],2,1);
-    %     % put line in gfp plot
-    %     hold(ax_gfp,"on");
-    %     plot(ax_gfp,T, gfp_ylim, '--k')
-    %     hold(ax_gfp,"off");
-    %     % put line in trf plot
-    %     hold(ax_trf,"on");
-    %     plot(ax_trf,T, trf_ylim, '--k')
-    %     hold(ax_trf,"off");
-    %     clear t1 t2
-    % end
-    % % --- Synchronize ---
-    % linkaxes([ax_gfp, ax_trf], 'x')
-    % xlim(butterfly_fig.t_lims)
-
-    % --- plot topos for each component ---
-    for kk=1:size(get_active_result(cc).topos,1)
-        figure('Units','inches','Position',[0 0 1 1.2], ...
-            'Name',sprintf('component topo %s %0.0fms-0.0fms',experiment_conditions{cc}))
-        topoplot(get_active_result(cc).topos(kk,:),chanlocs)
-        title(sprintf('%s, %0.0fms-%0.0fms',experiment_conditions{cc}, ...
-            get_active_result(cc).starts(kk),get_active_result(cc).ends(kk)))
-        ax = gca;
-        ax.LooseInset = max(ax.TightInset, 0.02);
-    end
+    
 end
 
 %% plot weights for individual subject
-%TODO: abstract this into a function
+
 if script_config.show_individual_weights
     for ss=1:n_subjs
         for cc=1:numel(configs(ss).trf_config.conditions)
@@ -418,7 +347,7 @@ if script_config.show_avg_weights
             if cc>1&&butterfly_fig.stack
                 % skip adding fig
             else
-                figure('Units','inches','Position',butterfly_fig.pos, ...
+                figure('Units','inches','Position',[1 1 3 3], ...
                     'Color','White','Name','Grand-Average Butterfly solo')
             end
 
@@ -433,15 +362,17 @@ if script_config.show_avg_weights
 
             title_str='Grand-Average TRFs';
             title(title_str,'FontSize',butterfly_fig.title_fz)
-            xlim(butterfly_fig.t_lims)
-            ylim(butterfly_fig.ylims)
+            % xlim(butterfly_fig.t_lims)
+            % ylim(butterfly_fig.ylims)
+            xlim([-120 420])
+            ylim([-.6 .6])
             ylabel('Amplitude (a.u.)')
             grid on
             set(gca,'FontSize',butterfly_fig.fz)
             if butterfly_fig.stack
                 hold on
             else
-                legend(experiment_conditions{cc})
+                legend(experiment_conditions{cc},'Location','northeast')
             end
         else
             % useful for pilot subjects that only listen to a single
@@ -451,7 +382,7 @@ if script_config.show_avg_weights
     end
     if butterfly_fig.stack
         hold off
-        legend_helper(gca,experiment_conditions,butterfly_fig.condition_colors);
+        legend_helper(gca,experiment_conditions,butterfly_fig.condition_colors)
     end
     clear  h_ lg_
 end

@@ -90,15 +90,8 @@ for cc=1:numel(experiment_conditions)
     end
 end
 clear win_
-% plotting topos
-for cc=1:numel(experiment_conditions)
-    for kk=1:numel(component_idx{cc})
-        figure
-        topoplot(component_topos{cc}(kk,:),chanlocs)
-        title(sprintf('%s - %.0f ms',experiment_conditions{cc},component_times{cc}(kk)))
-    end
-end
-disp('gfp_grand peaks identified and fixed-window topo average around them plotted.')
+
+disp('gfp_grand peaks identified using fixed-width window.')
 
 %% pack results into shared schema
 basic_components=struct('param',[],'result',[]);

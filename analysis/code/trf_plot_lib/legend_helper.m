@@ -44,7 +44,7 @@ for ff = 1:numel(color_labels)
     line_objs.(lname) = findobj(ax, 'Type', 'Line', 'Color', color_rgbs.(lname));
     legend_lines(ff)  = line_objs.(lname)(1);
 end
-lh = legend(legend_lines, color_labels);
+lh = legend(legend_lines, color_labels,'Location','southeast');
 
 end
 

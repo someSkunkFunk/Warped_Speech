@@ -14,7 +14,7 @@ end
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=true;
+trf_config.separate_conditions=false;
 trf_config.subsample_trfs=false;
 
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
