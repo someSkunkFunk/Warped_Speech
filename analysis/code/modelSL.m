@@ -2,7 +2,7 @@
 %% --- GENERAL SETTINGS ---
 sl_config=[];
 sl_config.SKIP_DATA=false; % if true -> skip parts of script that require
-sl_config.RELOAD=true; % if need to load data, first check if it's already been loaded
+sl_config.RELOAD=false; % if need to load data, first check if it's already been loaded
 % data because they are slow
 
 sl_config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
@@ -41,8 +41,8 @@ end
 switch sl_config.model
     case 'env'
         if sl_config.optimize_sl && ~sl_config.SKIP_DATA
-            subjs=[2:7,9:22];
-            % subjs=2:3;
+            % subjs=[2:7,9:22];
+            subjs=2;
 
 
             if sl_config.RELOAD
@@ -290,7 +290,7 @@ function [stim, eeg]=load_fastSlow_data(subj)
 end
 
 
-function [best_params, best_rs]=gridsearch_SL(eeg_trials,stim_trials, ...
+function [best_params, best_costs]=gridsearch_SL(eeg_trials,stim_trials, ...
     f_nat,sl_config)
 % [best_params, best_r]=gridsearch_SL(eeg,stim,fs)
 % eeg_trials: {1 x trials}-> [time x chns] SINGLE SUBJECT!
@@ -298,16 +298,22 @@ function [best_params, best_rs]=gridsearch_SL(eeg_trials,stim_trials, ...
 % f_nat: sl model natural frequency in Hz -- we set this manually outside
 % the function rather than optimizing since related to hypothesis
 
-% set up parameter grid %TODO: flag when best_params occur near grid edge
-grid_len=5; % number of points in grid
+%  --- set up COARSE parameter grid ---
+%TODO: flag when best_params occur near grid edge
+grid_len=10; % number of points in grid
 lambda_vec=linspace(0.01,1,grid_len); %TODO: see if this is a plausible range or need to extend
-gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
+% gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
+rL_vec=linspace(0.01,2,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
 k_vec=linspace(0.01, 1.0, grid_len); %TODO: ^ (check z-scored EEG rms range to see if appropriate to assume 1 max??) 
+
+% grid length doesn't necessarily have to be the same
+grid_size=numel(lambda_vec)*numel(rL_vec)*numel(k_vec);
 
 n_trials=length(eeg_trials);
 n_chns=size(eeg_trials{1},2);
 
-best_rs=-Inf(n_chns,1);
+% best_rs=-Inf(n_chns,3);
+best_costs=inf(n_chns);
 best_params=nan(n_chns,3);
 pred_trials=cellfun(@(x) nan(size(x)),eeg_trials,'UniformOutput',false);
 
@@ -340,15 +346,21 @@ tic
 
 for ch=1:n_chns
 %---- actual gridsearch start ----
+fprintf('Begin Gridsearch for chn %d of %d\n',ch,n_chns);
+costs=inf(numel(lambda_vec),numel(rL_vec),numel(k_vec));
+
+gs_counter_=0;
+
 for li=1:numel(lambda_vec)
-    for gi=1:numel(gamma_vec)
+    for ri=1:numel(rL_vec)
         for ki=1:numel(k_vec)
-            fprintf('Gridpoint %d of %d...\n',sum([li,gi,ki]), ...
-                sum([numel(lambda_vec),numel(gamma_vec),numel(k_vec)]))
+            gs_counter_=1+gs_counter_;
+            fprintf('Gridpoint %d of %d...\n',gs_counter_, ...
+                grid_size)
             % loop thru trials before concatenating predictions to get corr
             for tr=1:n_trials
                 params=struct('lambda',lambda_vec(li), ...
-                    'gamma',gamma_vec(gi), ...
+                    'gamma',lambda_vec(li)./(rL_vec(ri))^2, ...
                     'k',k_vec(ki), ...
                     'f_nat',f_nat); %gets passed to gridsearch so not fit
                 [~, sl_pred_trial]=run_sl_env(sl_config,params,stim_trials{tr});
@@ -359,10 +371,12 @@ for li=1:numel(lambda_vec)
             % like vertcat so need to transpose cell coming out of cellfun
             pred_concat=cell2mat(cellfun(@(x) x(:,ch), pred_trials,'UniformOutput',false)');
             eeg_concat=cell2mat(cellfun(@(x) x(:,ch), eeg_trials,'UniformOutput',false)');
-            r_pred=corr(pred_concat,eeg_concat);
-            if r_pred>best_rs(ch)
-                best_rs(ch)=r_pred;
-                best_params(ch,:)=[lambda_vec(li) gamma_vec(gi), k_vec(ki)];
+            % r_pred=corr(pred_concat,eeg_concat);
+            resid=eeg_concat-pred_concat;
+            costs(li,ri,ki)=sum(resid.^2);
+            if costs(li,ri,ki)<best_costs(ch)
+                best_costs(ch)=costs(li,ri,ki);
+                best_params(ch,:)=[lambda_vec(li) lambda_vec(li)./rL_vec(ri).^2, k_vec(ki)];
             end
             clear pred_concat eeg_concat
         end
