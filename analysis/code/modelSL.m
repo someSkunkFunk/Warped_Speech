@@ -76,7 +76,7 @@ switch sl_config.model
             sl_param.k=80;
             % sl_param.lambda=.01;
             % sl_param.gamma=1;
-            rs=sqrt(sl_param.lambda/sl_param.gamma);
+            % r_limit_cycle=sqrt(sl_param.lambda/sl_param.gamma);
             % sl_param.k=2*rs;
             % sl_param.k=rs/2;
         end
@@ -88,7 +88,22 @@ switch sl_config.model
             warning('hard coded parameters not yet specified.')
         end
 end
-
+%% set params based on optimization result
+if sl_config.optimize_sl
+    % assume only one subject's data is needed for now
+    best_params_subj=best_params_sl{1};
+    % choose params based on median -- note this will likely be bad for most
+    % electrodes because had optimal params below median value for subj 2
+    % also, since lambda,gamma are co-depedent their median should land
+    % within a single electrode's best configuration, this is not
+    % necessarily the case with k though...
+    mode_params_subj=mode(best_params_subj);
+    sl_param.lambda=mode_params_subj(1);
+    sl_param.gamma=mode_params_subj(2);
+    sl_param.k=mode_params_subj(3);
+end
+% for plotting
+r_limit_cycle=sqrt(sl_param.lambda/sl_param.gamma);
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
 switch sl_config.model
@@ -195,7 +210,7 @@ if ~isempty(sl_config.plot_individual_trials)
         plot(sl_responses{plot_idx,2}(:,1),sl_responses{plot_idx,2}(:,2))
         hold on
         thetas_=0:pi/100:2*pi;
-        plot(rs*cos(thetas_),rs*sin(thetas_),'r--')
+        plot(r_limit_cycle*cos(thetas_),r_limit_cycle*sin(thetas_),'r--')
         hold off
         clear thetas_
         axis equal
@@ -297,6 +312,7 @@ function [best_params, best_costs]=gridsearch_SL(eeg_trials,stim_trials, ...
 % stim_trials: {trials x 1}->[time x 1] SINGLE SUBJECT!
 % f_nat: sl model natural frequency in Hz -- we set this manually outside
 % the function rather than optimizing since related to hypothesis
+% best_params: [electrodes x params (lambda, gamma, k)]  
 
 %  --- set up COARSE parameter grid ---
 %TODO: flag when best_params occur near grid edge
