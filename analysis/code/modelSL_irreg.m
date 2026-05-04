@@ -1,4 +1,8 @@
-% model SL response
+% model SL response to irreg stimuli
+% code for sl optimization on fast-slow data included because we wrote it
+% into this script before realizing how confusing that would be, so wew
+% copied it onto a new script to separate out the analysis for each
+% stimulus set
 %% --- GENERAL SETTINGS ---
 sl_config=[];
 sl_config.SKIP_DATA=false; % if true -> skip parts of script that require
@@ -9,7 +13,7 @@ sl_config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
 sl_config.fs=128;
 sl_config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
 sl_config.irreg_maxt=1000; % choose 1000, 750, or 500 ms max interval for irreg
-sl_config.plot_individual_trials=[10]; % look at simulated response for trials specified here
+sl_config.trials_to_plot=[10]; % look at simulated response for trials specified here
 % --- model options --- 
 % 'env' : envelope-coupled by some constant
 % 'reset': phase-reset model 
@@ -29,6 +33,8 @@ sl_config.avg_syllable_rate=4; % Hz
 sl_config.rms_normalize=true;
 % 
 sl_config.use_solver='RK4';
+sl_config.fit_chns=[54 55 56 61 62 63 106 107 108 115 116 117];
+sl_config.fit_on_avg_chns=true;
 %% select SL parameters
 
 sl_param=[];
@@ -44,27 +50,31 @@ switch sl_config.model
             % subjs=[2:7,9:22];
             subjs=2;
 
-
             if sl_config.RELOAD
                 disp('loading all subj stim,resp')
                 tic
                 stim_subjs_trials=cell(size(subjs));
                 eeg_subjs_trials=cell(size(subjs));
+                cond_subjs_trials=cell(size(subjs));
+                
                 for ss=1:length(subjs)
-                    [stim_subjs_trials{ss},eeg_subjs_trials{ss}]=load_fastSlow_data(subjs(ss));
+                    [stim_subjs_trials{ss},...
+                        eeg_subjs_trials{ss},...
+                        cond_subjs_trials{ss}]=load_fastSlow_data(subjs(ss));
                 end
                 disp('all subj data loaded')
+                
                 toc
                 
             elseif ~sl_config.RELOAD&&(~exist('stim_subjs_trials', 'var')||~exist('eeg_subjs_trials','var'))
                 error('MISSING EITHER STIM OR VAR -- RESET RELOAD TO TRUE')
             end
             %% ----optimize_sl_env----
-            best_params_sl=cell(size(subjs));
+            best_params_allsubj=cell(size(subjs));
             best_r_sl=cell(size(subjs));
             for ss=1:length(subjs)
                 fprintf('running gridsearch, subj %d/%d\n', ss, length(subjs))
-                [best_params_sl{ss}, best_r_sl{ss}]=gridsearch_SL(eeg_subjs_trials{ss}, ...
+                [best_params_allsubj{ss}, best_r_sl{ss}]=gridsearch_SL(eeg_subjs_trials{ss}, ...
                     stim_subjs_trials{ss},sl_param.f_nat, sl_config);
             end
 
@@ -90,20 +100,20 @@ switch sl_config.model
 end
 %% set params based on optimization result
 if sl_config.optimize_sl
-    % assume only one subject's data is needed for now
-    best_params_subj=best_params_sl{1};
-    % choose params based on median -- note this will likely be bad for most
-    % electrodes because had optimal params below median value for subj 2
-    % also, since lambda,gamma are co-depedent their median should land
-    % within a single electrode's best configuration, this is not
-    % necessarily the case with k though...
-    mode_params_subj=mode(best_params_subj);
-    sl_param.lambda=mode_params_subj(1);
-    sl_param.gamma=mode_params_subj(2);
-    sl_param.k=mode_params_subj(3);
+    sl_param.lambda=nan(1,length(subjs));
+    sl_param.gamma=nan(1,length(subjs));
+    sl_param.k=nan(1,length(subjs));
+    for ss=1:length(subjs)
+        sl_param.lambda(ss)=best_params_allsubj{ss}(1);
+        sl_param.gamma(ss)=best_params_allsubj{ss}(2);
+        sl_param.k(ss)=best_params_allsubj{ss}(3);
+    end
 end
+
+
 % for plotting
-r_limit_cycle=sqrt(sl_param.lambda/sl_param.gamma);
+% note: verify this work with multiple subjects
+r_limit_cycle=sqrt(sl_param.lambda./sl_param.gamma);
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
 switch sl_config.model
@@ -137,14 +147,32 @@ title(sprintf('Undriven %s phase portrait',sl_config.model))
 %% FORCED RESPONSE CHARACTERIZATION
 % goal: characterize model response to speech generally, not an individual
 % envelope
-%% simulate response to irreg stimuli envelopes
+%% --- SIMULATED  RESPONSES TO IRREG STIMULI ---
+% note: previously the code from here on down was intended to look at
+% expected SL response TRFs for different sets of candidate irreg stimuli 
+% but now that we've decided upon a stimulus set to use we are using it to
+% look at TRFs predicted by optimized sl modes on fast-slow data... which
+% means the next time we want to go and do the same with the reg-irreg data
+% we'll have to continue updating the code.
 global boxdir_mine
-irreg_envelopes_path=sprintf(['%s/stimuli/wrinkle/', ...
-    'regIrregEnvelopes128hz_%04dmsMax.mat'],boxdir_mine,sl_config.irreg_maxt);
-load(irreg_envelopes_path,"env");
-% some cell entries intentionally left empty - only care about third row
-% anyway
-env=env(3,sl_config.sim_trials);
+
+sl_config.simulated_trf_experiment={'fast-slow'};
+switch sl_config.simulated_trf_experiment
+    case 'reg-irreg'
+    % --- load reg-irreg envs ---
+        irreg_envelopes_path=sprintf(['%s/stimuli/wrinkle/', ...
+            'regIrregEnvelopes128hz_%04dmsMax.mat'],boxdir_mine,sl_config.irreg_maxt);
+        load(irreg_envelopes_path,"env");
+        % some cell entries intentionally left empty - only care about third row
+        % anyway
+        env=env(3,sl_config.sim_trials);
+    case 'fast-slow'
+        fastslow_envelopes_path=sprintf(['%s/stimuli/wrinkle/', ...
+            'fastSlowEnvelopes128hz.mat'],boxdir_mine);
+        load()
+end
+
+
 switch sl_config.normalize_envs
 % normalize envelopes as in Doelling et al 2023
     case 'doelling'
@@ -176,13 +204,9 @@ else
     end
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
-if ~isempty(sl_config.plot_individual_trials)
-    for tt=1:length(sl_config.plot_individual_trials)
-        if isequal(sl_config.sim_trials,1:120)
-            plot_idx=sl_config.plot_individual_trials(tt);
-        else
-            plot_idx=tt;
-        end
+if ~isempty(sl_config.trials_to_plot)
+    for tt=1:length(sl_config.trials_to_plot)
+        plot_idx=sl_config.trials_to_plot(tt);
         figure('Color', 'white')
         %note: time returned by model simulation should match fs samples of
         %stimulus because of how we defined tspan arg of ode45
@@ -295,13 +319,15 @@ end
 
 
 %% helpers
-function [stim, eeg]=load_fastSlow_data(subj)
+function [stim, eeg, cond]=load_fastSlow_data(subj)
+    % subj: subject number used to define configs in trf_analysis_params
     script_config.show_tuning_curves=false;
     trf_analysis_params
     S_=load_checkpoint(preprocess_config);
     preprocessed_eeg=S_.preprocessed_eeg;
     eeg=preprocessed_eeg.resp;
     stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
+    cond=preprocessed_eeg.cond;
 end
 
 
@@ -313,6 +339,16 @@ function [best_params, best_costs]=gridsearch_SL(eeg_trials,stim_trials, ...
 % f_nat: sl model natural frequency in Hz -- we set this manually outside
 % the function rather than optimizing since related to hypothesis
 % best_params: [electrodes x params (lambda, gamma, k)]  
+
+% --- mask subset of electrodes to use for model-fitting ---
+
+eeg_trials=cellfun(@(x) x(:,sl_config.fit_chns), eeg_trials, ...
+    'UniformOutput',false);
+if sl_config.fit_on_avg_chns
+    % average EEG across selected channels to fit one model instead of
+    % nchns
+    eeg_trials=cellfun(@(x) mean(x,2),eeg_trials, 'UniformOutput',false);
+end
 
 %  --- set up COARSE parameter grid ---
 %TODO: flag when best_params occur near grid edge
