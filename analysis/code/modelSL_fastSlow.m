@@ -17,7 +17,7 @@ sl_config.trials_to_plot=[10]; % look at simulated response for trials specified
 % 'env' : envelope-coupled by some constant
 % 'reset': phase-reset model 
 sl_config.model='env'; 
-sl_config.fit_trfs=false;
+sl_config.fit_trfs=true;
 % normalize_envs options: 
 % 'doelling' - same thing as Doelling et al 2019
 % 'range' - all envelopes normalized between 0,1
@@ -48,7 +48,7 @@ if sl_config.match_syllable_frequency
     rate_scalings_=[2/3 1 3/2];
     sl_param=cell2struct(cell(size(cond_nms)),cond_nms,2);
     for cc=1:length(cond_nms)
-        sl_param.(cond_nms{cc}).f_nat=rate_scalings_(cc)*sl_config.avg_syllable_rate;
+        sl_param.(cond_nms{cc}).f_nat=sl_config.avg_syllable_rate/rate_scalings_(cc);
     end
     clear rate_scalings_
 else
@@ -127,9 +127,11 @@ end
 %% set params based on optimization result
 if sl_config.optimize_sl
     if sl_config.match_syllable_frequency
-        sl_param.(cond_nms{cc}).lambda=best_params.(cond_nms{cc})(1);
-        sl_param.(cond_nms{cc}).gamma=best_params.(cond_nms{cc})(2);
-        sl_param.(cond_nms{cc}).k=best_params.(cond_nms{cc})(3);
+        for cc=1:length(cond_nms)
+            sl_param.(cond_nms{cc}).lambda=best_params.(cond_nms{cc})(1);
+            sl_param.(cond_nms{cc}).gamma=best_params.(cond_nms{cc})(2);
+            sl_param.(cond_nms{cc}).k=best_params.(cond_nms{cc})(3);
+        end
     else
         sl_param.lambda=best_params(1);
         sl_param.gamma=best_params(2);
@@ -138,9 +140,6 @@ if sl_config.optimize_sl
 end
 
 
-% for plotting
-% note: verify this work with multiple subjects
-r_limit_cycle=sqrt(sl_param.lambda./sl_param.gamma);
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
 switch sl_config.model
@@ -174,7 +173,7 @@ title(sprintf('Undriven %s phase portrait',sl_config.model))
 %% FORCED RESPONSE CHARACTERIZATION
 % goal: characterize model response to speech generally, not an individual
 % envelope
-%% --- SIMULATED  RESPONSES TO IRREG STIMULI ---
+%% --- SIMULATED  RESPONSES TO STIMULI ---
 % note: previously the code from here on down was intended to look at
 % expected SL response TRFs for different sets of candidate irreg stimuli 
 % but now that we've decided upon a stimulus set to use we are using it to
@@ -216,7 +215,7 @@ sim_stim=stim_trials; % copy to variable to re-apply normalization etc
                 sl_param_=sl_param;
             end
             
-            fprintf('running %s model for %d/%d\n',sl_config.model,ii,length(sim_stim))
+            fprintf('simulating %s-SL response for %d/%d\n',sl_config.model,ii,length(sim_stim))
             switch sl_config.model
                 case 'env'
                     [sl_responses{ii,:}]=run_sl_env(sl_config,sl_param_,sim_stim{ii});
@@ -230,6 +229,7 @@ sim_stim=stim_trials; % copy to variable to re-apply normalization etc
 
     end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
+%TODO: account for frequency matching
 if ~isempty(sl_config.trials_to_plot)
     for tt=1:length(sl_config.trials_to_plot)
         plot_idx=sl_config.trials_to_plot(tt);
@@ -286,7 +286,7 @@ if ~isempty(sl_config.trials_to_plot)
         clear tstr_
     end
 end
-%% generate simulated responses for TRF-fitting
+%% --- FIT TRFS ON SIMULATED RESPONSES ---
 %TODO: account for different natural frequencies
 if sl_config.fit_trfs
     sl_trf_config=[];
@@ -341,10 +341,9 @@ if sl_config.fit_trfs
         % seems unnecessary if no noise
         sl_trf_config.best_lam=0;
     end
-    %% TRAIN TRF
+    %%% --- TRAIN TRF ---
     
     % sort stimuli by condition
-    % cond_nms={'fast','original','slow'};
     trf_models=cell2struct(cell(size(cond_nms)),cond_nms,2);
     for cc=1:length(cond_nms)
         fprintf('training TRF for %s...\n',cond_nms{cc})
@@ -356,12 +355,12 @@ if sl_config.fit_trfs
     disp('done.')
 
     
-    %% plot model-TRF
+    %%% --- plot model-TRF ---
     cond_colors={'b','k','r'};
     figure('Color', 'white')
     for cc=1:length(cond_nms)
         if sl_config.match_syllable_frequency
-            f_nat_=sl_param.f_nat(cc);
+            f_nat_=sl_param.(cond_nms{cc}).f_nat;
         else
             f_nat_=sl_param.f_nat;
         end
