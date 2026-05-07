@@ -33,7 +33,7 @@ sl_config.sim_trials=[10];
 % optimization script also)
 sl_config.optimize_sl=true;
 
-sl_config.match_syllable_frequency=true;
+sl_config.match_syllable_frequency=false;
 sl_config.avg_syllable_rate=4; % Hz
 % sl_config.rms_normalize=true;
 % 
@@ -144,23 +144,47 @@ end
 %% run model without input
 switch sl_config.model
     case 'env'
-        [t, sl_nostim]=run_sl_env(sl_config,sl_param);
+        if sl_config.match_syllable_frequency
+            for cc=1:length(cond_nms)
+                sl_param_=sl_param.(cond_nms{cc});
+                [t_nostim(cc,:), sl_nostim(cc,:,:)]=run_sl_env(sl_config,sl_param_);
+                clear sl_param_
+            end
+        else
+            [t_nostim, sl_nostim]=run_sl_env(sl_config,sl_param);
+        end
     case 'reset'
-        [t, sl_nostim]=run_sl_reset(sl_config,sl_param);
+        [t_nostim, sl_nostim]=run_sl_reset(sl_config,sl_param);
     otherwise
         error('config.model: %s', sl_config.model)
 end
 
 %% plot unforced model output
 figure('Color','white')
-plot(t,sl_nostim(:,1)), hold on
-plot(t,sl_nostim(:,2))
-title(sprintf('%s without stimulus',sl_config.model))
-legend('x', 'y')
-xlabel('time (s)')
-% xlim([min(t) max(t)])
-xlim([0 1])
-hold off
+if sl_config.match_syllable_frequency
+    for cc=1:length(cond_nms)
+        subplot(3,1,cc)
+        plot(t_nostim(cc,:),sl_nostim(cc,:,1)), hold on
+        plot(t_nostim(cc,:),sl_nostim(cc,:,2))
+        title(sprintf('%s, $\\lambda$ = %0.3g, $\\gamma$ = %0.3g',cond_nms{cc}, ...
+            sl_param.(cond_nms{cc}).lambda,sl_param.(cond_nms{cc}).gamma),'Interpreter','latex')
+        legend('x', 'y')
+        xlabel('time (s)')
+        xlim([0 1])
+        hold off
+    end
+    sgtitle(sprintf('SL-%s without stimulus',sl_config.model))
+
+else
+    plot(t_nostim,sl_nostim(:,1)), hold on
+    plot(t_nostim,sl_nostim(:,2))
+    title(sprintf('SL-%s without stimulus',sl_config.model))
+    legend('x', 'y')
+    xlabel('time (s)')
+    xlim([0 1])
+    hold off
+end
+
 %% phase-portrait of unforced model output
 figure('Color', 'white')
 plot(sl_nostim(:,1),sl_nostim(:,2))
@@ -229,38 +253,45 @@ sim_stim=stim_trials; % copy to variable to re-apply normalization etc
 
     end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
-%TODO: account for frequency matching
+% TODO: add trial condition label to plots
 if ~isempty(sl_config.trials_to_plot)
     for tt=1:length(sl_config.trials_to_plot)
-        plot_idx=sl_config.trials_to_plot(tt);
+        trial_idx=sl_config.trials_to_plot(tt);
+        if sl_config.match_syllable_frequency
+            sl_param_=sl_param.(cond_nms{cond_trials(trial_idx)});
+        else
+            sl_param_=sl_param;
+        end
+        r_limit_cycle_=sqrt(sl_param_.lambda/sl_param_.gamma);
+        
         figure('Color', 'white')
         %note: time returned by model simulation should match fs samples of
         %stimulus because of how we defined tspan arg of ode45
-        tstr_=sprintf('normalized stimulus envelope -trial %d, %04dms max', ...
-            plot_idx,sl_config.irreg_maxt);
-        plot(sl_responses{plot_idx,1},sim_stim{plot_idx})
+        tstr_=sprintf('normalized stimulus envelope - trial %d (%s)', ...
+            trial_idx,cond_nms{cond_trials(trial_idx)});
+        plot(sl_responses{trial_idx,1},sim_stim{trial_idx})
         xlabel('time (s)')
         ylabel('S(t)')
         title(tstr_)
 
         %xy plot
-        tstr_=sprintf('%s speech response - trial %d, %04dms max', ...
-            sl_config.model,plot_idx,sl_config.irreg_maxt);
+        tstr_=sprintf('%s speech response - trial %d (%s)', ...
+            sl_config.model,trial_idx,cond_nms{cond_trials(trial_idx)});
         figure('Color', 'white')
-        plot(sl_responses{plot_idx,1},[sl_responses{plot_idx,2}, sim_stim{plot_idx}])
+        plot(sl_responses{trial_idx,1},[sl_responses{trial_idx,2}, sim_stim{trial_idx}])
         title(tstr_)
         legend('x', 'y','env')
         xlabel('time (s)')
-        xlim([min(t) max(t)])
+        xlim([min(t_nostim) max(t_nostim)])
         hold off
         
 
         % "phase portrait"
         figure('Color', 'white')
-        plot(sl_responses{plot_idx,2}(:,1),sl_responses{plot_idx,2}(:,2))
+        plot(sl_responses{trial_idx,2}(:,1),sl_responses{trial_idx,2}(:,2))
         hold on
         thetas_=0:pi/100:2*pi;
-        plot(r_limit_cycle*cos(thetas_),r_limit_cycle*sin(thetas_),'r--')
+        plot(r_limit_cycle_*cos(thetas_),r_limit_cycle_*sin(thetas_),'r--')
         hold off
         clear thetas_
         axis equal
@@ -268,8 +299,8 @@ if ~isempty(sl_config.trials_to_plot)
         ylabel('y')
         legend('SL simulation','limit cycle')
        
-        tstr_=sprintf('%s speech-phase portrait - trial %d, %04dms max', ...
-            sl_config.model,plot_idx,sl_config.irreg_maxt);
+        tstr_=sprintf('%s speech-phase portrait - trial %d (%s)', ...
+            sl_config.model,trial_idx,cond_nms{cond_trials(trial_idx)});
         title(tstr_)
 
         
@@ -277,17 +308,16 @@ if ~isempty(sl_config.trials_to_plot)
         % NOTE: if time in sl doesn't line up with stimulus samples this is
         % not gonna correspond right...
         figure('Color', 'white')
-        plot(sim_stim{plot_idx},sl_responses{plot_idx,2}(:,1))
+        plot(sim_stim{trial_idx},sl_responses{trial_idx,2}(:,1))
         xlabel('S(t)')
         ylabel('x(t)')
-        tstr_=sprintf('%s input-output - trial %d, %04dms max', ...
-            sl_config.model,plot_idx,sl_config.irreg_maxt);
+        tstr_=sprintf('%s input-output - trial %d (%s)', ...
+            sl_config.model,trial_idx,cond_nms{cond_trials(trial_idx)});
         title(tstr_)
-        clear tstr_
+        clear tstr_ sl_param_ 
     end
 end
 %% --- FIT TRFS ON SIMULATED RESPONSES ---
-%TODO: account for different natural frequencies
 if sl_config.fit_trfs
     sl_trf_config=[];
     sl_trf_config.add_noise=false;
@@ -422,11 +452,11 @@ end
 
 %  --- set up COARSE parameter grid ---
 %TODO: flag when best_params occur near grid edge
-grid_len=10; % number of points in grid
+grid_len=15; % number of points in grid
 lambda_vec=linspace(0.01,1,grid_len); %TODO: see if this is a plausible range or need to extend
 % gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
-rL_vec=linspace(0.01,2,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
-k_vec=linspace(0.01, 1.0, grid_len); %TODO: ^ (check z-scored EEG rms range to see if appropriate to assume 1 max??) 
+rL_vec=linspace(0.001,.1,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
+k_vec=linspace(0.001, .01, grid_len); %TODO: ^ (check z-scored EEG rms range to see if appropriate to assume 1 max??) 
 
 % grid length doesn't necessarily have to be the same
 grid_size=numel(lambda_vec)*numel(rL_vec)*numel(k_vec);
@@ -509,8 +539,21 @@ for li=1:numel(lambda_vec)
 end
 end
 toc
-
-% compute 
+% check for parameters at grid edges
+for ch=1:n_chns
+    best_params_ch=best_params(ch,:)'; % [param x 1]
+    % convert back to limit cycle radius
+    best_params_ch(2)= sqrt(best_params_ch(1)/best_params_ch(2));
+    grid_lims=[lambda_vec(1), lambda_vec(end); ...
+        rL_vec(1), rL_vec(end); k_vec(1), k_vec(end)]; %[param x 2]
+    if any(best_params_ch==grid_lims,"all")
+        disp('best_params:')
+        disp(best_params_ch)
+        disp('coincide with grid lims:')
+        disp(grid_lims)
+        error('expand grid and re-do gridsearch')
+    end
+end
 
 end
 function env_normed=norm_env_doelling(env_data)
