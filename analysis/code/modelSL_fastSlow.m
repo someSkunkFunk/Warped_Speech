@@ -32,7 +32,7 @@ sl_config.sim_trials=[10];
 % should look up saved optimized parameters -- or maybe that can be part of
 % optimization script also)
 sl_config.optimize_sl=true;
-
+sl_config.n_starts=10; % number of starts for multistart girdsearch
 sl_config.match_syllable_frequency=false;
 sl_config.avg_syllable_rate=4; % Hz
 % sl_config.rms_normalize=true;
@@ -56,7 +56,63 @@ else
     sl_param.f_nat=sl_config.avg_syllable_rate; % in Hz -> converted to radians when running model
 end
 switch sl_config.model
-    case 'env'
+    case 'env'function [opt_params, best_cost] = fitSL_multistart(eeg_trials, stim_trials, fs, omega, n_starts)
+
+    % --- Coarse grid to identify starting regions ---
+    lambda_vec = linspace(-0.5, 0.5, 8);   % 8^3 = 512 points only
+    rL_vec     = linspace(0.2,  2.0, 8);   % search r_L instead of gamma
+    k_vec      = linspace(0.01, 2.0, 8);
+
+    costs = inf(numel(lambda_vec), numel(rL_vec), numel(k_vec));
+
+    for li = 1:numel(lambda_vec)
+        for ri = 1:numel(rL_vec)
+            for ki = 1:numel(k_vec)
+                lam = lambda_vec(li);
+                rL  = rL_vec(ri);
+                k   = k_vec(ki);
+                gam = lam / rL^2;   % derived, not searched
+                if gam <= 0; continue; end
+                p = [lam, gam, k];
+                resid = multiTrial_residuals(p, stim_trials, eeg_trials, fs, omega);
+                costs(li,ri,ki) = sum(resid.^2);
+            end
+        end
+    end
+
+    % --- Extract top N starting points ---
+    costs_flat = costs(:);
+    [~, sort_idx] = sort(costs_flat);
+    [li,ri,ki] = ind2sub(size(costs), sort_idx(1:n_starts));
+
+    % --- Multistart local optimization from each ---
+    best_cost = inf;
+    opt_params = [];
+
+    lb = [-2.0, 0.01, 0.0];
+    ub = [ 2.0, 5.0,  5.0];
+    opts = optimoptions('lsqnonlin', 'Display', 'off', ...
+                        'FunctionTolerance', 1e-6, 'MaxIter', 300);
+
+    for s = 1:n_starts
+        lam0 = lambda_vec(li(s));
+        rL0  = rL_vec(ri(s));
+        k0   = k_vec(ki(s));
+        p0   = [lam0, lam0/rL0^2, k0];
+
+        try
+            [p_opt, cost] = lsqnonlin(...
+                @(p) multiTrial_residuals(p, stim_trials, eeg_trials, fs, omega), ...
+                p0, lb, ub, opts);
+            if cost < best_cost
+                best_cost  = cost;
+                opt_params = p_opt;
+            end
+        catch
+            continue
+        end
+    end
+end
         if sl_config.optimize_sl && ~sl_config.SKIP_DATA
 
             if sl_config.RELOAD
@@ -433,13 +489,16 @@ end
 
 function [best_params, best_costs]=gridsearch_SL(eeg_trials,stim_trials, ...
     f_nat,sl_config)
+%TODO: add MULTI-start + grid-loss function visualization
+%TODO: consider possible benefit of maximizing correlation instead of
+%minimizing SSR
 % [best_params, best_r]=gridsearch_SL(eeg,stim,fs)
 % eeg_trials: {1 x trials}-> [time x chns] SINGLE SUBJECT!
 % stim_trials: {trials x 1}->[time x 1] SINGLE SUBJECT!
 % f_nat: sl model natural frequency in Hz -- we set this manually outside
 % the function rather than optimizing since related to hypothesis
 % best_params: [electrodes x params (lambda, gamma, k)]  
-
+% sl_config.n_starts: number of starting points for lsqnonlin
 % --- mask subset of electrodes to use for model-fitting ---
 
 eeg_trials=cellfun(@(x) x(:,sl_config.fit_chns), eeg_trials, ...
@@ -452,7 +511,7 @@ end
 
 %  --- set up COARSE parameter grid ---
 %TODO: flag when best_params occur near grid edge
-grid_len=15; % number of points in grid
+grid_len=8; % number of points in grid
 lambda_vec=linspace(0.01,1,grid_len); %TODO: see if this is a plausible range or need to extend
 % gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
 rL_vec=linspace(0.001,.1,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
@@ -461,14 +520,10 @@ k_vec=linspace(0.001, .01, grid_len); %TODO: ^ (check z-scored EEG rms range to 
 % grid length doesn't necessarily have to be the same
 grid_size=numel(lambda_vec)*numel(rL_vec)*numel(k_vec);
 
-n_trials=length(eeg_trials);
+
 n_chns=size(eeg_trials{1},2);
-
-% best_rs=-Inf(n_chns,3);
-best_costs=inf(n_chns);
 best_params=nan(n_chns,3);
-pred_trials=cellfun(@(x) nan(size(x)),eeg_trials,'UniformOutput',false);
-
+best_costs=inf(n_chns,1);
 % normalize EEG & stim RMS to restrain k-range
 switch sl_config.normalize_envs
     case 'rms-global'
@@ -497,48 +552,69 @@ end
 
 
 %--- loop gridsearch over trials, electrodes
-tic
 
 for ch=1:n_chns
-%---- actual gridsearch start ----
-fprintf('Begin Gridsearch for chn %d of %d\n',ch,n_chns);
+%---- coarse gridsearch ----
+fprintf('Begin coarse Gridsearch for chn %d of %d\n',ch,n_chns)
 costs=inf(numel(lambda_vec),numel(rL_vec),numel(k_vec));
-
+tic
 gs_counter_=0;
-
 for li=1:numel(lambda_vec)
     for ri=1:numel(rL_vec)
         for ki=1:numel(k_vec)
             gs_counter_=1+gs_counter_;
             fprintf('Gridpoint %d of %d...\n',gs_counter_, ...
                 grid_size)
-            % loop thru trials before concatenating predictions to get corr
-            for tr=1:n_trials
-                params=struct('lambda',lambda_vec(li), ...
-                    'gamma',lambda_vec(li)./(rL_vec(ri))^2, ...
-                    'k',k_vec(ki), ...
-                    'f_nat',f_nat); %gets passed to gridsearch so not fit
-                [~, sl_pred_trial]=run_sl_env(sl_config,params,stim_trials{tr});
-                % assuming x is the observable response
-                pred_trials{tr}(:,ch)=sl_pred_trial(:,1);
-            end
-            % concatenate trials to get corr -- cell2mat concatenates rows
-            % like vertcat so need to transpose cell coming out of cellfun
-            pred_concat=cell2mat(cellfun(@(x) x(:,ch), pred_trials,'UniformOutput',false)');
-            eeg_concat=cell2mat(cellfun(@(x) x(:,ch), eeg_trials,'UniformOutput',false)');
-            % r_pred=corr(pred_concat,eeg_concat);
-            resid=eeg_concat-pred_concat;
+            params=struct('lambda',lambda_vec(li), ...
+                'gamma',lambda_vec(li)./(rL_vec(ri))^2, ...
+                'k',k_vec(ki), ...
+                'f_nat',f_nat);
+            eeg_trials_singleChn=cellfun(@(x) x(:,ch), eeg_trials,'UniformOutput',false);
+            resid=multiTrial_residuals(params,stim_trials,eeg_trials_singleChn);
             costs(li,ri,ki)=sum(resid.^2);
-            if costs(li,ri,ki)<best_costs(ch)
-                best_costs(ch)=costs(li,ri,ki);
-                best_params(ch,:)=[lambda_vec(li) lambda_vec(li)./rL_vec(ri).^2, k_vec(ki)];
-            end
-            clear pred_concat eeg_concat
         end
     end
 end
+toc
+fprintf('Begin multistart lsq for chn %d of %d\n',ch,n_chns)
+tic
+% --- extract top N starting points ---
+costs_flat=costs(:);
+[~,sort_idx]=sort(costs_flat);
+[li,ri,ki]=ind2sub(size(costs),sort_idx(1:sl_config.n_starts));
+% best_cost=inf;
+% best_params_ch=nan(3,1);
+ub=[max(lam_vec), max(rL_vec), max(k_vec)];
+lb=[min(lam_vec), min(rL_vec), min(k_vec)];
+opts=optimoptions('lsqnonlin','Display','off',...
+    'FunctionTolerance',1e-6,'MaxIterations',300);
+for s=1:sl_config.n_starts
+    lam0=lambda_vec(li(s));
+    rL0=rL_vec(ri(s));
+    k0=k_vec(ki(s));
+    p0=struct('lambda',lam0, ...
+                'gamma',lam0./(rL0)^2, ...
+                'k',k0, ...
+                'f_nat',f_nat);
+    try
+        %TODO: P_OPT PROBABLY NEEDS TO BE NUMERICAL FOR THIS TO WORK!
+        [p_opt, cost]=lsnonlin( ...
+            @(p) multiTrial_residuals(p,stim_trials,eeg_trials_singleChn), ...
+            p0,lb,ub,opts);
+        if cost<best_costs(ch)
+            best_costs(ch)=cost;
+            best_params(ch,:)=[lam]
+        end
+    catch
+        continue
+    end
 end
 toc
+
+end
+
+
+
 % check for parameters at grid edges
 for ch=1:n_chns
     best_params_ch=best_params(ch,:)'; % [param x 1]
@@ -554,7 +630,24 @@ for ch=1:n_chns
         error('expand grid and re-do gridsearch')
     end
 end
-
+end
+function resid=multiTrial_residuals(params,stim_trials,eeg_trials_singleChn,sl_config)
+    n_trials=length(eeg_trials_singleChn);
+    % loop thru trials before concatenating predictions to get corr
+    pred_trials=cellfun(@(x) nan(size(x)),eeg_trials_singleChn,'UniformOutput',false);
+    for tr=1:n_trials
+        [~, sl_pred_trial]=run_sl_env(sl_config,params,stim_trials{tr});
+        % assuming x is the observable response
+        pred_trials{tr}(:,1)=sl_pred_trial(:,1); % assumes output of x is what we want
+    end
+    % concatenate trials to get corr/residuals -- cell2mat concatenates rows
+    % like vertcat so need to transpose cell coming out of cellfun
+    % pred_concat=cell2mat(cellfun(@(x) x(:,ch), pred_trials,'UniformOutput',false)');
+    pred_concat=cell2mat(pred_trials);
+    % eeg_concat=cell2mat(cellfun(@(x) x(:,ch), eeg_trials,'UniformOutput',false)');
+    eeg_concat=cell2mat(eeg_trials_singleChn);
+    % r_pred=corr(pred_concat,eeg_concat);
+    resid=eeg_concat-pred_concat;
 end
 function env_normed=norm_env_doelling(env_data)
 % normalize stim as in Doelling et al 2023
