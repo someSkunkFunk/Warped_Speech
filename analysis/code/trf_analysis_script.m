@@ -1,5 +1,7 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
+overwrite=false;
+
 %NOTES:
 % n_trials is sortof redundant now that m is a part of preprocess_config...
 % TODO: could benefit from dedicated function to check EEGlab structure

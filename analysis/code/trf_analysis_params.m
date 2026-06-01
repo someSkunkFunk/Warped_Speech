@@ -6,7 +6,6 @@
 % need this to avoid conflicts when looping over subjects
 disp('setting trf_analysis_params...')
 clear trf_config preprocess_config trf_config_
-overwrite=false;
 if ~exist('script_config','var')||~isfield(script_config,'show_tuning_curves')
     error('define a script config w show_tuning_curves at least..')
 end
@@ -14,7 +13,7 @@ end
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
-trf_config.separate_conditions=false;
+trf_config.separate_conditions=true;
 trf_config.subsample_trfs=false;
 
 trf_config.crossvalidate=true; %note: i think the intended behavior when 
