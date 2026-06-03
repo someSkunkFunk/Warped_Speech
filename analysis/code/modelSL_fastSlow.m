@@ -2,12 +2,12 @@
 % first optimize parameters using gridsearch on existing data
 % then simulate responses from optimal model and derive trf from it
 %% --- GENERAL SETTINGS ---
-overwrite=false;
+overwrite=true;
 subj=2; % DO SINGLE SUBJECT AT A TIME
 cond_nms={'fast','original','slow'};
 sl_config=[];
 sl_config.SKIP_DATA=false; % if true -> skip parts of script that require
-sl_config.RELOAD=true; % if need to load data, first check if it's already been loaded
+sl_config.RELOAD=false; % if need to load data, first check if it's already been loaded
 % data because they are slow
 
 sl_config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
@@ -34,13 +34,13 @@ sl_config.demo_klim=false;
 % optimization script also)
 sl_config.optimize_sl=true;
 sl_config.n_starts=10; % number of starts for multistart girdsearch
-sl_config.match_syllable_frequency=true;
+sl_config.match_syllable_frequency=false;
 sl_config.avg_syllable_rate=4; % Hz
 % sl_config.rms_normalize=true;
 % 
 sl_config.use_solver='RK4';
 sl_config.fit_chns=[54 55 56 61 62 63 106 107 108 115 116 117];
-sl_config.fit_on_avg_chns=true;
+sl_config.fit_on_avg_chns=false;
 %% select SL parameters
 
 
@@ -98,11 +98,13 @@ switch sl_config.model
                     for cc=1:length(cond_nms)
                         fprintf('cond: %s...\n',cond_nms{cc})
                         cond_mask_=cc==cond_trials;
-                        [best_params.(cond_nms{cc}), best_r_sl.(cond_nms{cc})]=gridsearch_SL(eeg_trials(cond_mask_), ...
+                        [best_params.(cond_nms{cc}), ...
+                            best_r_sl.(cond_nms{cc}), ...
+                            eeg_trials_fitted]=gridsearch_SL(eeg_trials(cond_mask_), ...
                         stim_trials(cond_mask_),sl_param.(cond_nms{cc}).f_nat, sl_config);
                     end
                 else
-                    [best_params, best_r_sl]=gridsearch_SL(eeg_trials, ...
+                    [best_params, best_r_sl, eeg_trials_fitted]=gridsearch_SL(eeg_trials, ...
                         stim_trials,sl_param.f_nat, sl_config);
                 end
                 %% save optimized params
@@ -348,7 +350,7 @@ end
 %% --- VISUALIZE LOSS SURFACE NEAR FINAL PARAMETERS ---
 
 fig = plot_gridsearch_cost_surface(eeg_trials, stim_trials, ...
-    sl_param.original.f_nat, sl_config, sl_param.original,'slice_dim','lambda_k');
+    sl_param.f_nat, sl_config, sl_param,'slice_dim','lambda_k');
 %% --- FIT TRFS ON SIMULATED RESPONSES ---
 if sl_config.fit_trfs
     sl_trf_config=[];
@@ -461,9 +463,8 @@ function [stim, eeg, cond]=load_fastSlow_data(subj)
 end
 
 
-function [best_params, best_costs]=gridsearch_SL(eeg_trials,stim_trials, ...
+function [best_params, best_costs, eeg_trials_fitted]=gridsearch_SL(eeg_trials_fitted,stim_trials, ...
     f_nat,sl_config)
-%TODO: grid-loss function visualization
 %TODO: consider possible benefit of maximizing correlation instead of
 %minimizing SSR
 % [best_params, best_r]=gridsearch_SL(eeg,stim,fs)
@@ -474,29 +475,29 @@ function [best_params, best_costs]=gridsearch_SL(eeg_trials,stim_trials, ...
 % best_params: [electrodes x params (lambda, gamma, k)]  
 % sl_config.n_starts: number of starting points for lsqnonlin
 
+GOAL='max-corr'; % maximize correlation or minimize rmse ('max-corr', 'min-rmse')
 % --- select subset of electrodes to use for model-fitting ---
-eeg_trials=cellfun(@(x) x(:,sl_config.fit_chns), eeg_trials, ...
+eeg_trials_fitted=cellfun(@(x) x(:,sl_config.fit_chns), eeg_trials_fitted, ...
     'UniformOutput',false);
 if sl_config.fit_on_avg_chns
     % average EEG across selected channels to fit one model instead of
     % nchns
-    eeg_trials=cellfun(@(x) mean(x,2),eeg_trials, 'UniformOutput',false);
+    eeg_trials_fitted=cellfun(@(x) mean(x,2),eeg_trials_fitted, 'UniformOutput',false);
 end
 
 %  --- set up COARSE parameter grid ---
 %TODO: flag when best_params occur near grid edge
 grid_len=20; % number of points in grid
-lambda_vec=linspace(0.01,1,grid_len); %TODO: see if this is a plausible range or need to extend
-% gamma_vec=linspace(0.01,2,grid_len); %TODO: ^
-rL_vec=linspace(0.3,3,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
-k_vec=linspace(0.1, .1, grid_len); %TODO: ^ (check z-scored EEG rms range to see if appropriate to assume 1 max??) 
+lambda_vec=linspace(0.001,0.01,grid_len); 
+rL_vec=linspace(0.01,2,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
+k_vec=linspace(0.1,1, grid_len); 
 gamma_from_rL=@(lam, rL) lam./(rL.^2);
 
 % grid length doesn't necessarily have to be the same
 grid_size=numel(lambda_vec)*numel(rL_vec)*numel(k_vec);
 
 
-n_chns=size(eeg_trials{1},2);
+n_chns=size(eeg_trials_fitted{1},2);
 best_params=nan(n_chns,3);
 best_costs=inf(n_chns,1);
 % normalize EEG & stim RMS to restrain k-range
@@ -511,12 +512,12 @@ switch sl_config.normalize_envs
         
         % [time x chns]:
         eeg_trials_concat_=cell2mat(cellfun(@(x) x, ...
-            eeg_trials,'UniformOutput',false)'); % cellfun needed here for cat
+            eeg_trials_fitted,'UniformOutput',false)'); % cellfun needed here for cat
         eeg_global_rms_=rms(eeg_trials_concat_);
         % RMS operates along columns, which works because we
         % have channels as columns -- broadcast divide
-        eeg_trials=cellfun(@(x) x./eeg_global_rms_, ...
-            eeg_trials,'UniformOutput',false);
+        eeg_trials_fitted=cellfun(@(x) x./eeg_global_rms_, ...
+            eeg_trials_fitted,'UniformOutput',false);
         
         clear stim_trials_concat_ stim_global_rms_ eeg_trials_concat_ eeg_global_rms_
     otherwise
@@ -531,7 +532,7 @@ for ch=1:n_chns
 %---- coarse gridsearch ----
 fprintf('Begin coarse Gridsearch for chn %d of %d\n',ch,n_chns)
 costs=inf(numel(lambda_vec),numel(rL_vec),numel(k_vec));
-eeg_trials_singleChn=cellfun(@(x) x(:,ch), eeg_trials,'UniformOutput',false);
+eeg_trials_singleChn=cellfun(@(x) x(:,ch), eeg_trials_fitted,'UniformOutput',false);
 tic
 gs_counter_=0;
 for li=1:numel(lambda_vec)
@@ -675,9 +676,9 @@ function stats=check_trial_rms(eeg_trials, stim_trials, sl_config)
     %% --- raw per-trial rms ---
     stim_rms_raw=cellfun(@(x) rms(x), stim_trials); % [trials x 1]
     eeg_rms_raw=cell2mat(cellfun(@(x) rms(x,1), eeg_trials, ...
-        'UniformOutput',false)); %[trials x chns]
+        'UniformOutput',false)'); %[trials x chns]
     %% --- compute global RMS ---
-    stim_global_rms=rms(cell2mat(stim_trials));
+    stim_global_rms=rms(cell2mat(stim_trials)); 
     eeg_cat=cell2mat(eeg_trials');
     eeg_global_rms=rms(eeg_cat,1); % [1 x chns]
     %% --- normalized per-trial RMS ---
@@ -788,11 +789,12 @@ addParameter(p, 'slice_dim',    'lambda_rL');
 addParameter(p, 'grid_len',     20);
 addParameter(p, 'log_scale',    true);
 addParameter(p, 'log_cost',     true);
-addParameter(p, 'lambda_range', [0.01  1   ]);
-addParameter(p, 'rL_range',     [0.001 0.1 ]);
+addParameter(p, 'lambda_range', [0.001 0.01]);
+addParameter(p, 'rL_range',     [0.01 2]);
 addParameter(p, 'k_range',      [0.001 0.01]);
 parse(p, varargin{:});
 opt = p.Results;
+
 
 ch       = sl_config.fit_chns;
 grid_len = opt.grid_len;
