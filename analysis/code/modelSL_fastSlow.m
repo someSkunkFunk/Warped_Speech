@@ -13,7 +13,7 @@ sl_config.RELOAD=false; % if need to load data, first check if it's already been
 sl_config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
 sl_config.fs=128;
 sl_config.tmax_zero_input=60; % time limit in seconds for undriven input simulation
-sl_config.trials_to_plot=[10]; % look at simulated response for trials specified here
+sl_config.trials_to_plot=[2 4 7]; % look at simulated response for trials specified here
 % --- model options --- 
 % 'env' : envelope-coupled by some constant
 % 'reset': phase-reset model 
@@ -40,7 +40,9 @@ sl_config.avg_syllable_rate=4; % Hz
 % 
 sl_config.use_solver='RK4';
 sl_config.fit_chns=[54 55 56 61 62 63 106 107 108 115 116 117];
-sl_config.fit_on_avg_chns=false;
+% sl_config.fit_chns=[54 117];
+sl_config.fit_on_avg_chns=true;
+sl_config.goal='max-corr'; %'min-rmse' or 'max-corr'
 %% select SL parameters
 
 
@@ -141,17 +143,17 @@ end
 if sl_config.optimize_sl
     if sl_config.match_syllable_frequency
         for cc=1:length(cond_nms)
-            sl_param.(cond_nms{cc}).lambda=best_params.(cond_nms{cc})(1);
-            sl_param.(cond_nms{cc}).gamma=best_params.(cond_nms{cc})(2);
-            sl_param.(cond_nms{cc}).k=best_params.(cond_nms{cc})(3);
+            sl_param.(cond_nms{cc}).lambda=best_params.(cond_nms{cc})(:,1);
+            sl_param.(cond_nms{cc}).gamma=best_params.(cond_nms{cc})(:,2);
+            sl_param.(cond_nms{cc}).k=best_params.(cond_nms{cc})(:,3);
         end
     else
-        sl_param.lambda=best_params(1);
-        sl_param.gamma=best_params(2);
-        sl_param.k=best_params(3);
+        sl_param.lambda=best_params(:,1);
+        sl_param.gamma=best_params(:,2);
+        sl_param.k=best_params(:,3);
     end
 end
-
+% sl_param (or sl_param.cond) has size [chns x 3] 
 
 %% UNFORCED MODEL CHARACTERIZATION
 %% run model without input
@@ -168,6 +170,8 @@ switch sl_config.model
             [t_nostim, sl_nostim]=run_sl_env(sl_config,sl_param);
         end
     case 'reset'
+        % NOTE: this hasn't been updated in a while -- might not reflect
+        % expected structure of sl_param
         [t_nostim, sl_nostim]=run_sl_reset(sl_config,sl_param);
     otherwise
         error('config.model: %s', sl_config.model)
@@ -279,13 +283,12 @@ else
         end
     clear sl_param_
     end
-
 end
 %% look at "phase portrait," xy, and input-output plots for a particular trial
 % TODO: add trial condition label to plots
 if ~isempty(sl_config.trials_to_plot)
-    for tt=1:length(sl_config.trials_to_plot)
-        trial_idx=sl_config.trials_to_plot(tt);
+    for tr=1:length(sl_config.trials_to_plot)
+        trial_idx=sl_config.trials_to_plot(tr);
         cc=cond_trials(trial_idx);
         if sl_config.match_syllable_frequency
             sl_param_=sl_param.(cond_nms{cc});
@@ -294,6 +297,7 @@ if ~isempty(sl_config.trials_to_plot)
         end
         r_limit_cycle_=sqrt(sl_param_.lambda/sl_param_.gamma);
         
+        % --- NORMALIZED STIMULUS ONLY --- 
         figure('Color', 'white')
         %note: time returned by model simulation should match fs samples of
         %stimulus because of how we defined tspan arg of ode45
@@ -301,22 +305,44 @@ if ~isempty(sl_config.trials_to_plot)
             trial_idx,cond_nms{cond_trials(trial_idx)});
         plot(sl_responses{trial_idx,1},sim_stim{trial_idx})
         xlabel('time (s)')
-        ylabel('S(t)')
+        ylabel('norm(S(t))')
         title(tstr_)
 
-        %xy plot
-        tstr_=sprintf('%s speech response - trial %d (%s)', ...
-            sl_config.model,trial_idx,cond_nms{cond_trials(trial_idx)});
-        figure('Color', 'white')
-        plot(sl_responses{trial_idx,1},[sl_responses{trial_idx,2}, sim_stim{trial_idx}])
-        title(tstr_)
-        legend('x', 'y','env')
-        xlabel('time (s)')
-        % xlim([min(t_nostim) max(t_nostim)])
-        hold off
+        % --- x_SL & norm(S(t)) & rms_norm(EEG(t)) ---
+        for ch=1:size(eeg_trials_fitted{tr},2)
+            if sl_config.fit_on_avg_chns
+                chn_label_='mean(select chns)';
+            else
+                chn_label_=sprintf('chn %d', sl_config.fit_chns(ch));
+            end
+
+            tstr_=sprintf('%s-SL speech response - trial %d (%s) - %s', ...
+                sl_config.model,trial_idx,cond_nms{cond_trials(trial_idx)}, ...
+                chn_label_);
+            clear chn_label_
+            figure('Color', 'white')
+            tiledlayout(3,1)
+            ax1_=nexttile;
+            plot(sl_responses{trial_idx,1},sl_responses{trial_idx,2})
+            legend('x_{SL}','y_{SL}')
+            title('x_{SL}')
+            ax2_=nexttile;
+            plot(sl_responses{trial_idx,1},sim_stim{trial_idx})
+            title('norm(S(t))')
+            ax3_=nexttile;
+            plot(sl_responses{trial_idx,1},eeg_trials_fitted{trial_idx}(:,ch))
+            title('norm(EEG(t))')
+            ylabel('Amplitude (a.u.)')
+            linkaxes([ax1_,ax2_,ax3_],'x')
+            sgtitle(tstr_)
+            xlabel('time (s)')
+            xlim([min(sl_responses{trial_idx,1}),max(sl_responses{trial_idx,1})])
+            hold off
+            clear ax1_ ax2_ ax3_
+        end
         
 
-        % "phase portrait"
+        % "phase portrait" (y_SL vs. x_SL)
         figure('Color', 'white')
         plot(sl_responses{trial_idx,2}(:,1),sl_responses{trial_idx,2}(:,2))
         hold on
@@ -325,8 +351,8 @@ if ~isempty(sl_config.trials_to_plot)
         hold off
         clear thetas_
         axis equal
-        xlabel('x')
-        ylabel('y')
+        xlabel('x_{SL}')
+        ylabel('y_{SL}')
         legend('SL simulation','limit cycle')
        
         tstr_=sprintf('%s speech-phase portrait - trial %d (%s)', ...
@@ -348,9 +374,11 @@ if ~isempty(sl_config.trials_to_plot)
     end
 end
 %% --- VISUALIZE LOSS SURFACE NEAR FINAL PARAMETERS ---
-
-fig = plot_gridsearch_cost_surface(eeg_trials, stim_trials, ...
-    sl_param.f_nat, sl_config, sl_param,'slice_dim','lambda_k');
+sl_dim={'lambda_rL', 'lambda_k', 'rL_k'};
+for sl=1:3
+    fig = plot_gridsearch_cost_surface(eeg_trials, stim_trials, ...
+        sl_param.f_nat, sl_config, sl_param,'slice_dim',sl_dim{sl});
+end
 %% --- FIT TRFS ON SIMULATED RESPONSES ---
 if sl_config.fit_trfs
     sl_trf_config=[];
@@ -475,7 +503,7 @@ function [best_params, best_costs, eeg_trials_fitted]=gridsearch_SL(eeg_trials_f
 % best_params: [electrodes x params (lambda, gamma, k)]  
 % sl_config.n_starts: number of starting points for lsqnonlin
 
-GOAL='max-corr'; % maximize correlation or minimize rmse ('max-corr', 'min-rmse')
+GOAL=sl_config.goal; % maximize correlation or minimize rmse ('max-corr', 'min-rmse')
 % --- select subset of electrodes to use for model-fitting ---
 eeg_trials_fitted=cellfun(@(x) x(:,sl_config.fit_chns), eeg_trials_fitted, ...
     'UniformOutput',false);
@@ -486,8 +514,7 @@ if sl_config.fit_on_avg_chns
 end
 
 %  --- set up COARSE parameter grid ---
-%TODO: flag when best_params occur near grid edge
-grid_len=20; % number of points in grid
+grid_len=5; % number of points in grid
 lambda_vec=linspace(0.001,0.01,grid_len); 
 rL_vec=linspace(0.01,2,grid_len); % search speace over a given limit cycle radius instead of all gammas directly
 k_vec=linspace(0.1,1, grid_len); 
@@ -525,6 +552,25 @@ switch sl_config.normalize_envs
             sl_config.normalize_envs)
 
 end
+% --- define grid cost function based on GOAL ---
+switch GOAL
+    case 'min-rmse'
+        grid_cost_fn=@(p, eeg_ch) ...
+            sum(multiTrial_residuals(p,f_nat,stim_trials,eeg_ch,sl_config).^2);
+        opts=optimoptions('lsqnonlin','Display','off',...
+            'FunctionTolerance',1e-6,'MaxIterations',300);
+    case 'max-corr'
+        grid_cost_fn=@(p, eeg_ch) ...
+            multiTrial_negcorr(p,f_nat,stim_trials,eeg_ch,sl_config);
+        opts=optimoptions('fmincon','Display','off',...
+            'FunctionTolerance',1e-6,'MaxIterations',300,'Algorithm','sqp'); %sqp better for bounded problems, and corr is bounded to [-1, 1]
+    otherwise
+        error('unknown goal: %s. Use ''min-rmse'' or ''max-corr''.',GOAL)
+end
+
+ub=[max(lambda_vec), gamma_from_rL(max(lambda_vec),min(rL_vec)), max(k_vec)];
+lb=[min(lambda_vec), gamma_from_rL(min(lambda_vec),max(rL_vec)), min(k_vec)];
+
 
 %--- loop gridsearch over trials, electrodes
 
@@ -532,7 +578,7 @@ for ch=1:n_chns
 %---- coarse gridsearch ----
 fprintf('Begin coarse Gridsearch for chn %d of %d\n',ch,n_chns)
 costs=inf(numel(lambda_vec),numel(rL_vec),numel(k_vec));
-eeg_trials_singleChn=cellfun(@(x) x(:,ch), eeg_trials_fitted,'UniformOutput',false);
+eeg_trials_ch=cellfun(@(x) x(:,ch), eeg_trials_fitted,'UniformOutput',false);
 tic
 gs_counter_=0;
 for li=1:numel(lambda_vec)
@@ -542,8 +588,8 @@ for li=1:numel(lambda_vec)
             fprintf('Gridpoint %d of %d...\n',gs_counter_, ...
                 grid_size)
             p=[lambda_vec(li), gamma_from_rL(lambda_vec(li),rL_vec(ri)), k_vec(ki)];
-            resid=multiTrial_residuals(p,f_nat,stim_trials,eeg_trials_singleChn,sl_config);
-            costs(li,ri,ki)=sum(resid.^2);
+            costs(li,ri,ki)=grid_cost_fn(p,eeg_trials_ch);
+                
         end
     end
 end
@@ -554,29 +600,33 @@ tic
 costs_flat=costs(:);
 [~,sort_idx]=sort(costs_flat);
 [li,ri,ki]=ind2sub(size(costs),sort_idx(1:sl_config.n_starts));
-% best_cost=inf;
-% best_params_ch=nan(3,1);
-ub=[max(lambda_vec), gamma_from_rL(max(lambda_vec),min(rL_vec)), max(k_vec)];
-lb=[min(lambda_vec), gamma_from_rL(min(lambda_vec),max(rL_vec)), min(k_vec)];
-opts=optimoptions('lsqnonlin','Display','off',...
-    'FunctionTolerance',1e-6,'MaxIterations',300);
+
+
 for s=1:sl_config.n_starts
     lam0=lambda_vec(li(s));
     rL0=rL_vec(ri(s));
     k0=k_vec(ki(s));
     p0=[lam0,lam0./(rL0)^2,k0];
     try
-        [p_opt, cost]=lsqnonlin( ...
-            @(p) multiTrial_residuals(p,f_nat,stim_trials, ...
-            eeg_trials_singleChn,sl_config), ...    
-            p0,lb,ub,opts);
+        switch GOAL
+            case 'min-rmse'
+                [p_opt, cost]=lsqnonlin( ...
+                    @(p) multiTrial_residuals(p,f_nat,stim_trials, ...
+                    eeg_trials_ch,sl_config), ...    
+                    p0,lb,ub,opts);
+            case 'max-corr'
+                [p_opt, cost]=fmincon(@(p) multiTrial_negcorr(p,f_nat, ...
+                    stim_trials,eeg_trials_ch,sl_config), ...
+                    p0,[],[],[],[],lb,ub,[],opts);
+        end
         if cost<best_costs(ch)
             best_costs(ch)=cost;
             best_params(ch,:)=p_opt;
         end
-    catch
+    catch ME
         disp(p0)
-        warning('lsqnonlin failed with p0 above ^, moving on to next startpoint.')
+        fprintf('start %d failed: %s\n', s, ME.message)
+        warning('%s optimization failed with p0 above ^, moving on to next startpoint.',GOAL)
         continue
     end
 end
@@ -590,7 +640,7 @@ end
 EDGE_TOL=0.05;
 grid_lims=[min(lambda_vec), max(lambda_vec); ...
         min(rL_vec), max(rL_vec); min(k_vec), max(k_vec)]; %[param x 2]
-grid_widths=grid_lims(:,1)-grid_lims(:,2);
+grid_widths=grid_lims(:,2)-grid_lims(:,1);
 
 for ch=1:n_chns
     best_params_ch=best_params(ch,:)'; % [param x 1]
@@ -600,14 +650,35 @@ for ch=1:n_chns
     near_lower=(best_params_ch-grid_lims(:,1))./grid_widths < EDGE_TOL;
     near_upper=(grid_lims(:,2)-best_params_ch)./grid_widths < EDGE_TOL;
     if any(near_lower|near_upper)
+        warning('BEST PARAMS ARE AT EDGE OF GRID DO NOT TRUST')
         disp('best_params:')
         disp(best_params_ch)
         disp('coincide with grid lims:')
         disp(grid_lims)
-        error('expand grid and re-do gridsearch')
     end
 end
 end
+function negcorr=multiTrial_negcorr(p, f_nat, stim_trials,eeg_trials_ch,sl_config)
+% returns negative mean correlation across trials
+n_trials=numel(stim_trials);
+corr_vals=nan(n_trials,1);
+params=struct('f_nat',f_nat,'lambda',p(1),'gamma',p(2),'k',p(3));
+for tr=1:n_trials
+    [~, sl_pred_trial]=run_sl_env(sl_config,params,stim_trials{tr});
+    % assuming x is the observable response
+    y_model=sl_pred_trial(:,1);
+    y_eeg=eeg_trials_ch{tr};
+    % pearson correlation + handle edge case of zero-var signal
+    if std(y_model)<eps||std(y_eeg)<eps
+        corr_vals(tr)=0;
+    else
+        r=corrcoef(y_model,y_eeg);
+        corr_vals(tr)=r(1,2);
+    end
+end
+negcorr=-mean(corr_vals);
+end
+
 
 function resid=multiTrial_residuals(p,f_nat,stim_trials,eeg_trials_singleChn,sl_config)
     % p: SL model params vector [f_nat, lambda, gamma, k]
@@ -627,7 +698,7 @@ function resid=multiTrial_residuals(p,f_nat,stim_trials,eeg_trials_singleChn,sl_
 
     params=struct('f_nat',f_nat,'lambda',p(1),'gamma',p(2),'k',p(3));
     n_trials=length(eeg_trials_singleChn);
-    % loop thru trials before concatenating predictions to get corr
+    % loop thru trials before concatenating predictions to get resid
     pred_trials=cellfun(@(x) nan(size(x)),eeg_trials_singleChn,'UniformOutput',false);
     for tr=1:n_trials
         [~, sl_pred_trial]=run_sl_env(sl_config,params,stim_trials{tr});
@@ -1015,7 +1086,7 @@ switch config.use_solver
            tspan=0:1/config.fs:(length(s_data)-1)/config.fs;
        end
 end
-%TODO: how to flexibly switch between sl and wc models?
+
 switch config.init
     case 'rand'
         x0=init_rand(2); 
