@@ -922,6 +922,21 @@ switch sl_config.normalize_envs
 end
 
 %% --- evaluate cost on grid ---
+GOAL=sl_config.goal;
+% --- define grid cost function based on GOAL ---
+switch GOAL
+    case 'min-rmse'
+        grid_cost_fn=@(p, eeg_ch) ...
+            sum(multiTrial_residuals(p,f_nat,stim_trials,eeg_ch,sl_config).^2);
+        cost_lbl=ternary(opt.log_cost,'log_{10}(SSR)','SSR');
+    case 'max-corr'
+        grid_cost_fn=@(p, eeg_ch) ...
+            multiTrial_negcorr(p,f_nat,stim_trials,eeg_ch,sl_config);
+        cost_lbl=ternary(opt.log_cost,'log_{10}(negcorr)','negcorr');
+    otherwise
+        error('unknown goal: %s. Use ''min-rmse'' or ''max-corr''.',GOAL)
+end
+
 costs = nan(grid_len, grid_len);
 total = grid_len^2;
 fprintf('Evaluating %d grid points for slice: %s ...\n', total, opt.slice_dim);
@@ -930,9 +945,7 @@ for i = 1:grid_len
     for j = 1:grid_len
         pv = get_p(ax1_vec(i), ax2_vec(j));
         try
-            resid = multiTrial_residuals(pv, f_nat, stim_trials, eeg_ch, sl_config);
-            c = sum(resid.^2);
-            costs(i,j) = c;
+            costs(i,j) = grid_cost_fn(pv,eeg_ch);
         catch
             costs(i,j) = NaN;  % integration failure — visible as holes
         end
@@ -961,7 +974,6 @@ title(t, sprintf('Cost surface slice: %s  |  ch %d  |  fixed: %s', ...
 nexttile
 contourf(ax2_vec, ax1_vec, cost_plot, 30, 'LineColor','none');
 cb = colorbar;
-cost_lbl=ternary(opt.log_cost,'log_{10}(SSR)','SSR');
 ylabel(cb, cost_lbl, 'Interpreter','tex');
 hold on
 plot(min_ax2, min_ax1, 'r+', 'MarkerSize',12, 'LineWidth',2);
