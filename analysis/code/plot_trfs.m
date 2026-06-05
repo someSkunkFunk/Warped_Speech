@@ -109,7 +109,7 @@ close all
 script_config=[];
 
 script_config.experiment='fast-slow';
-script_config.custom_subjs=[];
+script_config.custom_subjs=[2];
 script_config.topos_from_peak_windows=false;
 
 % best fast-slow subjs: 
@@ -145,7 +145,7 @@ script_config.show_individual_weights=false;
 script_config.show_avg_weights=true;
 script_config.show_topos=false; % for particular latency specified in topo_fig_param
 script_config.show_snr=false;
-script_config.show_tuning_curves=false;
+script_config.show_tuning_curves=true;
 script_config.analyze_pk_latencies=false;
 % params for select latency topos
 topo_fig_param.latencies=[54 164]; % in ms

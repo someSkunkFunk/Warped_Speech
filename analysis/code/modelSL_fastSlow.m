@@ -7,7 +7,7 @@ subj=2; % DO SINGLE SUBJECT AT A TIME
 cond_nms={'fast','original','slow'};
 sl_config=[];
 sl_config.SKIP_DATA=false; % if true -> skip parts of script that require
-sl_config.RELOAD=false; % if need to load data, first check if it's already been loaded
+sl_config.RELOAD=true; % if need to load data, first check if it's already been loaded
 % data because they are slow
 
 sl_config.init='limit cycle'; %limit cycle or rand (uniform [-1,1])
@@ -39,8 +39,8 @@ sl_config.avg_syllable_rate=4; % Hz
 % sl_config.rms_normalize=true;
 % 
 sl_config.use_solver='RK4';
-sl_config.fit_chns=[54 55 56 61 62 63 106 107 108 115 116 117];
-% sl_config.fit_chns=[54 117];
+% sl_config.fit_chns=[54 55 56 61 62 63 106 107 108 115 116 117];
+sl_config.fit_chns=[52]; % chn with best TRF for subj 2
 sl_config.fit_on_avg_chns=true;
 sl_config.goal='max-corr'; %'min-rmse' or 'max-corr'
 %% select SL parameters
@@ -377,7 +377,8 @@ end
 sl_dim={'lambda_rL', 'lambda_k', 'rL_k'};
 for sl=1:3
     fig = plot_gridsearch_cost_surface(eeg_trials, stim_trials, ...
-        sl_param.f_nat, sl_config, sl_param,'slice_dim',sl_dim{sl});
+        sl_param.f_nat, sl_config, sl_param,'slice_dim',sl_dim{sl}, ...
+        'grid_len',20,'log_cost',false);
 end
 %% --- FIT TRFS ON SIMULATED RESPONSES ---
 if sl_config.fit_trfs
