@@ -22,7 +22,7 @@ trf_config.crossvalidate=true; %note: i think the intended behavior when
 % probably it's just to train a model with a particular hard-coded lam 
 % value in which case we'd set lam_range as well probably...?
 
-do_nulltest=false;
+
 train_params=struct('tmin_ms', -150,'tmax_ms',450);
 % trf_config.tmin_ms=train_params.tmin_ms;
 % trf_config.tmax_ms=train_params.tmax_ms;

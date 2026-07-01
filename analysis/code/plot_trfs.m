@@ -108,10 +108,10 @@ addpath('./trf_plot_lib/')
 close all
 script_config=[];
 
-script_config.experiment='fast-slow';
-script_config.custom_subjs=[2];
+script_config.experiment='reg-irreg';
+script_config.custom_subjs=[24:27];
 script_config.topos_from_peak_windows=false;
-
+do_nulltest=false;
 % best fast-slow subjs: 
 % subjs=[9,12];
 if isempty(script_config.custom_subjs)
@@ -137,11 +137,11 @@ else
 end
 
 % for reg-irreg:
-select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
-
+% select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
+select_plot_chns='all';
 mtrf_plot_chns=normalize_channels(select_plot_chns);
 n_subjs=numel(subjs);
-script_config.show_individual_weights=false;
+script_config.show_individual_weights=true;
 script_config.show_avg_weights=true;
 script_config.show_topos=false; % for particular latency specified in topo_fig_param
 script_config.show_snr=false;
@@ -162,8 +162,8 @@ butterfly_fig.condition_colors=struct( ...
     'slow','r', ...
     'original','k', ...
     'fast','b', ...
-    'reg',[255 0 0]./255, ...
-    'irreg',[0 0 0]);
+    'reg','r', ...
+    'irreg','b');
 % r_thresh: correlation-based filter on TRF weights to show
 % leave empty if all chns should be kept for sbj-averaged plot
 % for fast slow
@@ -194,7 +194,7 @@ for ss=1:n_subjs
     fprintf('loading subj %d data...\n',subj)
 
     trf_analysis_params;
-    clear do_nulltest 
+    % clear do_nulltest 
     % TODO: make function
     S_=load_checkpoint(trf_config);
     model_=S_.model;
@@ -319,14 +319,15 @@ if script_config.show_individual_weights
         for cc=1:numel(configs(ss).trf_config.conditions)
             model_=ind_models(ss,cc);
             if ~isempty(model_.w)
-                title_str_=sprintf('subj: %d - chns %s - %s',configs(ss).trf_config.subj, ...
-                        num2str(mtrf_plot_chns),configs(ss).trf_config.conditions{cc});
+                title_str_=sprintf('subj: %d - %s',configs(ss).trf_config.subj, ...
+                        configs(ss).trf_config.conditions{cc});
                 % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
                 figure
-                %NOTE: could filter chns here too but not a priority atm -
-                %should do so on individual subject basis though probably?
-                % if isempty(trf_fig_param.r_thresh)
+                
                 h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
+                % make all the lines within a condition the same color
+                set(h_,'LineWidth',butterfly_fig.lw, ...
+                'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
  
                 title(title_str_)
                 title(title_str_,'FontSize',butterfly_fig.fz)

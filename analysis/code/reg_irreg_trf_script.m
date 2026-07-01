@@ -3,30 +3,31 @@ clc
 
 %NOTES:
 
-for subj=[24,25]
+for subj=[27:29]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
 %% setup analysis
+TRF_DIR=-1;
 overwrite=false;
-
+do_nulltest=false;
 script_config=[];
 script_config.show_tuning_curves=true;
 trf_analysis_params;
 
 %% check if data exists already...
 if overwrite
-%     if trf_config.separate_conditions
-%         %dont need to overwrite pp
-%         pp_checkpoint_=load_checkpoint(preprocess_config);
-%         trf_checkpoint_=[];
-%     else
-%         pp_checkpoint_=[];
-%         trf_checkpoint_=[];
-%     end
-% else
-%     pp_checkpoint_=load_checkpoint(preprocess_config);
-%     trf_checkpoint_=load_checkpoint(trf_config);
+    if trf_config.separate_conditions
+        %dont need to overwrite pp
+        pp_checkpoint_=load_checkpoint(preprocess_config);
+        trf_checkpoint_=[];
+    else
+        pp_checkpoint_=[];
+        trf_checkpoint_=[];
+    end
+else
+    pp_checkpoint_=load_checkpoint(preprocess_config);
+    trf_checkpoint_=load_checkpoint(trf_config);
 end
 
 
@@ -88,51 +89,74 @@ disp('rescaling trf vars.')
 [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
     trf_config);
 
-%%
-if (~preload_stats_obs && trf_config.crossvalidate)
-    stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params);
-    save_checkpoint(stats_obs,trf_config,overwrite);
-    % fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
-   %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
-   %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
-   %%%%%SAVE_CHECKPOINT
+%% --- CROSSVALIDATE TRF MODEL ---
+switch TRF_DIR
+    case 1
+        if (~preload_stats_obs && trf_config.crossvalidate)
+            stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+            save_checkpoint(stats_obs,trf_config,overwrite);
+            fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
+           %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
+           %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
+           %%%%%SAVE_CHECKPOINT
+        end
+        %% --- obtain best peak ridge parameter ---
+        if ~trf_config.separate_conditions
+            % otherwise it gets set in trf_analysis_params
+            % note if we want to crossvalidate with manual lam value this will
+            % cause bug
+            train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
+        end
+        %% --- train TRF model for analyzing weights ---
+        if ~preload_model
+            model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+            save_checkpoint(model,trf_config,overwrite);
+        end
+        %%
+        if do_nulltest && ~preload_stats_null
+            %note this is dumb and clunky but avoids error when model is preloaded
+            if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
+                % otherwise it gets set in trf_analysis_params
+                train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+            end
+            stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,TRF_DIR);
+            % error('stuff below should take place in save_checkpoint...')
+            % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
+            % save(trf_config.model_metric_path,'stats_null','-append')
+            save_checkpoint(stats_null,trf_config);
+            % disp(['TODO: not saving stats_null to bypass save_checkpoint error.. ' ...
+            %     'determine if thats a problem'])
+        else
+            disp('not doing null test (or preloaded previous results)')
+        end
+        
+        %%
+        if do_nulltest
+            nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
+        end
+    case -1
+        % Backward model protocol 
+        %% --- PREDICT USING MODEL ---
+        % assuming backward model NOTE: this should be crossvalidated and
+        % automatically enabled when TRF dir is -1
+
+        train_params.best_lam=100; % REMOVE THIS
+
+        %% --- train TRF model for analyzing weights ---
+        if ~preload_model
+            model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+            save_checkpoint(model,trf_config,overwrite);
+        end
+        [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
+        save_checkpoint(stats_obs_bkwd,trf_config,overwrite);
+        fprintf('saving stats_obs_bkwd to %s...\n',trf_config.paths.output_dir)
+
 end
 
-%% --- obtain best peak ridge parameter ---
-if ~trf_config.separate_conditions
-    % otherwise it gets set in trf_analysis_params
-    % note if we want to crossvalidate with manual lam value this will
-    % cause bug
-    train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
-end
-%% --- train TRF model for analyzing weights ---
-if ~preload_model
-    model=train_model(stim,preprocessed_eeg,trf_config,train_params);
-    save_checkpoint(model,trf_config,overwrite);
-end
-%%
-if do_nulltest && ~preload_stats_null
-    %note this is dumb and clunky but avoids error when model is preloaded
-    if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
-        % otherwise it gets set in trf_analysis_params
-        train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
-    end
-    stats_null=get_nulldist(stim,preprocessed_eeg,trf_config);
-    % error('stuff below should take place in save_checkpoint...')
-    % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
-    % save(trf_config.model_metric_path,'stats_null','-append')
-    save_checkpoint(stats_null,trf_config);
-    % disp(['TODO: not saving stats_null to bypass save_checkpoint error.. ' ...
-    %     'determine if thats a problem'])
-else
-    disp('not doing null test (or preloaded previous results)')
+
 end
 
-%%
-if do_nulltest
-    nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
-end
-end
+
 %% Helpers
 function nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
 % nulltest_plot_wrapper(stats_obs,stats_null,trf_config)
@@ -193,7 +217,7 @@ function nulltest_fig_helper(r_null,r_obs,plot_chn,tit_str)
     title(tit_str)
 end
 
-function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
+function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR)
 % stats_null=get_nulldist(stim,preprocessed_eeg,trf_config)
 %TODO: prettify params
     disp('running permutation test...')
@@ -238,17 +262,17 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params)
                 % fprintf('null TRF for condition %d...\n',cc)
                 cc_mask=preprocessed_eeg.cond==cc;
                 stats_null(1,cc,n_perm)=mTRFcrossval(stim(cc_mask), ...
-                    resp_shuf(cc_mask),fs,1,tmin_ms,tmax_ms, ...
+                    resp_shuf(cc_mask),fs,TRF_DIR,tmin_ms,tmax_ms, ...
                     best_lam,'Verbose',0);
             end
         else
-            stats_null(1,1,n_perm) = mTRFcrossval(stim,resp_shuf,fs,1,tmin_ms, ...
+            stats_null(1,1,n_perm) = mTRFcrossval(stim,resp_shuf,fs,TRF_DIR,tmin_ms, ...
                 tmax_ms,best_lam,'Verbose',0);
         end
     end
 end
 
-function model=train_model(stim,preprocessed_eeg,trf_config,train_params)
+function model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR)
 % model=train_model(stim,preprocessed_eeg,model_lam,trf_config,train_params)
 disp('training model with params:')
 disp(train_params)
@@ -267,7 +291,7 @@ if trf_config.separate_conditions
             if cc<=length(conditions)
                 cc_mask=preprocessed_eeg.cond==conditions(cc);
                 fprintf('TRF for condition %s...\n',trf_config.conditions{cc})
-                model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,1, ...
+                model(1,cc)=mTRFtrain(stim(cc_mask),resp(cc_mask),fs,TRF_DIR, ...
                     tmin_ms,tmax_ms,best_lam,'Verbose',1);
             else
                 % assumes at least one condition exists though - fill w
@@ -278,7 +302,7 @@ if trf_config.separate_conditions
             end
         end
 else
-        model = mTRFtrain(stim,resp,fs,1,tmin_ms,tmax_ms,best_lam,'Verbose',1);
+        model = mTRFtrain(stim,resp,fs,TRF_DIR,tmin_ms,tmax_ms,best_lam,'Verbose',1);
 end
 
 end
@@ -293,7 +317,7 @@ else
 end
 end
 
-function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params)
+function stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR)
 % stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,preprocess_config)
 
 resp=preprocessed_eeg.resp;
@@ -323,7 +347,7 @@ if trf_config.separate_conditions
             if cc<=length(conditions)
                 fprintf('getting stats_obs for %s\n',trf_config.conditions{cc})
                 cc_mask=preprocessed_eeg.cond==cc;
-                stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,1, ...
+                stats_obs(1,cc)=mTRFcrossval(stim(cc_mask),resp(cc_mask),fs,TRF_DIR, ...
                     tmin_ms,tmax_ms,cv_lam,'Verbose',0);
             else
                 % assumes at least one condition present (note we used same
@@ -334,7 +358,7 @@ if trf_config.separate_conditions
             end
         end
 else
-    stats_obs = mTRFcrossval(stim,resp,fs,1,tmin_ms,tmax_ms,cv_lam, ...
+    stats_obs = mTRFcrossval(stim,resp,fs,TRF_DIR,tmin_ms,tmax_ms,cv_lam, ...
         'Verbose',0);
 end
 end
@@ -366,8 +390,7 @@ function [EEG, cond,preprocessed_eeg]=clean_false_starts(EEG,cond,preprocessed_e
 end
 
 function preprocessed_eeg=preprocess_eeg(preprocess_config)
-% TODO: check if cond variable output turns out the way we were
-% expecting...
+
 % preprocessed_eeg=preprocess_eeg(preprocess_config)
     %  load bdf data and experimental conditions info
     if preprocess_config.fs/2<=preprocess_config.bpfilter(2)
@@ -441,11 +464,32 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         % removes events from EEG struct that don't mark the start of a
         % trial, ensuring 
         % event types [1, .. ntrials] only
-        all_trigs=[EEG.event(:).type];
+        all_types=[EEG.event(:).type]; % was 'all_trigs' in code below
         click_val=2048;
-        pause_val=126;
-        idx_events_to_keep=[]; 
-        types_to_keep=[]; % will be [1,2,...ntrials]
+        unpause_val=126;
+        pause_val=127;
+
+        % assume click trigger overlaps with psychtoolbox audio trigger
+        % (trial num) every time -- note this ignores small latency
+        % differences which do occur
+        keep_mask=all_types-click_val>0&all_types-click_val<ntrials+1;
+        % check for missing trials
+        event_trial_nums=all_types(keep_mask)-click_val;
+        missing_trials=setdiff(1:ntrials,event_trial_nums);
+
+        % copy EEG struct to clean struct
+        EEG_clean=EEG;
+        EEG_clean.event=EEG_clean.event(keep_mask);
+
+        % rewrite event types to be trial nums
+        for ev=1:length(event_trial_nums)
+            EEG_clean.event(ev).type=event_trial_nums(ev);
+        end
+        
+
+        % ---SKELETON CODE FOR MORE METICULOUS APPROACH IF NEEDED ---
+        % idx_events_to_keep=nan(ntrials,1); 
+        % types_to_keep=nan(ntrials,1); % will be [1,2,...ntrials]
         % --- Remove Spurious triggers unrelated to start of a trial ---
         % original idea: just remove all events that are click or pause or
         % both overlapping, but this assumes click overlaps with trial
@@ -453,37 +497,41 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         % click_trigs=(all_trigs-click_val==0);
         % pause_trigs=(all_trigs-pause_val==0);
         % both_ol=(all_trigs-pause_val-click_val==0);
-        for en=1:length(EEG.event)
-            % find events that are just a trial number or a trial number
-            % overlapping with a click trigger to retain
-            % NOTE: assuming pause trig wont overlap with start of trial
-            type=EEG.event(en).type;
-            type_is_trial_num=(type>0&&type<ntrials);
-            type_overlaps=(type-click_val>0&&type-click_val<ntrials);
-            if type_is_trial_num||type_overlaps
-                idx_events_to_keep(end+1)=en;
-                if type_is_trial_num
-                    types_to_keep(end+1)=type;
-                elseif type_overlaps
-                    types_to_keep(end+1)=type-click_val;
-                end
-            end
-        end
-
-        %  --- check for missing trials ---
-        % attempt to resolve by using nearest
-        % click...? nearest to... what? :D
-        expected_trials=1:ntrials;
-        missing_trials=setdiff(expected_trials,types_to_keep);
-
-        % --- check for duplicate trials ---
-        % resolve by keeping whichever corresponds to start of click
-        if numel(unique(types_to_keep))<numel(types_to_keep)
-            types_t
-            % ORRR MAYBE CAN CHECK IF ADDING A DUPLICATE IN THE EARLIER
-            % LOOP AND DEAL WITH IT THEN MORE EASILY WITHOUT HAVING TO
-            % FIGURE OUT HOW TO LOOP OVER REPEATED EVENTS HERE AGAIN
-        end
+        % tr_idx=1;
+        % for en=1:length(EEG.event)
+        %     % find events that are just a trial number or a trial number
+        %     % overlapping with a click trigger to retain
+        %     % NOTE: assuming pause trig wont overlap with start of trial
+        %     event_type=EEG.event(en).type;
+        %     type_is_trial_num=(event_type>0&&event_type<ntrials+1);
+        %     type_overlaps=(event_type-click_val>0&&event_type-click_val<ntrials+1);
+        %     if type_is_trial_num||type_overlaps
+        %         %NOTE: IF TYPE IS TRIAL NUM (WITHOUT OVERLAP),
+        %         % THE TRIAL SHOULD ACTUALLY START AT THE NEXT SUBSEQUENT
+        %         % CLICK!!!
+        %         idx_events_to_keep(tr)=en;
+        %         types_to_keep(tr)=event_type;
+        %         tr=tr+1;
+        %     end
+        % 
+        %     % note: assuming trial number trigger never starts after click
+        %     % for that trial, but I suppose that is a realistic scenario...
+        % end
+        % 
+        % %  --- check for missing trials ---
+        % % attempt to resolve by using nearest
+        % % click...? nearest to... what? :D
+        % expected_trials=1:ntrials;
+        % missing_trials=setdiff(expected_trials,types_to_keep);
+        % 
+        % % --- check for duplicate trials ---
+        % % resolve by keeping whichever corresponds to start of click
+        % if numel(unique(types_to_keep))<numel(types_to_keep)
+        %     types_t
+        %     % ORRR MAYBE CAN CHECK IF ADDING A DUPLICATE IN THE EARLIER
+        %     % LOOP AND DEAL WITH IT THEN MORE EASILY WITHOUT HAVING TO
+        %     % FIGURE OUT HOW TO LOOP OVER REPEATED EVENTS HERE AGAIN
+        % end
         
     end
     % verify number of events matches number of trials
