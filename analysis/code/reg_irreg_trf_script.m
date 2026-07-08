@@ -3,13 +3,13 @@ clc
 
 %NOTES:
 
-for subj=[27:29]
+for subj=[24:31]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
 %% setup analysis
-TRF_DIR=-1;
-overwrite=false;
+TRF_DIR=1;
+overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 do_nulltest=false;
 script_config=[];
 script_config.show_tuning_curves=true;
@@ -592,7 +592,8 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
         EEG=add_speech_delay(EEG,preprocess_config);
     end
 
-    % check if last condition is slow, otherwise need to pad EEG.data
+    % check if last condition is shorter than epoch window
+    % otherwise need to pad EEG.data
     % so pop_epoch works (last trial needs to be within epoch_dur
     % boundary)
     function dur_last_trial=last_trial_dur(EEG)

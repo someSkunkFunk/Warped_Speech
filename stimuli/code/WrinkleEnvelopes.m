@@ -10,14 +10,14 @@ clc;
 global boxdir_mine boxdir_lab
 config.experiment='reg/irreg';
 config.pilot=false;
-config.search_temp=true;
+config.search_temp=false;
 %NOTE: folder name below might cause problems later if we change to
 %using a rule besides 14 because we added a max interval descriptor to the
 %end of the temp folder name in irreg case but not reg - and we're
 %addressing it by simply indexing the character vector to keep first 31
 %characters in reg case. a more general solution would be nice here....
 config.which_temp='rule14_seg_textgrid_4p545Hz_0_0_1000ms_max';
-config.overwrite = 0;
+config.overwrite = 1;
 % note: use boxdir_mine for temp stimuli, boxdir_lab for final stimuli used
 % structure in both should match but I haven't been doing a goog job of
 % updating lab box folders
@@ -68,7 +68,7 @@ stim_conditions=[stimscale;regularity];
 
 [env,sgram]=deal(cell(length(stimscale),ntrials));
 %%
-for cc = 3:length(stim_conditions) % note: change start of loop to cc=1 after script ends
+for cc = 1:length(stim_conditions) % note: change start of loop to cc=1 after script ends
     for tt = 1:ntrials
         fprintf('**********************\n')
         fprintf('Speed = %0.2g, regularity = %0.2g, trial %d\n',stimscale(cc),regularity(cc),tt)
@@ -88,12 +88,22 @@ for cc = 3:length(stim_conditions) % note: change start of loop to cc=1 after sc
                 end
             case 1
                 % irreg
-                audiofile=sprintf('%s%s/%s/%s%0.3d.wav',stimfolder, ...
-                    stimgroup,irregfolder,stimgroup,tt);
+                if config.pilot
+                    audiofile=sprintf('%s%s/%s/%s%0.3d.wav',stimfolder, ...
+                        stimgroup,irregfolder,stimgroup,tt);
+                else
+                    audiofile=sprintf('%s%s/%s/%s%0.3d.wav',stimfolder, ...
+                    [stimgroup '_wClicks'],irregfolder,stimgroup,tt);
+                end
             case -1
                 % reg
-                audiofile=sprintf('%s%s/%s/%s%0.3d.wav',stimfolder, ...
-                    stimgroup,regfolder,stimgroup,tt);
+                if config.pilot
+                    audiofile=sprintf('%s%s/%s/%s%0.3d.wav',stimfolder, ...
+                        stimgroup,regfolder,stimgroup,tt);
+                else
+                    audiofile=sprintf('%s%s/%s/%s%0.3d.wav',stimfolder, ...
+                        [stimgroup, '_wClicks'],regfolder,stimgroup,tt);
+                end
             otherwise
                 warning('invalid regularity %0.2g',regularity(cc))
         end

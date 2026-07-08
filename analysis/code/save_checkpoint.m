@@ -26,6 +26,13 @@ function save_checkpoint(data,config,overwrite)
     % load or initialize registry
     if isfile(registry_file)
         registry=jsondecode(fileread(registry_file));
+
+        % prevent bug if saved registry is empty or has only one element
+        if isempty(registry) || ~isstruct(registry)
+            registry = struct('hash',{},'config',{},'file',{},'timestamp',{});
+        elseif numel(registry) == 1 && ~iscell(registry)
+            registry = reshape(registry, 1, 1); % ensure struct array semantics stay consistent
+        end
         config_match_idx=find(strcmp({registry.hash},config_hash),1);
     else
         % intialize as 0x0 struct array for iterative assignment without
@@ -60,11 +67,12 @@ function save_checkpoint(data,config,overwrite)
             'config',config, ...
             'file', mat_fnm, ...
             'timestamp',datetime('now'));
-        if overwrite||missing_var
-            registry(config_match_idx)=entry;
-        else
-            registry(end+1)=entry;
+
+        idx = config_match_idx;
+        if isempty(idx)
+            idx = numel(registry) + 1;
         end
+        registry(idx) = entry;
 
         
         disp('new registry:')

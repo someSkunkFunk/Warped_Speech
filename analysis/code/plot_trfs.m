@@ -109,7 +109,7 @@ close all
 script_config=[];
 
 script_config.experiment='reg-irreg';
-script_config.custom_subjs=[24:27];
+script_config.custom_subjs=[];
 script_config.topos_from_peak_windows=false;
 do_nulltest=false;
 % best fast-slow subjs: 
@@ -123,7 +123,7 @@ if isempty(script_config.custom_subjs)
             butterfly_fig.ylims=[-.5 .6];
         case 'reg-irreg'
             % reg-irreg subjects:
-            subjs=[23,96,97,98];
+            subjs=[24:31];
             butterfly_fig.ylims=[-1 1];
             % subjs=[96:98];
         otherwise

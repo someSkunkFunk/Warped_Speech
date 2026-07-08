@@ -68,10 +68,10 @@ if trf_config.subj>=90
     %TODO: avoid hardcoding 90 somehow...?
     trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/RegIrregPilotEnvelopes%dhz.mat', boxdir_mine, ...
         preprocess_config.fs);
-% elseif trf_config.subj>23&&trf_config.subj<90
-%     trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/RegIrregPilotEnvelopes%dhz.mat', boxdir_mine, ...
-%         preprocess_config.fs);
-else%if trf_config.subj<23
+elseif trf_config.subj>23&&trf_config.subj<90
+    trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/RegIrregEnvelopes%dhz.mat', boxdir_mine, ...
+        preprocess_config.fs);
+elseif trf_config.subj<23
     trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/fastSlowEnvelopes%dhz.mat', boxdir_mine, ...
         preprocess_config.fs);
 end

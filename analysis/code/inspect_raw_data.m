@@ -3,7 +3,7 @@
 % really
 
 clear, close all
-subj=26;
+subj=31;
 preprocess_config.subj=subj;
 preprocess_config=config_preprocess(preprocess_config);
 
