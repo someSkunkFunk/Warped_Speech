@@ -69,6 +69,7 @@ if trf_config.subj>=90
     trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/RegIrregPilotEnvelopes%dhz.mat', boxdir_mine, ...
         preprocess_config.fs);
 elseif trf_config.subj>23&&trf_config.subj<90
+    % 23 left out intentionally because stimuli were different
     trf_config.paths.envelopesFile=sprintf('%s/stimuli/wrinkle/RegIrregEnvelopes%dhz.mat', boxdir_mine, ...
         preprocess_config.fs);
 elseif trf_config.subj<23

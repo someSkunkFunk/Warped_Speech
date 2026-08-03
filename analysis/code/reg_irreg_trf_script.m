@@ -3,14 +3,14 @@ clc
 
 %NOTES:
 
-for subj=[24:31]
+for subj=[36]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
 %% setup analysis
 TRF_DIR=1;
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
-do_nulltest=false;
+do_nulltest=true;
 script_config=[];
 script_config.show_tuning_curves=true;
 trf_analysis_params;
@@ -119,7 +119,7 @@ switch TRF_DIR
                 % otherwise it gets set in trf_analysis_params
                 train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
             end
-            stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,TRF_DIR);
+            stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,xTRF_DIR);
             % error('stuff below should take place in save_checkpoint...')
             % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
             % save(trf_config.model_metric_path,'stats_null','-append')

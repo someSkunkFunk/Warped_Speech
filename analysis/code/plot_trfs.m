@@ -123,7 +123,7 @@ if isempty(script_config.custom_subjs)
             butterfly_fig.ylims=[-.5 .6];
         case 'reg-irreg'
             % reg-irreg subjects:
-            subjs=[24:31];
+            subjs=[24:36];
             butterfly_fig.ylims=[-1 1];
             % subjs=[96:98];
         otherwise

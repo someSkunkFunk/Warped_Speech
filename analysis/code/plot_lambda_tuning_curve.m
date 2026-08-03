@@ -15,7 +15,7 @@ R_curves=squeeze(mean(stats_obs.r,1));
 [r_max, r_max_idx]=max(R_curves,[],'all');
 [best_lam_idx,best_chn_idx]=ind2sub(size(R_curves),r_max_idx);
 best_lam=trf_config.lam_range(best_lam_idx);
-%TODO: consider putting both curves on same plot for comparison
+%TODO: consider putting both curves on same plot for comparison 
 %% plot "best" electrode
 tuning_curve_plot_wrapper(R_curves,trf_config.lam_range,best_chn_idx)
 hold on
