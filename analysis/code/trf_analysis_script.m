@@ -17,8 +17,7 @@ close all
 %% setup analysis
 overwrite=false;
 do_nulltest=false;
-script_config=[];
-script_config.show_tuning_curves=true;
+show_tuning_curves=true;
 trf_analysis_params;
 
 %% check if data exists already...

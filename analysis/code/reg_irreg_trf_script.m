@@ -11,8 +11,7 @@ close all
 TRF_DIR=1;
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 do_nulltest=true;
-script_config=[];
-script_config.show_tuning_curves=true;
+show_tuning_curves=true;
 trf_analysis_params;
 
 %% check if data exists already...
