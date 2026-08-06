@@ -25,7 +25,7 @@ function [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
     if trf_config.zscore_eeg
         disp('z-scoring eeg')
             % concatenate all trials
-        resp_cat=cat(1,preprocessed_eeg.resp{:,:});
+        resp_cat=cat(1,resp{:,:});
         % z-score all the channels together
         eeg_mu=mean(resp_cat,'all');
         eeg_sigma=std(resp_cat,0,'all');
