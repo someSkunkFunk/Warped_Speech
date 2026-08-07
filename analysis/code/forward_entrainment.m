@@ -43,70 +43,36 @@ cfg.baselineWinTRF=[-100 0]; % TRF lags for GFP threshold (ms)
 
 cfg.doGroupAverage=true;
 
+cfg.overwrite=0; 
+
 %% ------------------------------------------------------------------------
-% LOAD DATA
+% LOAD DATA + BATCH LOOP
 % -------------------------------------------------------------------------
-subjs=24;
+subjs=[24:25];
+allResults=cell(numel(subjs),1);
+
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
-trf_analysis_params
-pp_checkpoint_=load_checkpoint(preprocess_config);
-EEG=pp_checkpoint_.preprocessed_eeg;
-envCell=load_stim_cell(trf_config.paths.envelopesFile, EEG.cond, EEG.trials);
-
-clear do_nulltest train_params show_tuning_curves pp_checkpoint_
-
-% define chanlocs by running trf_analysis
-
-load(loc_file)
-
-%% ------------------------------------------------------------------------
-% SILENCE DETECTION
-% -------------------------------------------------------------------------
-nStim=numel(envCell);
-silCell=cell(nStim,1);
-
-for ii=1:nStim
-    silCell{ii}=detectSilences(envCell{ii}',cfg.fs,cfg.silenceThresh, ...
-        cfg.minSilenceDur);
+    trf_analysis_params % loc_file, trf_config, prepocess_config     
+    % NOTE: we might want to change this (for no other reason than it's
+    % kinda clunky even though it works)
+    if subjIdx==1&&~exist('chanlocs','var')
+        load(loc_file)
+    end
+    resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+    try
+        results=load_checkpoint(resultsCfg);
+        fprintf('loaded pre-existing results for subj %d\n',subj)
+    catch
+        fprintf(['saved results file for' ...
+            ' subj %d not found, computing from start.\n'], subj)
+        results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
+        % save_checkpoint(results,resultsCfg,cfg.overwrite)
+    end
+    allResults{subjIdx}=results;
+    clear results
 end
 
-fprintf('Detected %d total silent periods across %d stimuli.\n', ...
-    sum(cellfun(@numel, silCell)), nStim);
-
-%% ------------------------------------------------------------------------
-% ERP CALCULATION (time-locked to silent onset)
-% -------------------------------------------------------------------------
-[erpData,erpTimes]=computeERPs(EEG.resp,silCell,cfg.fs,cfg.erpWindow);
-% erpData: nChn x nTimes grand-average ERPs
-%% ------------------------------------------------------------------------
-% TRF CALCULATION (envelope + binary silence-onset feature)
-% -------------------------------------------------------------------------
-% build binary silence-onset regressor: same length as the envelope with a
-% 1 at each detected silence onset sample.
-
-onsetBinCell=cell(nStim,1);
-for ii=1:nStim
-    onsetVec_=zeros(numel(envCell{ii}),1);
-    onsetVec_(silCell{ii})=1;
-    onsetBinCell{ii}=onsetVec_;
-end
-clear onsetVec_
-% NOTE: likely will end up clearing trf_config to avoid confusion, just
-% need a dummy config with norm_envs, zscore_envs, zscore_eeg logial
-% params to run rescale_trf_vars (which we probably should just change so
-% it establishes default parameters when none provided).
-[normEnvCell,normEEG]=rescale_trf_vars(envCell,EEG,trf_config);
-normRespCell=normEEG.resp; %note: this seems needlessly complicated
-[trfModel, lambdaOpt, statsObs, outerFoldLambdas]=computeTRF( ...
-    normEnvCell, onsetBinCell, normRespCell, cfg.fs, ...
-    cfg.trfLags, cfg.lambdaGrid);
-fprintf('Optimal lambda per outer fold: %s\n',mat2str(outerFoldLambdas));
-fprintf('Selected lambda for final fit: %g\n',lambdaOpt);
-% extract useful vars from trf model
-trfTimes=trfModel.t; % lag axis in ms
-envTRF=squeeze(trfModel.w(1,:,:))'; % channels x lags
-silenceTRF=squeeze(trfModel.w(2,:,:))'; % channels x lags
 %% ------------------------------------------------------------------------
 % ROI-AVERAGED (over cfg.roiElectrodes) TIMECOURSES, 
 %               BUTTERFLY, GFP, TOPO PLOTS 
@@ -114,14 +80,107 @@ silenceTRF=squeeze(trfModel.w(2,:,:))'; % channels x lags
 % TODO: FFTs(?)
 % -------------------------------------------------------------------------
 % plotButterflyGFPTopo assumes times in ms
-
+%TODO: GET CONDVEC???????
+condVec=allResults{1}.condVec;
+for subjIdx=1:numel(subjs)
+    subj=subjs(subjIdx);
+    plot_subject_results(allResults(subjIdx),chanlocs, condVec, cfg,['subj %d' subj])
+end
+%% ------------------------------------------------------------------------
+% COMPUTE GRAND AVERAGE RESULTS + plot
+% -------------------------------------------------------------------------
+if cfg.doGroupAverage
+    grand=computeGrandAverage(allResults,chanlocs);
+    plot_subject_results(grand,chanlocs,condVec,cf)
+end
 
 
 %% ------------------------------------------------------------------------
 % Local Functions
 % -------------------------------------------------------------------------
+function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
+% subj: scalar, subject ID number
+% cfg: struct, with analysis params
+% wrapper to do silence detection, ERP analysis, and TRF analysis on a
+% single-subject's data
+
+    pp_checkpoint_=load_checkpoint(preprocess_config);
+    EEG=pp_checkpoint_.preprocessed_eeg;
+    envCell=load_stim_cell(trf_config.paths.envelopesFile, EEG.cond, EEG.trials);
+
+    condVec=EEG.cond; %nStim x 1 vector of condition index
+
+
+%% ------------------------------------------------------------------------
+% SILENCE DETECTION
+% -------------------------------------------------------------------------
+    nStim=numel(envCell);
+    silCell=cell(nStim,1);
+
+    for ii=1:nStim
+        silCell{ii}=detectSilences(envCell{ii}',cfg.fs,cfg.silenceThresh, ...
+            cfg.minSilenceDur);
+    end
+    
+    fprintf('Detected %d total silent periods across %d stimuli.\n', ...
+        sum(cellfun(@numel, silCell)), nStim);
+
+%% ------------------------------------------------------------------------
+% ERP CALCULATION (time-locked to silent onset)
+% -------------------------------------------------------------------------
+    [erpData,erpTimes]=computeERPs(EEG.resp,silCell,condVec,cfg.fs,cfg.erpWindow);
+    % erpData: nConditions x nChn x nTimes grand-average ERPs
+%% ------------------------------------------------------------------------
+% TRF CALCULATION (envelope + binary silence-onset feature)
+% -------------------------------------------------------------------------
+% build binary silence-onset regressor: same length as the envelope with a
+% 1 at each detected silence onset sample.
+    %TODO: add try-catch in case trf fitting fails for some reason
+    onsetBinCell=cell(nStim,1);
+    for ii=1:nStim
+        onsetVec_=zeros(numel(envCell{ii}),1);
+        onsetVec_(silCell{ii})=1;
+        onsetBinCell{ii}=onsetVec_;
+    end
+
+    % NOTE: likely will end up clearing trf_config to avoid confusion, just
+    % need a dummy config with norm_envs, zscore_envs, zscore_eeg logial
+    % params to run rescale_trf_vars (which we probably should just change so
+    % it establishes default parameters when none provided).
+    [normEnvCell,normEEG]=rescale_trf_vars(envCell,EEG,trf_config);
+    normRespCell=normEEG.resp; %note: this seems needlessly complicated
+
+    % TODO: only do this step when conditions are not separate? and define
+    % lambda from condition-agnostic fit file? OR just leave it alone and
+    % do the crossvalidation per condition to see if lambda changes or not
+    [trfModels, lambdaOpt, statsObs, outerFoldLambdas]=computeTRF( ...
+        normEnvCell, onsetBinCell, normRespCell, condVec, cfg.fs, ...
+        cfg.trfLags, cfg.lambdaGrid);
+    fprintf('Optimal lambda per outer fold: %s\n',mat2str(outerFoldLambdas));
+    fprintf('Selected lambda for final fit: %g\n',lambdaOpt);
+    % extract useful vars from trf model -- NOTE: I don't like this because
+    % information already in trfModel but going with it for now, change if
+    % it causes memory issues
+    % trfTimes=trfModels(1).t; % lag axis in ms
+    % envTRF=squeeze(trfModels.w(1,:,:))'; % channels x lags
+    % silenceTRF=squeeze(trfModels.w(2,:,:))'; % channels x lags
+    results=struct("subj",subj, ...
+    "silCell", silCell, ...
+    "erpData", erpData, ...
+    "erpTimes", erpTimes, ...
+    "onsetBinCell",onsetBinCell, ...
+    "trfModels", trfModels, ...
+    "lambdaOpt", lambdaOpt,...
+    "statsObs",statsObs, ...
+    "condVec",condVec);
+    % "trfTimes", trfTimes, ...
+    % "envTRF", envTRF, ...
+    % "silenceTRF", silenceTRF, ...
+    
+end
 
 function grand = computeGrandAverage(allResults, chanlocs)
+% TODO: RE-FACTOR TO SEPARATE RESULTS BY CONDITION
     nSubj=numel(allResults);
 
     % sanity checks: all results should be able to share time axis
@@ -156,46 +215,58 @@ function grand = computeGrandAverage(allResults, chanlocs)
 end
 
 
-function plot_subject_results(results, chanlocs, cfg, labelStr)
+function plot_subject_results(results, chanlocs, condVec, cfg, labelStr)
     roiIdx=cfg.roiElectrodes;
-    
-    figure('Name', ['ROI-averaged responses to offsets - ' labelStr]);
-    ax1=subplot(2,1,1);
-    plot(1e3*results.erpTimes,mean(results.erpData(roiIdx,:),1),'LineWidth',1.5);
-    xline(0,'k--')
-    xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
-    title(['ROI ERP - ' labelStr]) %TODO: add topo marking selected electrodes
-    
-    ax2=subplot(2,1,2);
-    plot(trfTimes, mean(results.silenceTRF(roiIdx,:)),'Linewidth', 1.5)
-    xline(0, 'k--')
-    xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
-    title(['ROI TRF - silence onset feature' labelStr])
-    
-    linkaxes([ax1,ax2],'x')
-    xlim(ax2,[-100,500])
-    
-    % NOTE: envelope TRF not time-locked to silences like ERP so maybe plot
-    % separately?
-    % subplot(3,1,3);
-    figure('Name', 'ROI-averaged envelope TRF')
-    plot(results.trfTimes, results.envTRF(roiIdx,:),'LineWidth', 1.5)
-    xlabel('Lag (ms)'); ylabel('Amplitude (a.u.)');
-    title('ROI TRF - envelope feature')
-    xlim([-100,500])
+
+    for condIdx=1:numel(condVec)
+        %TODO: UNPACK BELOW CORRECTLY
+        trfTimes=results.trfModels(1).t; % lag axis in ms
+        % envTRF=squeeze(trfModels.w(1,:,:))'; % channels x lags
+        % silenceTRF=squeeze(trfModels.w(2,:,:))'; % channels x lags
     
     
-    
-    %TODO: add FFTs 
-    
-    plotButterflyGFPTopo(results.erpData, 1e3*results.erpTimes, chanlocs, ...
-        cfg.baselineWinERP, ['ERP (all channels) - ' labelStr])
-    
-    plotButterflyGFPTopo(results.envTRF, results.trfTimes, chanlocs, ...
-        cfg.baselineWinTRF, ['TRF - envelope feature - ' labelStr])
-    
-    plotButterflyGFPTopo(results.silenceTRF, results.trfTimes, chanlocs, ...
-        cfg.baselineWinTRF, ['TRF - silence onset feature - ' labelStr)
+        figure('Name', ['ROI-averaged responses to offsets - ' labelStr]);
+        ax1=subplot(2,1,1);
+        plot(1e3*results.erpTimes,mean(results.erpData(condIdx,roiIdx,:),1),'LineWidth',1.5);
+        xline(0,'k--')
+        xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
+        title(['ROI ERP - ' labelStr]) %TODO: add topo marking selected electrodes
+        
+        ax2=subplot(2,1,2);
+        % silent trf is second feature
+        plot(trfTimes, mean(results.trfModels(condIdx).w(2,roiIdx,:)'),'Linewidth', 1.5)
+        xline(0, 'k--')
+        xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
+        title(['ROI TRF - silence onset feature' labelStr])
+        
+        linkaxes([ax1,ax2],'x')
+        xlim(ax2,[-100,500])
+        
+        % NOTE: envelope TRF not time-locked to silences like ERP so maybe plot
+        % separately?
+        % subplot(3,1,3);
+        figure('Name', 'ROI-averaged envelope TRF')
+        plot(results.trfTimes, results.trfModels(condIdx).w(roiIdx,:)','LineWidth', 1.5)
+        xlabel('Lag (ms)'); ylabel('Amplitude (a.u.)');
+        title('ROI TRF - envelope feature')
+        xlim([-100,500])
+        
+        
+        
+        %TODO: add FFTs 
+        
+        plotButterflyGFPTopo(squeeze(results.erpData(condIdx,:,:)), 1e3*results.erpTimes, chanlocs, ...
+            cfg.baselineWinERP, sprintf('ERP (all channels) - %s - cond: %d',labelStr,condIdx))
+        
+        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(1,:,:)), ...
+            results.trfTimes, chanlocs, ...
+            cfg.baselineWinTRF, sprintf('TRF - envelope feature - %s - cond: %d', labelStr,condIdx));
+
+        
+        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(2,:,:)), ...
+            results.trfTimes, chanlocs, ...
+            cfg.baselineWinTRF, sprintf('TRF - silence onset feature - %s - cond: %d', labelStr,condIdx))
+    end
 end
 
 function silenceOffsets=detectSilences(env,fs,thresh,minDur)
@@ -220,34 +291,40 @@ function silenceOffsets=detectSilences(env,fs,thresh,minDur)
     silenceOffsets=runStarts(keep);
 end
 
-function [erpData,erpTimes]=computeERPs(eegCell,silenceCell,fs,epochWin)
+function [erpData,erpTimes]=computeERPs(eegCell,silenceCell,condVec,fs,epochWin)
 % Epoch EEG around silence onsets, pool across stimuli, average across
 % epochs
 %
 % eegCell{i} : T_i x nChns EEG matrix for stimulus i
 % silenceCell{i} : sample indices of silence onsets for stimulus i
+% condVec: nStim x 1 vector of condition-label index
 % fs: sampling rate (Hz)
 % epochWin : [preSec postSec] window around onsets
 %
-% erpData : nChns x nTimes (baseline-corrected, pooled across all stimuli
-% and all onsets, averaged across epochs)
+% erpData : nCond x nChns x nTimes (baseline-corrected, 
+% condition-specific, averaged across epochs)
 %
 % erpTimes : 1 x nTimes time axis in seconds relative to onset
 
+
+% same for all conditions
 preSamp=round(epochWin(1)*fs); % negative value
 postSamp=round(epochWin(2)*fs);
 
 erpTimes=(preSamp:postSamp)./fs;
 nEpochs=sum(cellfun(@numel,silenceCell));
 
+nCond=numel(unique(condVec));
+
 for ii=1:numel(eegCell)
     eeg=eegCell{ii}';
+    condIdx=condVec(ii);
     onsets=silenceCell{ii};
     T = size(eeg,2);
     if ii==1
         %initialize epoch data array
         nChans =size(eeg,1);
-        epochData=nan(nEpochs,nChans,numel(erpTimes));
+        epochData=nan(nCond,nEpochs,nChans,numel(erpTimes));
         epochNum=1;
     end
     for kk=1:numel(onsets)
@@ -262,65 +339,91 @@ for ii=1:numel(eegCell)
         % specified in epochWin, but we need that for baseline-correction)
         if idxStart<1||idxEnd>T, continue; end
         epoch=eeg(:,idxStart:idxEnd);
+        %baseline correction on erps
         baseline=mean(epoch(:,erpTimes<=0),2);
-        epochData(epochNum,:,:)=epoch-baseline;
+        epochData(condIdx,epochNum,:,:)=epoch-baseline;
     end
 end
 if ~exist("epochData",'var')||all(isnan(epochData(:)))
     warning('No valid epochs exracted!')
 else
-    erpData=squeeze(mean(epochData,1,'omitnan'));
+    erpData=squeeze(mean(epochData,2,'omitnan'));
 end
 end
 
-function [trfModel, lambdaOpt, outerFoldStatsObs, outerFoldLambdas]=computeTRF( ...
-envCell, onsetBinCell, eegCell, fs, lags, lambdaGrid)
+function [trfModels, lambdaOpt, outerFoldStatsObs, outerFoldLambdas]=computeTRF( ...
+envCell, onsetBinCell, eegCell, condVec, fs, lags, lambdaGrid)
 % nested-cv lambda selection, then final dual-feature TRF fit
 % does LOO cv for both inner and outer folds
 %
 % envCell{i}, onsetBinCell{i} : 1 x T_i vectors (envelope, binary onset)
 % eegCell{i} : T_i x nChan EEG matrix
+% condVec: nTrias x 1 vector 
 % fs: sampling rate (Hz)
 % lags: [tmin tmax] in ms
 % lambdaGrid: candidate ridge lambdas
 %
-% model: final TRF model struct (mTRFtrain output) fit on ALL trials at
-% lambdaOpt
-% lambdaOpt: lambda selected for the final fit
-% outerFoldStatsObs: mTRFcrossval output statistics
+% trfModel: (nCond x 1) final TRF model struct (mTRFtrain output) fit on ALL trials at
+% 
+% lambdaOptCell: (cond x 1) lambda selected for the final fit
+% outerFoldStatsObs: (cond x nTrials) struct mTRFcrossval output statistics
 % outerFoldLambdas: lambda chosen within each outer fold (diagnostic)
+% note it is assumed all conditions have the same number of trials
 
-    nTrials=numel(eegCell);
-    stim=cell(nTrials,1);
-    for ii=1:nTrials
-        stim{ii}=[envCell{ii}(:), onsetBinCell{ii}(:)];
+    nCond=numel(unique(condVec));
+    for condIdx=1:nCond %TODO: decide how to package mote, lambda opt, outerFoldStatsObs, and outerFoldLambdas for output!
+        condMask=condVec==condIdx;
+        condEegCell=eegCell(condMask);
+        condEnvCell=envCell(condMask);
+        condOnsetBinCell=onsetBinCell(condMask);
+        nTrials=numel(condEegCell); %TODO: validate that this 
+        % is same across conditions (assert)
+        condStim=cell(nTrials,1);
+        for ii=1:nTrials
+            condStim{ii}=[condEnvCell{ii}(:), condOnsetBinCell{ii}(:)];
+        end
+        outerPart=cvpartition(nTrials,'Leaveout');
+    
+        % optimize TRF lambda parameter using nested cv
+        for oo=1:nTrials
+            fprintf('outer fold %d of %d (condition %d of %d)', ...
+                oo,nTrials,condIdx,nCond);
+            trainIdx=training(outerPart,oo);
+            trainStim=condStim(trainIdx);
+            trainResp=condEegCell(trainIdx);
+    
+            innerStatsObs=mTRFcrossval(trainStim,trainResp,fs,1, ...
+                lags(1),lags(2),lambdaGrid); %statsObs.r: [kfold x nlambda x nChan]
+            if condIdx==1 && oo==1
+            % pre-allocate
+                statsObsFieldnames=fieldnames(innerStatsObs);
+                outerFoldStatsObs=cell2struct( ...
+                    cell(numel(statsObsFieldnames),nCond,nTrials), ...
+                    statsObsFieldnames);
+                outerFoldLambdas=nan(nCond,nTrials);
+            end
+            % average over trials and electrodes
+            meanR=squeeze(mean(mean(innerStatsObs.r,1),3)); % [ nlambda x 1]
+            [~,bestLambdaIdx]=max(meanR);
+            % select lambda with highest overall R
+            outerFoldStatsObs(condIdx,oo)=innerStatsObs;
+            outerFoldLambdas(condIdx,oo)=lambdaGrid(bestLambdaIdx);
+        end
+    
+        % train optimal lambda TRF model on entire dataset -- use median to
+        % mitigate outliers
+        lambdaOpt=median(outerFoldLambdas(condIdx,:));
+        %note: zero-padding biases TRF weights near tmin/tmax to be zero,
+        %which might artificially 'erase' forward-entrainment signatures in the
+        %TRF, but maybe consider the implications of data loss incurred by this
+        condTrfModel=mTRFtrain(condStim,condEegCell,fs,1,lags(1),lags(2),lambdaOpt,'zeropad',0);
+        if condIdx==1
+            % "pre"-allocate
+            condTrfModelFieldnames=fieldnames(condTrfModel);
+            trfModels=cell2struct(cell(numel(condTrfModelFieldnames),nCond,1),condTrfModelFieldnames);
+        end
+        trfModels(condIdx)=condTrfModel;
     end
-    outerPart=cvpartition(nTrials,'Leaveout');
-
-    % optimize TRF lambda parameter using nested cv
-    for oo=1:nTrials
-        fprintf('outer fold %d of %d',oo,nTrials);
-        trainIdx=training(outerPart,oo);
-        trainStim=stim(trainIdx);
-        trainResp=eegCell(trainIdx);
-
-        innerStatsObs=mTRFcrossval(trainStim,trainResp,fs,1, ...
-            lags(1),lags(2),lambdaGrid); %statsObs.r: [kfold x nlambda x nChan]
-        % average over trials and electrodes
-        meanR=squeeze(mean(mean(innerStatsObs.r,1),3)); % [ nlambda x 1]
-        [~,bestLambdaIdx]=max(meanR); 
-        % select lambda with highest overall R
-        outerFoldStatsObs(oo)=innerStatsObs;
-        outerFoldLambdas(oo)=lambdaGrid(bestLambdaIdx);
-    end
-
-    % train optimal lambda TRF model on entire dataset -- use median to
-    % mitigate outliers
-    lambdaOpt=median(outerFoldLambdas);
-    %note: zero-padding biases TRF weights near tmin/tmax to be zero,
-    %which might artificially 'erase' forward-entrainment signatures in the
-    %TRF, but maybe consider the implications of data loss incurred by this
-    trfModel=mTRFtrain(stim,eegCell,fs,1,lags(1),lags(2),lambdaOpt,'zeropad',0);
 
 end
 
@@ -393,4 +496,20 @@ if any(winMask)
 else
     disp('No supra-threshold GFP windows to time average for topoplot.')
 end
+end
+
+function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
+%
+    resultsCfg=struct( ...
+        'subj',subj, ...
+        'fs', cfg.fs, ...
+        'silenceThresh', cfg.silenceThresh, ...
+        'minSilenceDur', cfg.minSilenceDur, ...
+        'erpWindow', cfg.erpWindow, ...
+        'trfLags', cfg.trfLags, ...
+        'lambdaGrid', cfg.lambdaGrid, ...
+        'preprocess_config', preprocess_config, ...
+        'trf_config', trf_config); %trf config might be confusing in 
+    % future, consider only keeping the normalization parameters since
+    % that's all we end up using
 end
