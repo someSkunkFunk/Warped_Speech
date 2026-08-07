@@ -98,7 +98,7 @@ normRespCell=normEEG.resp; %note: this seems needlessly complicated
     normEnvCell, onsetBinCell, normRespCell, cfg.fs, ...
     cfg.trfLags, cfg.lambdaGrid);
 fprintf('Optimal lambda per outer fold: %s\n',mat2str(outerFoldLambdas));
-frpintf('Selected lambda for final fit: %g\n',lambdaOpt);
+fprintf('Selected lambda for final fit: %g\n',lambdaOpt);
 % extract useful vars from trf model
 trfTimes=trfModel.t; % lag axis in ms
 envTRF=squeeze(trfModel.w(1,:,:))'; % channels x lags
@@ -123,7 +123,7 @@ xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
 title('ROI ERP') %TODO: add topo marking selected electrodes
 
 ax2=subplot(2,1,2);
-plot(trfTimes, silenceTRF(roiIdx,:),'Linewidth', 1.5)
+plot(trfTimes, mean(silenceTRF(roiIdx,:)),'Linewidth', 1.5)
 xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
 title('ROI TRF - silence onset feature')
 
@@ -144,9 +144,10 @@ xlim([-100,500])
 %TODO: add FFTs 
 %% ------------------------------------------------------------------------
 % BUTTERFLY + GFP + TOPO PLOTS
+% plotButterflyGFPTopo assumes times in ms
 % -------------------------------------------------------------------------
 
-plotButterflyGFPTopo(erpData, erpTimes, chanlocs, ...
+plotButterflyGFPTopo(erpData, 1e3*erpTimes, chanlocs, ...
     cfg.baselineWinERP, 'ERP (all channels)')
 
 plotButterflyGFPTopo(envTRF, trfTimes, chanlocs, ...
@@ -324,14 +325,15 @@ plot(times,gfp,'k','Linewidth',2) % overlay GFP
 if any(winMask)
     % determine how many separate supra-threshold windows exist
     dMask=diff([0 winMask 0]);
-    winStarts=find(dMask==1);winEnds=find(dmask==-1)-1;
+    winStarts=find(dMask==1);winEnds=find(dMask==-1)-1;
     nWindows=numel(winStarts);
     
-    yl=ylim(ax1);
+    yl=ylim(gca());
     for ww=1:nWindows
-        patch(ax1, [times(winStarts(ww)) times(find(winMask, 'last')), ...
-            times(winStarts(ww)) times(winEnds(ww))], ...
-            [yl(1) yl(1) yl(2) yl(2)]);
+        patch([times(winStarts(ww)) times(winEnds(ww)), ...
+            times(winEnds(ww)) times(winStarts(ww))], ...
+            [yl(1) yl(1) yl(2) yl(2)], [1 .9 .6], ...
+            'FaceAlpha', 0.3, 'EdgeColor','none');
     end
 end
 xlabel('Time (ms)'); ylabel('Amplitude/weights')
@@ -344,9 +346,9 @@ hold off
 if any(winMask)
     for ww=1:nWindows
         figure('Name', sprintf('%s time-averaged topo %d of %d',titleStr,ww,nWindows))
-        topoWeights=mean(data(:,winStarts(ww):winEnds(ww)));
+        topoWeights=mean(data(:,winStarts(ww):winEnds(ww)),2);
         title(sprintf('Time-averaged topo weights %0.1fms - %0.1fms', ...
-            times(winStarts(ww),times(winEnds(ww)))))
+            times(winStarts(ww)),times(winEnds(ww))))
         topoplot(topoWeights,chanlocs,'electrodes','on')
         colorbar;
     end
