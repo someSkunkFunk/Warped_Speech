@@ -11,11 +11,12 @@
 % -------------------------------------------------------------------------
 
 clear; clc; close all;
+
 %% ------------------------------------------------------------------------
 % USER CONFIG
 % -------------------------------------------------------------------------
 
-
+dbstop if error
 cfg=[];
 cfg.fs=128; % Hz
 cfg.silenceThresh= 0.05; % envelope threshold below
@@ -49,7 +50,7 @@ cfg.overwrite=0;
 % LOAD DATA + BATCH LOOP
 % -------------------------------------------------------------------------
 subjs=[24:25];
-allResults=cell(numel(subjs),1);
+allResultsCell=cell(numel(subjs),1);
 
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
@@ -60,7 +61,10 @@ for subjIdx=1:numel(subjs)
         load(loc_file)
     end
     resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+    
     try
+        %NOTE: load_checkpoint doesn't cause error so try catch wont work
+        %here
         results=load_checkpoint(resultsCfg);
         fprintf('loaded pre-existing results for subj %d\n',subj)
     catch
@@ -69,7 +73,7 @@ for subjIdx=1:numel(subjs)
         results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
         % save_checkpoint(results,resultsCfg,cfg.overwrite)
     end
-    allResults{subjIdx}=results;
+    allResultsCell{subjIdx}=results;
     clear results
 end
 
@@ -81,16 +85,16 @@ end
 % -------------------------------------------------------------------------
 % plotButterflyGFPTopo assumes times in ms
 %TODO: GET CONDVEC???????
-condVec=allResults{1}.condVec;
+condVec=allResultsCell{1}.condVec;
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
-    plot_subject_results(allResults(subjIdx),chanlocs, condVec, cfg,['subj %d' subj])
+    plot_subject_results(allResultsCell{subjIdx},chanlocs, condVec, cfg,['subj %d' subj])
 end
 %% ------------------------------------------------------------------------
 % COMPUTE GRAND AVERAGE RESULTS + plot
 % -------------------------------------------------------------------------
 if cfg.doGroupAverage
-    grand=computeGrandAverage(allResults,chanlocs);
+    grand=computeGrandAverage(allResultsCell,chanlocs);
     plot_subject_results(grand,chanlocs,condVec,cf)
 end
 
@@ -165,10 +169,10 @@ function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
     % envTRF=squeeze(trfModels.w(1,:,:))'; % channels x lags
     % silenceTRF=squeeze(trfModels.w(2,:,:))'; % channels x lags
     results=struct("subj",subj, ...
-    "silCell", silCell, ...
+    "silCell", {silCell}, ...
     "erpData", erpData, ...
     "erpTimes", erpTimes, ...
-    "onsetBinCell",onsetBinCell, ...
+    "onsetBinCell",{onsetBinCell}, ...
     "trfModels", trfModels, ...
     "lambdaOpt", lambdaOpt,...
     "statsObs",statsObs, ...
@@ -499,7 +503,10 @@ end
 end
 
 function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
-%
+%   
+    global boxdir_mine
+    output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,subj);
+    paths=struct('output_dir',output_dir);
     resultsCfg=struct( ...
         'subj',subj, ...
         'fs', cfg.fs, ...
@@ -509,7 +516,8 @@ function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
         'trfLags', cfg.trfLags, ...
         'lambdaGrid', cfg.lambdaGrid, ...
         'preprocess_config', preprocess_config, ...
-        'trf_config', trf_config); %trf config might be confusing in 
+        'trf_config', trf_config, ...
+        'paths', paths); %trf config might be confusing in 
     % future, consider only keeping the normalization parameters since
     % that's all we end up using
 end
