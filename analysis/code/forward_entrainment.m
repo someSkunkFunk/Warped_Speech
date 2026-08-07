@@ -41,12 +41,15 @@ cfg.baselineWinERP=[-0.1 0]; % window to define GFP threshold, ERP
 cfg.baselineWinTRF=[-100 0]; % TRF lags for GFP threshold (ms)
 
 
+cfg.doGroupAverage=true;
+
 %% ------------------------------------------------------------------------
 % LOAD DATA
 % -------------------------------------------------------------------------
-subj=24;
+subjs=24;
+for subjIdx=1:numel(subjs)
+    subj=subjs(subjIdx);
 trf_analysis_params
-% clear script_config
 pp_checkpoint_=load_checkpoint(preprocess_config);
 EEG=pp_checkpoint_.preprocessed_eeg;
 envCell=load_stim_cell(trf_config.paths.envelopesFile, EEG.cond, EEG.trials);
@@ -54,6 +57,7 @@ envCell=load_stim_cell(trf_config.paths.envelopesFile, EEG.cond, EEG.trials);
 clear do_nulltest train_params show_tuning_curves pp_checkpoint_
 
 % define chanlocs by running trf_analysis
+
 load(loc_file)
 
 %% ------------------------------------------------------------------------
@@ -103,62 +107,96 @@ fprintf('Selected lambda for final fit: %g\n',lambdaOpt);
 trfTimes=trfModel.t; % lag axis in ms
 envTRF=squeeze(trfModel.w(1,:,:))'; % channels x lags
 silenceTRF=squeeze(trfModel.w(2,:,:))'; % channels x lags
-
-
 %% ------------------------------------------------------------------------
-% ROI-AVERAGED PLOTS (averaged over cfg.roiElectrodes)
+% ROI-AVERAGED (over cfg.roiElectrodes) TIMECOURSES, 
+%               BUTTERFLY, GFP, TOPO PLOTS 
+% 
+% TODO: FFTs(?)
 % -------------------------------------------------------------------------
-% note, we already have them as indices, but could devise a function to map
-% electrone names to indices if needed
-
-
-roiIdx=cfg.roiElectrodes;
-
-figure('Name', 'ROI-averaged responses to offsets');
-
-ax1=subplot(2,1,1);
-plot(1e3*erpTimes,mean(erpData(roiIdx,:),1),'LineWidth',1.5);
-% xline(0,'')
-xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
-title('ROI ERP') %TODO: add topo marking selected electrodes
-
-ax2=subplot(2,1,2);
-plot(trfTimes, mean(silenceTRF(roiIdx,:)),'Linewidth', 1.5)
-xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
-title('ROI TRF - silence onset feature')
-
-linkaxes([ax1,ax2],'x')
-xlim(ax2,[-100,500])
-
-% NOTE: envelope TRF not time-locked to silences like ERP so maybe plot
-% separately?
-% subplot(3,1,3);
-figure('Name', 'ROI-averaged envelope TRF')
-plot(trfTimes, envTRF(roiIdx,:),'LineWidth', 1.5)
-xlabel('Lag (ms)'); ylabel('Amplitude (a.u.)');
-title('ROI TRF - envelope feature')
-xlim([-100,500])
-
-
-
-%TODO: add FFTs 
-%% ------------------------------------------------------------------------
-% BUTTERFLY + GFP + TOPO PLOTS
 % plotButterflyGFPTopo assumes times in ms
-% -------------------------------------------------------------------------
 
-plotButterflyGFPTopo(erpData, 1e3*erpTimes, chanlocs, ...
-    cfg.baselineWinERP, 'ERP (all channels)')
 
-plotButterflyGFPTopo(envTRF, trfTimes, chanlocs, ...
-    cfg.baselineWinTRF, 'TRF - envelope feature')
-
-plotButterflyGFPTopo(silenceTRF, trfTimes, chanlocs, ...
-    cfg.baselineWinTRF, 'TRF - silence onset feature')
 
 %% ------------------------------------------------------------------------
 % Local Functions
 % -------------------------------------------------------------------------
+
+function grand = computeGrandAverage(allResults, chanlocs)
+    nSubj=numel(allResults);
+
+    % sanity checks: all results should be able to share time axis
+    erpTimesRef=allResults{1}.erpTimes;
+    trfTimesRef=allResults{1}.trfTimes;
+    nChanRef=numel(chanlocs);
+
+    for ss=2:nSubj
+        assert(isequal(allResults{ss}.erpTimes,erpTimesRef), ...
+            'Subj %d ERP time axis does not match Subj 1')
+        assert(isequal(allResults{ss}.trfTimes,trfTimesRef), ...
+            'Subj %d trfTimes does not match subj 1')
+        assert(size(allResults{ss}.erpData,1)==nChanRef & ...
+            size(allResults{ss}.envTRF,1)==nChanRef & ...
+            size(allResults{ss}.silenceTRF,1)==nChanRef)
+    end
+
+    % preallocate stack matrices
+    erpStack=nan(nChanRef,numel(erpTimesRef),nSubj);
+    envTRFStack=nan(nChanRef,numel(trfTimesRef),nSubj);
+    silenceTRFStack=nan(nChanRef,numel(trfTimesRef),nSubj);
+    for ss=1:nSubj
+        erpStack(:,:,ss)=allResults.erpData;
+        envTRFStack(:,:,ss)=allResults.envTRF;
+        silenceTRFStack(:,:,ss)=allResults.silenceTRF;
+    end
+
+    grand.erpData=mean(erpStack,3);
+    grand.envTRF=mean(envTRFStack,3);
+    grand.silenceTRF=mean(silenceTRFStack,3);
+
+end
+
+
+function plot_subject_results(results, chanlocs, cfg, labelStr)
+    roiIdx=cfg.roiElectrodes;
+    
+    figure('Name', ['ROI-averaged responses to offsets - ' labelStr]);
+    ax1=subplot(2,1,1);
+    plot(1e3*results.erpTimes,mean(results.erpData(roiIdx,:),1),'LineWidth',1.5);
+    xline(0,'k--')
+    xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
+    title(['ROI ERP - ' labelStr]) %TODO: add topo marking selected electrodes
+    
+    ax2=subplot(2,1,2);
+    plot(trfTimes, mean(results.silenceTRF(roiIdx,:)),'Linewidth', 1.5)
+    xline(0, 'k--')
+    xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
+    title(['ROI TRF - silence onset feature' labelStr])
+    
+    linkaxes([ax1,ax2],'x')
+    xlim(ax2,[-100,500])
+    
+    % NOTE: envelope TRF not time-locked to silences like ERP so maybe plot
+    % separately?
+    % subplot(3,1,3);
+    figure('Name', 'ROI-averaged envelope TRF')
+    plot(results.trfTimes, results.envTRF(roiIdx,:),'LineWidth', 1.5)
+    xlabel('Lag (ms)'); ylabel('Amplitude (a.u.)');
+    title('ROI TRF - envelope feature')
+    xlim([-100,500])
+    
+    
+    
+    %TODO: add FFTs 
+    
+    plotButterflyGFPTopo(results.erpData, 1e3*results.erpTimes, chanlocs, ...
+        cfg.baselineWinERP, ['ERP (all channels) - ' labelStr])
+    
+    plotButterflyGFPTopo(results.envTRF, results.trfTimes, chanlocs, ...
+        cfg.baselineWinTRF, ['TRF - envelope feature - ' labelStr])
+    
+    plotButterflyGFPTopo(results.silenceTRF, results.trfTimes, chanlocs, ...
+        cfg.baselineWinTRF, ['TRF - silence onset feature - ' labelStr)
+end
 
 function silenceOffsets=detectSilences(env,fs,thresh,minDur)
 % Find onset sample indices of silence periods
