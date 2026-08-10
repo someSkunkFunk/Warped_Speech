@@ -14,8 +14,6 @@ function data=load_checkpoint(config)
 
     % normalize struct structure to get consistent hashes
     config=remove_nested_paths_recursive(config);
-    % config=columnize_row_vectors(config); % this should be done in
-    % config_trf
 
     config_hash=char(upper(DataHash(config)));
     config_match_idx=find(strcmp({registry.hash},config_hash));

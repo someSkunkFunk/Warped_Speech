@@ -54,24 +54,25 @@ allResultsCell=cell(numel(subjs),1);
 
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
-    trf_analysis_params % loc_file, trf_config, prepocess_config     
+    trf_analysis_params % loc_file, trf_config, prepocess_config
+    clear do_nulltest show_tuning_curves train_params
     % NOTE: we might want to change this (for no other reason than it's
     % kinda clunky even though it works)
     if subjIdx==1&&~exist('chanlocs','var')
         load(loc_file)
     end
+    %%
     resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
     
-    try
-        %NOTE: load_checkpoint doesn't cause error so try catch wont work
-        %here
-        results=load_checkpoint(resultsCfg);
-        fprintf('loaded pre-existing results for subj %d\n',subj)
-    catch
+    results=load_checkpoint(resultsCfg);
+
+    if isempty(results)
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
         results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
-        % save_checkpoint(results,resultsCfg,cfg.overwrite)
+        save_checkpoint(results,resultsCfg,cfg.overwrite)
+    else
+        fprintf('loaded pre-existing results for subj %d\n',subj)
     end
     allResultsCell{subjIdx}=results;
     clear results
@@ -85,17 +86,18 @@ end
 % -------------------------------------------------------------------------
 % plotButterflyGFPTopo assumes times in ms
 %TODO: GET CONDVEC???????
-condVec=allResultsCell{1}.condVec;
+% condVec=allResultsCell{1}.condVec; 
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
-    plot_subject_results(allResultsCell{subjIdx},chanlocs, condVec, cfg,['subj %d' subj])
+    plot_subject_results(allResultsCell{subjIdx},chanlocs, ...
+        cfg,sprintf('subj %d', subj))
 end
 %% ------------------------------------------------------------------------
 % COMPUTE GRAND AVERAGE RESULTS + plot
 % -------------------------------------------------------------------------
 if cfg.doGroupAverage
     grand=computeGrandAverage(allResultsCell,chanlocs);
-    plot_subject_results(grand,chanlocs,condVec,cf)
+    plot_subject_results(grand,chanlocs,cfg)
 end
 
 
@@ -219,26 +221,29 @@ function grand = computeGrandAverage(allResults, chanlocs)
 end
 
 
-function plot_subject_results(results, chanlocs, condVec, cfg, labelStr)
+function plot_subject_results(results, chanlocs, cfg, labelStr)
+% wrapper function for ROI-averaged ERP/TRF results + plotButterflyGFPTopo
+% results: 1x1 struct containing results
     roiIdx=cfg.roiElectrodes;
+    condVec=results.condVec;
 
-    for condIdx=1:numel(condVec)
-        %TODO: UNPACK BELOW CORRECTLY
+    for condIdx=1:numel(unique(condVec))
+        % condMask=condVec==condIdx; % nStim x1 logical nvm dont need
         trfTimes=results.trfModels(1).t; % lag axis in ms
-        % envTRF=squeeze(trfModels.w(1,:,:))'; % channels x lags
-        % silenceTRF=squeeze(trfModels.w(2,:,:))'; % channels x lags
-    
-    
+        condRoiSilERP=squeeze(mean(mean(results.erpData(condIdx,roiIdx,:),1),2)); % lags x 1
+        condRoiSilTRF=squeeze(mean(results.trfModels(condIdx).w(2,:,roiIdx),3))'; % lags x 1
+        condRoiEnvTRF=squeeze(mean(results.trfModels(condIdx).w(1,:,roiIdx),3))'; %lags x 1
+        
         figure('Name', ['ROI-averaged responses to offsets - ' labelStr]);
         ax1=subplot(2,1,1);
-        plot(1e3*results.erpTimes,mean(results.erpData(condIdx,roiIdx,:),1),'LineWidth',1.5);
+        plot(1e3*results.erpTimes,condRoiSilERP,'LineWidth',1.5);
         xline(0,'k--')
         xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
         title(['ROI ERP - ' labelStr]) %TODO: add topo marking selected electrodes
         
         ax2=subplot(2,1,2);
         % silent trf is second feature
-        plot(trfTimes, mean(results.trfModels(condIdx).w(2,roiIdx,:)'),'Linewidth', 1.5)
+        plot(trfTimes, condRoiSilTRF,'Linewidth', 1.5)
         xline(0, 'k--')
         xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
         title(['ROI TRF - silence onset feature' labelStr])
@@ -250,7 +255,7 @@ function plot_subject_results(results, chanlocs, condVec, cfg, labelStr)
         % separately?
         % subplot(3,1,3);
         figure('Name', 'ROI-averaged envelope TRF')
-        plot(results.trfTimes, results.trfModels(condIdx).w(roiIdx,:)','LineWidth', 1.5)
+        plot(trfTimes, condRoiEnvTRF,'LineWidth', 1.5)
         xlabel('Lag (ms)'); ylabel('Amplitude (a.u.)');
         title('ROI TRF - envelope feature')
         xlim([-100,500])
@@ -262,13 +267,13 @@ function plot_subject_results(results, chanlocs, condVec, cfg, labelStr)
         plotButterflyGFPTopo(squeeze(results.erpData(condIdx,:,:)), 1e3*results.erpTimes, chanlocs, ...
             cfg.baselineWinERP, sprintf('ERP (all channels) - %s - cond: %d',labelStr,condIdx))
         
-        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(1,:,:)), ...
-            results.trfTimes, chanlocs, ...
+        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(1,:,:))', ...
+            trfTimes, chanlocs, ...
             cfg.baselineWinTRF, sprintf('TRF - envelope feature - %s - cond: %d', labelStr,condIdx));
 
         
-        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(2,:,:)), ...
-            results.trfTimes, chanlocs, ...
+        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(2,:,:))', ...
+            trfTimes, chanlocs, ...
             cfg.baselineWinTRF, sprintf('TRF - silence onset feature - %s - cond: %d', labelStr,condIdx))
     end
 end
@@ -505,7 +510,7 @@ end
 function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
 %   
     global boxdir_mine
-    output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,subj);
+    output_dir=sprintf('%s/analysis/forward_entrainment/%02d',boxdir_mine,subj);
     paths=struct('output_dir',output_dir);
     resultsCfg=struct( ...
         'subj',subj, ...

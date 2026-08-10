@@ -10,6 +10,7 @@ function save_checkpoint(data,config,overwrite)
     data_.(varname)=data;
     subj=config.subj;
     output_dir=config.paths.output_dir;
+    % ENSURE OUTPUT DIRECTORY EXISTS
     if ~exist(output_dir,'dir')
         mkdir(output_dir);
     end
