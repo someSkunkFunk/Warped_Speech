@@ -13,7 +13,7 @@ function data=load_checkpoint(config)
     registry=jsondecode(fileread(registry_file));
 
     % normalize struct structure to get consistent hashes
-    config=remove_nested_paths_recursive(config);
+    config=remove_nested_paths(config);
 
     config_hash=char(upper(DataHash(config)));
     config_match_idx=find(strcmp({registry.hash},config_hash));
@@ -34,41 +34,5 @@ function data=load_checkpoint(config)
             'subj %02d (hash %s)\n'],subj,config_hash)
     end
 
-    function S = remove_nested_paths_recursive(S)
-% REMOVE_NESTED_PATHS_RECURSIVE Remove all 'paths' fields at any depth.
-%
-% Safe for struct arrays, nested structs, and cell arrays.
-
-    % ---- STRUCT OR STRUCT ARRAY ----
-    if isstruct(S)
-
-        % Remove 'paths' field from entire struct array at once
-        if isfield(S, 'paths')
-            S = rmfield(S, 'paths');
-        end
-
-        % Recurse into remaining fields
-        fn = fieldnames(S);
-        for ff = 1:numel(fn)
-            val = {S.(fn{ff})};
-
-            % Recurse elementwise if needed
-            for ii = 1:numel(val)
-                val{ii} = remove_nested_paths_recursive(val{ii});
-            end
-
-            % Write back safely
-            [S.(fn{ff})] = val{:};
-        end
-
-    % ---- CELL ARRAY ----
-    elseif iscell(S)
-        for ii = 1:numel(S)
-            S{ii} = remove_nested_paths_recursive(S{ii});
-        end
-    end
-
-    % ---- EVERYTHING ELSE: DO NOTHING ----
-end
 end
 
