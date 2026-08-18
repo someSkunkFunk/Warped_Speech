@@ -15,13 +15,15 @@ function save_checkpoint(data,config,overwrite)
         mkdir(output_dir);
     end
     % normalize struct structure so hashes are consistent
-    config=remove_nested_paths(config);
-    config=columnize_row_vectors(config);
+    % config=remove_nested_paths(config);
+    configToHash=filterConfig(config,getHashFields(config.configType));
+    configToHash=columnize_row_vectors(configToHash);
     % make unique hash using DataHash from fileexchange
-    config_hash=char(upper(DataHash(config)));
+    config_hash=char(upper(DataHash(configToHash)));
 
     % define unique file names
-    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat',config.subj,config_hash));
+    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat', ...
+        subj,config_hash));
     registry_file=fullfile(output_dir,'registry.json');
 
     % load or initialize registry
@@ -30,6 +32,8 @@ function save_checkpoint(data,config,overwrite)
 
         % prevent bug if saved registry is empty or has only one element
         if isempty(registry) || ~isstruct(registry)
+            %TODO: IS THIS NECESSARY IF EMPTY? HOW DOES IT HELP IF REGISTRY
+            %IS NOT STRUCT? WONT IT OVERWRITE THE DATA IN IT?
             registry = struct('hash',{},'config',{},'file',{},'timestamp',{});
         elseif numel(registry) == 1 && ~iscell(registry)
             registry = reshape(registry, 1, 1); % ensure struct array semantics stay consistent
@@ -40,6 +44,8 @@ function save_checkpoint(data,config,overwrite)
         % error
         registry=struct('hash',{}, ...
             'config',{}, ...
+            'hashFields',{}, ...
+            'configType',{}, ...
             'file',{}, ...
             'timestamp',{} ...
             );
@@ -65,7 +71,9 @@ function save_checkpoint(data,config,overwrite)
         %add or update entry
         entry=struct( ...
             'hash',config_hash,...
-            'config',config, ...
+            'config',configToHash, ...
+            'hashFields',{getHashFields(config.configType)}, ...
+            'configType',config.configType, ...
             'file', mat_fnm, ...
             'timestamp',datetime('now'));
 
@@ -86,7 +94,7 @@ function save_checkpoint(data,config,overwrite)
         end
         % should overwrite pre-existing config but that's okay cuz they
         % shld match
-        save(mat_fpth,'config','-append');
+        save(mat_fpth,'configToHash','-append');
         % save updated registry
         fid=fopen(registry_file,'w');
         fwrite(fid,jsonencode(registry),'char');

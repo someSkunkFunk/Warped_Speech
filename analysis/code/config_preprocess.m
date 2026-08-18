@@ -110,6 +110,7 @@ preprocess_config.m=m;
 preprocess_config.n_trials=length(m);
 
 %% put everything into a structure and disp
+preprocess_config.config_type='preprocess';
 % because order matters for jsonencode-based match lookup...
 preprocess_config=orderfields(preprocess_config);
 preprocess_config=columnize_row_vectors(preprocess_config);

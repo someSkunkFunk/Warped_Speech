@@ -118,7 +118,7 @@ switch TRF_DIR
                 % otherwise it gets set in trf_analysis_params
                 train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
             end
-            stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,xTRF_DIR);
+            stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
             % error('stuff below should take place in save_checkpoint...')
             % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
             % save(trf_config.model_metric_path,'stats_null','-append')

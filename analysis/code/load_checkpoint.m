@@ -13,18 +13,19 @@ function data=load_checkpoint(config)
     registry=jsondecode(fileread(registry_file));
 
     % normalize struct structure to get consistent hashes
-    config=remove_nested_paths(config);
-
-    config_hash=char(upper(DataHash(config)));
+    % configToHash=remove_nested_paths(config);
+    configToHash=filterConfig(config,getHashFields(config.configType));
+    config_hash=char(upper(DataHash(configToHash)));
     config_match_idx=find(strcmp({registry.hash},config_hash));
 
     if isempty(config_match_idx)
         warning('no matching file found for config below in existing registry.')
-        disp(config)
+        disp(configToHash)
         data=[];
     else
         if length(config_match_idx)>1
-            warning('redundant entries found and SHOULD be resolved...')
+            warning(['redundant entries found... SELECTING ' ...
+                'FIRST MATCHING ENTRY...'])
             config_match_idx=config_match_idx(1);
         end
         [~,file,~]=fileparts(registry(config_match_idx).file);

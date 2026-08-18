@@ -22,7 +22,8 @@ defaults=struct( ...
     'conditions',[],...
     'use_triggers',[], ...
     'subsample_trfs',false, ...
-    'sep_ridge',false ...
+    'sep_ridge',false, ...
+    'trf_direction',1 ...
     );
 if isempty(preprocess_config)
     warning('empty preprocess_config given...')
@@ -32,7 +33,9 @@ if isempty(preprocess_config)
 end
 % remove paths from preprocess config to avoid hash errors in different
 % systems
-preprocess_config=rmfield(preprocess_config,'paths');
+% preprocess_config=rmfield(preprocess_config,'paths');
+preprocess_config=filterConfig(preprocess_config, ...
+    getHashFields(preprocess_config.config_type));
 trf_config.preprocess_config=preprocess_config;
 
 fields=fieldnames(defaults);
@@ -78,15 +81,12 @@ elseif trf_config.subj<23
 end
 
 trf_config.paths.output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,trf_config.subj);
-
-
+trf_config.config_type='trf';
 % column-major order for consistency
 trf_config=orderfields(trf_config);
 trf_config=columnize_row_vectors(trf_config);
 disp('voila trf_config:')
 disp(trf_config)
-% guess won't need this since function only returns trf_config
-% clearvars -except trf_config 
 
 end
 
