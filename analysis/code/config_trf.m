@@ -31,12 +31,6 @@ if isempty(preprocess_config)
     disp('but this is probably not what you want for analysis')
     preprocess_config=config_preprocess([]);
 end
-% remove paths from preprocess config to avoid hash errors in different
-% systems
-% preprocess_config=rmfield(preprocess_config,'paths');
-preprocess_config=filterConfig(preprocess_config, ...
-    getHashFields(preprocess_config.config_type));
-trf_config.preprocess_config=preprocess_config;
 
 fields=fieldnames(defaults);
 for ff=1:numel(fields)
@@ -65,6 +59,13 @@ if trf_config.separate_conditions
 else
     trf_config.conditions={'all conditions'};
 end
+% remove paths from preprocess config to avoid hash errors in different
+% systems
+% preprocess_config=rmfield(preprocess_config,'paths');
+% preprocess_config=filterConfig(preprocess_config, ...
+%     getHashFields(preprocess_config.config_type));
+preprocess_config=buildHashableConfig(preprocess_config);
+trf_config.preprocess_config=preprocess_config;
 
 %%%%%%%%%%%%%%%%%%%%%% PATHS TO IGNORE IN REGISTRY %%%%%%%%%%%%%%%%%%%%%%%%
 if trf_config.subj>=90
@@ -81,7 +82,7 @@ elseif trf_config.subj<23
 end
 
 trf_config.paths.output_dir=sprintf('%s/analysis/trf_models/%02d',boxdir_mine,trf_config.subj);
-trf_config.config_type='trf';
+trf_config.configType='trf';
 % column-major order for consistency
 trf_config=orderfields(trf_config);
 trf_config=columnize_row_vectors(trf_config);

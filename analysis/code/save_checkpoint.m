@@ -9,36 +9,40 @@ function save_checkpoint(data,config,overwrite)
     varname=inputname(1);
     data_.(varname)=data;
     subj=config.subj;
-    output_dir=config.paths.output_dir;
+    outputDir=config.paths.output_dir;
     % ENSURE OUTPUT DIRECTORY EXISTS
-    if ~exist(output_dir,'dir')
-        mkdir(output_dir);
+    if ~exist(outputDir,'dir')
+        mkdir(outputDir);
     end
     % normalize struct structure so hashes are consistent
     % config=remove_nested_paths(config);
-    configToHash=filterConfig(config,getHashFields(config.configType));
-    configToHash=columnize_row_vectors(configToHash);
-    % make unique hash using DataHash from fileexchange
-    config_hash=char(upper(DataHash(configToHash)));
+    % configToHash=filterConfig(config,getHashFields(config.configType));
+    % configToHash=columnize_row_vectors(configToHash);
+    % config_hash=char(upper(DataHash(configToHash)));
+    configHash=computeConfigHash(config);
 
     % define unique file names
-    mat_fpth=fullfile(output_dir,sprintf('warped_speech_s%02d_%s.mat', ...
-        subj,config_hash));
-    registry_file=fullfile(output_dir,'registry.json');
+    matFpth=fullfile(outputDir,sprintf('warped_speech_s%02d_%s.mat', ...
+        subj,configHash));
+    registryFile=fullfile(outputDir,'registry.json');
 
     % load or initialize registry
-    if isfile(registry_file)
-        registry=jsondecode(fileread(registry_file));
+    if isfile(registryFile)
+        registry=jsondecode(fileread(registryFile));
 
         % prevent bug if saved registry is empty or has only one element
-        if isempty(registry) || ~isstruct(registry)
-            %TODO: IS THIS NECESSARY IF EMPTY? HOW DOES IT HELP IF REGISTRY
-            %IS NOT STRUCT? WONT IT OVERWRITE THE DATA IN IT?
-            registry = struct('hash',{},'config',{},'file',{},'timestamp',{});
+        if isempty(registry) || ~isstruct(registry)        
+            registry=struct('hash',{}, ...
+            'config',{}, ...
+            'hashFields',{}, ...
+            'configType',{}, ...
+            'file',{}, ...
+            'timestamp',{} ...
+            );
         elseif numel(registry) == 1 && ~iscell(registry)
             registry = reshape(registry, 1, 1); % ensure struct array semantics stay consistent
         end
-        config_match_idx=find(strcmp({registry.hash},config_hash),1);
+        config_match_idx=find(strcmp({registry.hash},configHash),1);
     else
         % intialize as 0x0 struct array for iterative assignment without
         % error
@@ -54,8 +58,8 @@ function save_checkpoint(data,config,overwrite)
     
     %if no matching registry exits, or file associated with registry 
     % is missing current variable, save and register
-    if isfile(mat_fpth)
-        missing_var=~ismember(varname,{whos('-file',mat_fpth).name});
+    if isfile(matFpth)
+        missing_var=~ismember(varname,{whos('-file',matFpth).name});
     else
         missing_var=false;
     end
@@ -66,11 +70,11 @@ function save_checkpoint(data,config,overwrite)
         disp('original registry:')
         disp(registry)
         fprintf('saving %s\nto %s\nfor subj %02d\n(config hash:%s)\n', ...
-            varname,mat_fpth,subj,config_hash)
-        [~,mat_fnm,~]=fileparts(mat_fpth);
+            varname,matFpth,subj,configHash)
+        [~,mat_fnm,~]=fileparts(matFpth);
         %add or update entry
         entry=struct( ...
-            'hash',config_hash,...
+            'hash',configHash,...
             'config',configToHash, ...
             'hashFields',{getHashFields(config.configType)}, ...
             'configType',config.configType, ...
@@ -87,19 +91,19 @@ function save_checkpoint(data,config,overwrite)
         disp('new registry:')
         disp(registry)
         % save data
-        if isfile(mat_fpth)
-            save(mat_fpth,'-struct','data_','-append');
+        if isfile(matFpth)
+            save(matFpth,'-struct','data_','-append');
         else
-            save(mat_fpth,'-struct','data_');
+            save(matFpth,'-struct','data_');
         end
         % should overwrite pre-existing config but that's okay cuz they
         % shld match
-        save(mat_fpth,'configToHash','-append');
+        save(matFpth,'configToHash','-append');
         % save updated registry
-        fid=fopen(registry_file,'w');
+        fid=fopen(registryFile,'w');
         fwrite(fid,jsonencode(registry),'char');
         fclose(fid);
-        fprintf('Saved %s to %s and updated registry.\n',varname,mat_fpth);
+        fprintf('Saved %s to %s and updated registry.\n',varname,matFpth);
     else
         warning('pre-existing matching config exists, skipping save - ensure that this is intended behavior.')
 

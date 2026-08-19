@@ -17,6 +17,7 @@ clear trf_config preprocess_config trf_config_
 
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
+
 trf_config.separate_conditions=false;
 trf_config.subsample_trfs=false;
 

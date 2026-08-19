@@ -1,4 +1,4 @@
-function update_rehash_config(new_config)
+function update_rehash_config(newConfig)
 % UPDATE_REHASH_CONFIG(new_config)
 %
 % migrates every entry in config.paths.output_dir/registry.json to the
@@ -27,8 +27,8 @@ function update_rehash_config(new_config)
 % would change the value of a field that already existed before migration,
 % entry is skipped with a warning instead of silently overwritten.
 
-outputDir=config.paths.output_dir;
-registryFile=fullfile(output_dir,'registry.json');
+outputDir=newConfig.paths.output_dir;
+registryFile=fullfile(outputDir,'registry.json');
 if ~isfile(registryFile)
     error('registry not found in %s', registryFile)
 end
@@ -46,6 +46,119 @@ registry=jsondecode(fileread(registryFile));
 nUpdated=0; nUnchanged=0; nSkipped=0;
 for ii=1:numel(registry)
     entry=registry(ii);
+    oldConfig=entry.config;
+    oldHash=entry.hash;
+
+    fprintf('\n--- entry %d/%d (file: %s, old hash: %s) ---\n', ...
+        ii,numel(registry),entry.file,oldHash);
+
+    if ~isfield(oldConfig,'configType')
+        % pre-migration entries wont have this field yet... add it based on
+        % the type of config passed in to this call
+        oldConfig.configType=newConfig.configType;
+    end
+
+    try
+        newConfig=rebuildConfig(oldConfig);
+    catch ME
+        warning ('enrty %d (%s): could not rebuild config - %s. Skipping.', ...
+            ii, entry.file,ME.message)
+        nSkipped=nSkipped+1;
+        continue
+    end
+    conflictFields=findConflictingFields(oldConfig,newConfig);
+
+    if ~isempty(conflictFields)
+        warning(['entry %d (%s): rebuilding changed existing field(s): ' ...
+            '{%s}\n check this apparent semantic change. Skipping.'], ...
+            ii,entry.file,strjoin(conflictFields,','));
+        nSkipped=nSkipped+1;
+        continue
+    end
+
+    newHash=computeConfigHash(newConfig);
+    if strcmp(newHash,oldHash)
+        nUnchanged=nUnchanged+1;
+        continue
+    end
+
+    % rename mat file name in registry and actual file
+    oldMatFpth=fullfile(outputDir,sprintf('%s.mat',entry.file));
+    if ~isfile(oldMatFpth)
+        warning('entry %d: expected file %s not found. Skipping.',ii,oldMatFpth);
+        nSkipped=nSkipped+1;
+        continue
+    end
+    newFnm=sprintf('warped_speech_s%02d_%s',newConfig.subj,newHash);
+    newMatFpth=fullfile(outputDir,sprintf('%s.mat',newFnm));
+    disp('old config:'); disp(oldConfig);
+
+    disp('new (rebuilt) config:'); disp(newConfig);
+
+    config=newConfig; %#ok<NASGU> % variable named "config" so save() writes it under that name
+    save(oldMatFpth,'config','-append')
+
+    if ~movefile(oldMatFpth,newMatFpth)
+        warning(['entry %d: movefile failed (%s -> %s). ' ...
+            'Skipping registry update.'],oldMatFpth,newMatFpth);
+        nSkipped=nSkipped+1;
+        continue
+    end
+
+    registry(ii).hash=newHash;
+    registry(ii).configType=newConfig.configType;
+    registry(ii).hashFields=getHashFields(newConfig.configType);
+    registry(ii).config=newConfig;
+    registry(ii).file=newFnm;
+    registry(ii).timestamp=datetime('now');
+    nUpdated=nUpdated+1;
+    fprintf('updated: %s -> %s\n',oldHash,newHash);
+
 end
 
+
+fid=fopen(registryFile,'w');
+fwrite(fid,jsonencode(registry),'char');
+fclose(fid);
+
+fprintf(['Done with %s.\n %d updated, %d unchanged, %d skipped ' ...
+    '(see warnings aboved for skipped entries)\n'], ...
+    outputDir,nUpdated,nUnchanged,nSkipped)
+
+    function newConfig=rebuildConfig(oldConfig)
+        switch oldConfig.configType
+            case 'preprocess'
+                newConfig=config_preprocess(oldConfig);
+            case 'trf'
+                % re-derive the nested preprocess config first
+                ppSeed=oldConfig.preprocess_config;
+                ppSeed.configType='preprocess';
+                ppRebuilt=config_preprocess(ppSeed);
+                newConfig=config_trf(oldConfig,ppRebuilt);
+            otherwise
+                error(['no rebuild rule defined for configType%s\n' ...
+                    '--add a case to rebuild_config'],oldConfig.configType);
+        end
+    end
+    function conflictFields=findConflictingFields(oldC,newC)
+        conflictFields={};
+        % fields to exclude from raw check:
+        % 'paths' legitimately differ across machines and is regenerated
+        % deterministically; 
+        % 'preprocess_config' / 'configType' are structural, not user
+        % parameters -- although am suspicious this may trigger a silent
+        % bug for trf config results with legitimately different
+        % preprocessing params... should verify that's not the case
+        exclude={'paths','preprocess_config','configType'};
+        checkFields=setdiff(fieldnames(oldC),exclude);
+        for ff=1:numel(checkFields)
+            fn=checkFields{ff};
+            if isfield(newC,fn) && ~isequal(oldC.(fn),newC.(fn))
+                conflictFields{end+1}=fn; %#ok<AGROW>
+            end
+        end
+        
+
+
+    end
 end

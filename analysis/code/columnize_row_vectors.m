@@ -29,6 +29,9 @@ function X = columnize_row_vectors(X)
             for i = 1:numel(X)
                 X{i} = columnize_row_vectors(X{i});
             end
+            if isrow(X)
+                X=X';
+            end
             return
         end
     
