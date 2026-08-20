@@ -6,7 +6,7 @@ function update_rehash_config(newConfig)
 % defaults (config_preprocess/config_trf)
 %
 % CHANGED FROM OLD VERSION: instead of trying to match one
-% externally-supplied config against ssaved files and work with the first
+% externally-supplied config against ssved files and work with the first
 % hit, it rebuilds every registry entry's own stored config by re-running
 % it through its original builder function. The builder function fills any
 % newly-added fields with schema defaults while leaving pre-existing values
@@ -45,6 +45,8 @@ registry=jsondecode(fileread(registryFile));
 
 nUpdated=0; nUnchanged=0; nSkipped=0;
 for ii=1:numel(registry)
+    updateRegistry=true;
+    updateMatFile=true;
     entry=registry(ii);
     oldConfig=entry.config;
     oldHash=entry.hash;
@@ -84,33 +86,45 @@ for ii=1:numel(registry)
 
     % rename mat file name in registry and actual file
     oldMatFpth=fullfile(outputDir,sprintf('%s.mat',entry.file));
-    if ~isfile(oldMatFpth)
-        warning('entry %d: expected file %s not found. Skipping.',ii,oldMatFpth);
-        nSkipped=nSkipped+1;
-        continue
-    end
     newFnm=sprintf('warped_speech_s%02d_%s',newConfig.subj,newHash);
     newMatFpth=fullfile(outputDir,sprintf('%s.mat',newFnm));
+
+    if ~isfile(oldMatFpth)
+        % if matfile was previously updated but registry was not, still
+        % need to rewrite that registry entry
+        if isfile(newMatFpth)
+            updateRegistry=true;
+            updateMatFile=false;
+        else
+            warning('entry %d: expected file %s not found. Skipping.',ii,oldMatFpth);
+            nSkipped=nSkipped+1;
+            continue
+        end
+    end
+    
     disp('old config:'); disp(oldConfig);
 
     disp('new (rebuilt) config:'); disp(newConfig);
-
-    config=newConfig; %#ok<NASGU> % variable named "config" so save() writes it under that name
-    save(oldMatFpth,'config','-append')
-
-    if ~movefile(oldMatFpth,newMatFpth)
-        warning(['entry %d: movefile failed (%s -> %s). ' ...
-            'Skipping registry update.'],oldMatFpth,newMatFpth);
-        nSkipped=nSkipped+1;
-        continue
+    if updateMatFile
+        config=newConfig; %#ok<NASGU> % variable named "config" so save() writes it under that name
+        save(oldMatFpth,'config','-append')
+    
+        if ~movefile(oldMatFpth,newMatFpth)
+            warning(['entry %d: movefile failed (%s -> %s). ' ...
+                'Skipping registry update.'],oldMatFpth,newMatFpth);
+            nSkipped=nSkipped+1;
+            continue
+        end
     end
 
-    registry(ii).hash=newHash;
-    registry(ii).configType=newConfig.configType;
-    registry(ii).hashFields=getHashFields(newConfig.configType);
-    registry(ii).config=newConfig;
-    registry(ii).file=newFnm;
-    registry(ii).timestamp=datetime('now');
+    if updateRegistry
+        registry(ii).hash=newHash;
+        registry(ii).configType=newConfig.configType;
+        registry(ii).hashFields=getHashFields(newConfig.configType);
+        registry(ii).config=newConfig;
+        registry(ii).file=newFnm;
+        registry(ii).timestamp=datetime('now');
+    end
     nUpdated=nUpdated+1;
     fprintf('updated: %s -> %s\n',oldHash,newHash);
 
@@ -133,6 +147,9 @@ fprintf(['Done with %s.\n %d updated, %d unchanged, %d skipped ' ...
                 % re-derive the nested preprocess config first
                 ppSeed=oldConfig.preprocess_config;
                 ppSeed.configType='preprocess';
+                % config trf removes subj info when making it a hashable
+                % config, so need to temporarily re-instate to avoid error
+                ppSeed.subj=oldConfig.subj;
                 ppRebuilt=config_preprocess(ppSeed);
                 newConfig=config_trf(oldConfig,ppRebuilt);
             otherwise

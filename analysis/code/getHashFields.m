@@ -24,7 +24,9 @@ function flds=getHashFields(configType)
 %   recovered from preprocess config since trf_config already should have
 %   it
 %   conditions - just condition labels for plots? if so, don't need here
-
+%%:IDK???
+% SHOULD SUBJ REMAIN ? DO WE WANT TO POSSIBLY HAVE HASH-CONSISTENCY ACROSS
+% SUBJECTS?
 switch configType
     case 'preprocess'
         flds={'bpfilter','ref','fs','interpBadChans','bad_chans', ...
