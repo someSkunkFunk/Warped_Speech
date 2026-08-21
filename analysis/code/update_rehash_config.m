@@ -44,7 +44,11 @@ registry=jsondecode(fileread(registryFile));
 % end
 
 nUpdated=0; nUnchanged=0; nSkipped=0;
+disp('--Registry on file:')
+disp(struct2table(registry))
+
 for ii=1:numel(registry)
+    
     updateRegistry=true;
     updateMatFile=true;
     entry=registry(ii);
@@ -55,7 +59,7 @@ for ii=1:numel(registry)
 
     fprintf('\n--- entry %d/%d (file: %s, old hash: %s) ---\n', ...
         ii,numel(registry),entry.file,oldHash);
-    disp('current outPutDir:')
+    fprintf('current outPutDir (%s):\n',outputDir)
     disp(ls(outputDir))
 
     if ~isfield(oldConfig,'configType')
@@ -114,25 +118,35 @@ for ii=1:numel(registry)
     if updateMatFile
         config=newConfig; %#ok<NASGU> % variable named "config" so save() writes it under that name
         save(oldMatFpth,'config','-append')
-    
+        
+            
+
         if ~movefile(oldMatFpth,newMatFpth)
             warning(['entry %d: movefile failed (%s -> %s). ' ...
                 'Skipping registry update.'],oldMatFpth,newMatFpth);
             nSkipped=nSkipped+1;
             continue
         end
+    
     end
 
     if updateRegistry
+        disp('--Registry BEFORE updating:')
+        disp(struct2table(registry))
         registry(ii).hash=newHash;
         registry(ii).configType=newConfig.configType;
         registry(ii).hashFields=getHashFields(newConfig.configType);
         registry(ii).config=newConfig;
         registry(ii).file=newFnm;
         registry(ii).timestamp=datetime('now');
+        disp('--Registry AFTER updating:')
+        disp(struct2table(registry))
+
     end
     nUpdated=nUpdated+1;
     fprintf('updated: %s -> %s\n',oldHash,newHash);
+    
+    
 
 end
 
