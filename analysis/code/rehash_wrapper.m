@@ -3,7 +3,7 @@
 dbstop if error
 dbstop if warning
 % initialize
-for subj=[2]
+for subj=[11]
 trf_analysis_params;
 update_rehash_config(trf_config)
 update_rehash_config(preprocess_config)

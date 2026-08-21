@@ -48,11 +48,15 @@ for ii=1:numel(registry)
     updateRegistry=true;
     updateMatFile=true;
     entry=registry(ii);
+
+
     oldConfig=entry.config;
     oldHash=entry.hash;
 
     fprintf('\n--- entry %d/%d (file: %s, old hash: %s) ---\n', ...
         ii,numel(registry),entry.file,oldHash);
+    disp('current outPutDir:')
+    disp(ls(outputDir))
 
     if ~isfield(oldConfig,'configType')
         % pre-migration entries wont have this field yet... add it based on
@@ -85,13 +89,15 @@ for ii=1:numel(registry)
     end
 
     % rename mat file name in registry and actual file
-    oldMatFpth=fullfile(outputDir,sprintf('%s.mat',entry.file));
+    % note: dont use the file path in the registry entry because some were
+    % recorded wrong
+    oldFnm=sprintf('warped_speech_s%02d_%s',oldConfig.subj,oldHash);
+    oldMatFpth=fullfile(outputDir,sprintf('%s.mat',oldFnm));
     newFnm=sprintf('warped_speech_s%02d_%s',newConfig.subj,newHash);
     newMatFpth=fullfile(outputDir,sprintf('%s.mat',newFnm));
 
     if ~isfile(oldMatFpth)
-        % if matfile was previously updated but registry was not, still
-        % need to rewrite that registry entry
+        % rewrite registry entry if matfile was previously updated 
         if isfile(newMatFpth)
             updateRegistry=true;
             updateMatFile=false;
