@@ -45,7 +45,10 @@ cfg.baselineWinTRF=[-100 0]; % TRF lags for GFP threshold (ms)
 
 cfg.doGroupAverage=true;
 
-cfg.overwrite=0; 
+cfg.overwrite=0; %TODO: CHECK IF THIS WORKS!
+
+cfg.doExportFigures=true;
+
 
 %% ------------------------------------------------------------------------
 % LOAD DATA + BATCH LOOP
@@ -73,8 +76,8 @@ for subjIdx=1:numel(subjs)
     % even really need to hash it..
     
     checkpointData=load_checkpoint(resultsCfg);
-
-    if isempty(checkpointData)
+    noPreloadData=isempty(checkpointData);
+    if noPreloadData
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
         results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
@@ -97,7 +100,7 @@ end
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
     plot_subject_results(allResultsCell{subjIdx},chanlocs, ...
-        cfg,sprintf('subj %d', subj))
+        cfg,sprintf('Subj%0d', subj))
 end
 %% ------------------------------------------------------------------------
 % COMPUTE GRAND AVERAGE RESULTS + plot
@@ -105,6 +108,13 @@ end
 if cfg.doGroupAverage
     grand=computeGrandAverage(allResultsCell,chanlocs);
     plot_subject_results(grand,chanlocs,cfg,'Grand-Average')
+end
+%% ------------------------------------------------------------------------
+% AUTO-EXPORT ALL FIGURES TO A STRUCTURED FOLDER
+% -------------------------------------------------------------------------
+if cfg.doExportFigures
+    % Create a clean output directory
+    %TODO: WHERE TO PUT THIS??
 end
 
 
@@ -204,7 +214,8 @@ function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
 end
 
 function grand = computeGrandAverage(allResults, chanlocs)
-% TODO: RE-FACTOR TO SEPARATE RESULTS BY CONDITION
+% GRAND MUST INHERET ALL RESULTS TO MATCH STRUCTURE OF PLOTTING FUNCTION
+% LATER
     nSubj=numel(allResults);
 
     % sanity checks: all results should be able to share time axis
@@ -232,12 +243,15 @@ function grand = computeGrandAverage(allResults, chanlocs)
     silenceTRFStack=nan(nCond,numel(trfTimes),nChan,nSubj);
     for ss=1:nSubj
         erpStack(:,:,:,ss)=allResults{ss}.erpData;
-        envTRFStack(cc,:,:,ss)=allResults{ss}.envTRF; %envTRF
-        silenceTRFStack(cc,:,:,ss)=allResults{ss}.silTRF; %silenceTRF
+        envTRFStack(:,:,:,ss)=allResults{ss}.envTRF; %envTRF
+        silenceTRFStack(:,:,:,ss)=allResults{ss}.silTRF; %silenceTRF
     end
 
+    % create grand results struct
+    grand.sbuj='Grand-Average';
+    grand.erpTimes=erpTimes;
+    grand.trfTimes=trfTimes;
     % average across subjects
-
     grand.erpData=mean(erpStack,4);
     grand.envTRF=mean(envTRFStack,4);
     grand.silTRF=mean(silenceTRFStack,4);
@@ -245,60 +259,64 @@ function grand = computeGrandAverage(allResults, chanlocs)
 end
 
 
-function plot_subject_results(results, chanlocs, cfg, labelStr)
+function plot_subject_results(results, chanlocs, cfg, subjLabelStr)
 % wrapper function for ROI-averaged ERP/TRF results + plotButterflyGFPTopo
 % results: 1x1 struct containing results
     roiIdx=cfg.roiElectrodes;
-    condVec=results.condVec;
+    nCond=size(results.erpData,1);
     trfTimes=results.trfTimes; % lag axis in ms
 
-    for condIdx=1:numel(unique(condVec))
+    for condIdx=1:nCond
         % condMask=condVec==condIdx; % nStim x1 logical nvm dont need
         
         condRoiSilERP=squeeze(mean(mean(results.erpData(condIdx,roiIdx,:),1),2)); % lags x 1
         condRoiSilTRF=squeeze(mean(results.silTRF(condIdx,:,roiIdx),3))'; % lags x 1
         condRoiEnvTRF=squeeze(mean(results.envTRF(condIdx,:,roiIdx),3))'; %lags x 1
         
-        figure('Name', ['ROI-averaged ERPs to offsets - ' labelStr]);
-        ax1=subplot(2,1,1);
+        % define a clean prefix for subject/condition
+        figPrefix=sprintf('%s | Cond%d |',subjLabelStr,condIdx);
+        figName=[figPrefix 'ROI-averaged timecourses'];
+        figure('Name', figName);
+        ax1=subplot(3,1,1);
         plot(1e3*results.erpTimes,condRoiSilERP,'LineWidth',1.5);
         xline(0,'k--')
         xlabel('Time from silence onset (ms)'); ylabel('Amplitude'); % what units?
-        title(['ROI ERP - ' labelStr]) %TODO: add topo marking selected electrodes
+        title('silERP') %TODO: add topo marking selected electrodes
         
-        ax2=subplot(2,1,2);
+        ax2=subplot(3,1,2);
         plot(trfTimes, condRoiSilTRF,'Linewidth', 1.5)
         xline(0, 'k--')
         xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
-        title(['ROI TRF - silence onset feature' labelStr])
+        title('silTRF ')
         
-        linkaxes([ax1,ax2],'x')
-        xlim(ax2,[-100,500])
         
         % NOTE: envelope TRF not time-locked to silences like ERP so maybe plot
         % separately?
-        % subplot(3,1,3);
-        figure('Name', 'ROI-averaged envelope TRF')
+        ax3= subplot(3,1,3);
         plot(trfTimes, condRoiEnvTRF,'LineWidth', 1.5)
         xlabel('Lag (ms)'); ylabel('Amplitude (a.u.)');
-        title('ROI TRF - envelope feature')
+        title('envTRF')
         xlim([-100,500])
+
+        sgtitle(figName)
+        linkaxes([ax1,ax2,ax3],'x')
+        xlim(ax3,[-100,500])
         
         
         
         %TODO: add FFTs 
         
         plotButterflyGFPTopo(squeeze(results.erpData(condIdx,:,:)), 1e3*results.erpTimes, chanlocs, ...
-            cfg.baselineWinERP, sprintf('ERP (all channels) - %s - cond: %d',labelStr,condIdx))
+            cfg.baselineWinERP, [figPrefix '%s silERPs '])
         
         plotButterflyGFPTopo(squeeze(results.envTRF(condIdx,:,:))', ...
             trfTimes, chanlocs, ...
-            cfg.baselineWinTRF, sprintf('TRF - envelope feature - %s - cond: %d', labelStr,condIdx));
+            cfg.baselineWinTRF, [figPrefix '%s envTRFs']);
 
         
         plotButterflyGFPTopo(squeeze(results.silTRF(condIdx,:,:))', ...
             trfTimes, chanlocs, ...
-            cfg.baselineWinTRF, sprintf('TRF - silence onset feature - %s - cond: %d', labelStr,condIdx))
+            cfg.baselineWinTRF, [figPrefix 'silTRF']);
     end
 end
 
@@ -520,16 +538,25 @@ hold off
 
 % --- Topoplot of time-averaged weights within GFP window ---
 if any(winMask)
+    % create ONE figure to put all topoplots into
+    figTopo=figure('Name', [titleStr ' | Topoplots'], 'NumberTitle', 'off');
+
+    % use 'flow' tiled-layout to automatically arrrange subplots in a grid
+    tlo=tiledlayout(figTopo, 'flow','TileSpacing','compact','Padding','compact');
+    title(tlo, [titleStr ' | GFP Supra-threshold Windows'])
     for ww=1:nWindows
-        figure('Name', sprintf('%s time-averaged topo %d of %d',titleStr,ww,nWindows))
+        nexttile(tlo); % add new tile automatically
         topoWeights=mean(data(:,winStarts(ww):winEnds(ww)),2);
-        title(sprintf('Time-averaged topo weights %0.1fms - %0.1fms', ...
+
+        topoplot(topoWeights,chanlocs,'electrodes','on');
+        subtitle(sprintf(' %0.1fms - %0.1fms', ...
             times(winStarts(ww)),times(winEnds(ww))))
-        topoplot(topoWeights,chanlocs,'electrodes','on')
         colorbar;
     end
 else
     disp('No supra-threshold GFP windows to time average for topoplot.')
+    %TODO: IT WOULD BE MORE NICER IF THIS RETURNED A FIGURE WITH THAT
+    %MESSAAGE ON IT BUT OTHERWISE EMPTY
 end
 end
 
