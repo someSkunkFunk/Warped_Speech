@@ -14,14 +14,17 @@ function data=load_checkpoint(config)
 
     % normalize struct structure to get consistent hashes
     % configToHash=remove_nested_paths(config);
-    % configToHash=filterConfig(config,getHashFields(config.configType));
+
     % config_hash=char(upper(DataHash(configToHash)));
+
     configHash=computeConfigHash(config);
     configMatchIdx=find(strcmp({registry.hash},configHash));
 
     if isempty(configMatchIdx)
+        % hashableConfig=filterConfig(config,getHashFields(config.configType));
+        hashableConfig=buildHashableConfig(config);
         warning('no matching file found for config below in existing registry.')
-        disp(configToHash)
+        disp(hashableConfig)
         data=[];
     else
         if length(configMatchIdx)>1

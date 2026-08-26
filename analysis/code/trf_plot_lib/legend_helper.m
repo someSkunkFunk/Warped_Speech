@@ -37,7 +37,7 @@ function lh = legend_helper(ax, color_labels, color_rgbs)
 %     color_labels - cell array of condition name strings
 %     color_rgbs   - struct mapping condition name -> [1x3] RGB
 
-line_objs   = cell2struct(cell(size(color_labels))', color_labels);
+line_objs   = cell2struct(cell(size(color_labels)), color_labels);
 legend_lines = zeros(1, numel(color_labels));
 for ff = 1:numel(color_labels)
     lname = color_labels{ff};

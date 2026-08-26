@@ -1,25 +1,26 @@
-function save_checkpoint(data,config,overwrite)
+function save_checkpoint(data,inputConfig,overwrite)
     arguments
         data
-        config (1,1) struct
+        inputConfig (1,1) struct
         overwrite (1,1) logical=false;
     end
     % warning('I think overwrite param is causing repeated entries to registry being recorded... we should fix that...')
     % record var name in outer scope so we can reference it when loading
     varname=inputname(1);
     data_.(varname)=data;
-    subj=config.subj;
-    outputDir=config.paths.output_dir;
+    subj=inputConfig.subj;
+    outputDir=inputConfig.paths.output_dir;
     % ENSURE OUTPUT DIRECTORY EXISTS
     if ~exist(outputDir,'dir')
         mkdir(outputDir);
     end
     % normalize struct structure so hashes are consistent
     % config=remove_nested_paths(config);
-    % configToHash=filterConfig(config,getHashFields(config.configType));
+    % hashableConfig=filterConfig(config,getHashFields(config.configType));
+    hashableConfig=buildHashableConfig(inputConfig);
     % configToHash=columnize_row_vectors(configToHash);
     % config_hash=char(upper(DataHash(configToHash)));
-    configHash=computeConfigHash(config);
+    configHash=computeConfigHash(inputConfig);
 
     % define unique file names
     matFpth=fullfile(outputDir,sprintf('warped_speech_s%02d_%s.mat', ...
@@ -75,9 +76,9 @@ function save_checkpoint(data,config,overwrite)
         %add or update entry
         entry=struct( ...
             'hash',configHash,...
-            'config',configToHash, ...
-            'hashFields',{getHashFields(config.configType)}, ...
-            'configType',config.configType, ...
+            'config',hashableConfig, ...
+            'hashFields',{getHashFields(inputConfig.configType)}, ...
+            'configType',inputConfig.configType, ...
             'file', mat_fnm, ...
             'timestamp',datetime('now'));
 
@@ -97,8 +98,10 @@ function save_checkpoint(data,config,overwrite)
             save(matFpth,'-struct','data_');
         end
         % should overwrite pre-existing config but that's okay cuz they
-        % shld match
-        save(matFpth,'configToHash','-append');
+        % shld match -- and hopefully latest version captures schema at
+        % time of origin
+        config=hashableConfig;
+        save(matFpth,'config','-append');
         % save updated registry
         fid=fopen(registryFile,'w');
         fwrite(fid,jsonencode(registry),'char');

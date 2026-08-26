@@ -108,7 +108,7 @@ addpath('./trf_plot_lib/')
 close all
 script_config=[];
 
-script_config.experiment='reg-irreg';
+script_config.experiment='fast-slow';
 script_config.custom_subjs=[];
 script_config.topos_from_peak_windows=false;
 do_nulltest=false;

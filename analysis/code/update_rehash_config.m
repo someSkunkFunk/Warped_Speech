@@ -26,6 +26,10 @@ function update_rehash_config(newConfig)
 % SAFETY: rebuild is only expcted to ADD fields. If rebuilding an entry
 % would change the value of a field that already existed before migration,
 % entry is skipped with a warning instead of silently overwritten.
+%  manual inspection of registry and checkpoint files still required to
+% ensure file with older timestamp (and less current results that are
+% config-equivalent) doesnt overwrite more recent data (delete older 
+% conflicting mats before running script)"
 
 outputDir=newConfig.paths.output_dir;
 registryFile=fullfile(outputDir,'registry.json');

@@ -18,6 +18,7 @@ clear; clc; close all;
 
 dbstop if error
 cfg=[];
+cfg.configType='fEntrainment';
 cfg.fs=128; % Hz
 cfg.silenceThresh= 0.05; % envelope threshold below
                             % which samples count as silence.
@@ -49,20 +50,27 @@ cfg.overwrite=0;
 %% ------------------------------------------------------------------------
 % LOAD DATA + BATCH LOOP
 % -------------------------------------------------------------------------
-subjs=[24:25];
+subjs=[38];
 allResultsCell=cell(numel(subjs),1);
 
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
     trf_analysis_params % loc_file, trf_config, prepocess_config
     clear do_nulltest show_tuning_curves train_params
-    % NOTE: we might want to change this (for no other reason than it's
+    % NOTE: we might want to explicitly define pre-requisite configs in-script
+    % (for no other reason than current process 
     % kinda clunky even though it works)
     if subjIdx==1&&~exist('chanlocs','var')
         load(loc_file)
     end
     %%
     resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+    % above function just adds paths and ensures nested configs are forced
+    % to be hashable -- still needs to be made hashable itself. As a
+    % result, consider renaming function as it seems to imply that output
+    % is ready-to-hash
+    % actually, load_checkpoint runs buildHashableConfig internally so dont
+    % even really need to hash it..
     
     results=load_checkpoint(resultsCfg);
 
@@ -508,20 +516,25 @@ end
 end
 
 function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
-%   
+%   not yet hashable, but ensures nested configs are hashable
+
+    hashablePpConfig=buildHashableConfig(preprocess_config);
+    hashableTrfConfig=buildHashableConfig(trf_config);
+
     global boxdir_mine
     output_dir=sprintf('%s/analysis/forward_entrainment/%02d',boxdir_mine,subj);
     paths=struct('output_dir',output_dir);
     resultsCfg=struct( ...
-        'subj',subj, ...
+        'subj',subj, ...,
+        'configType',cfg.configType, ...
         'fs', cfg.fs, ...
         'silenceThresh', cfg.silenceThresh, ...
         'minSilenceDur', cfg.minSilenceDur, ...
         'erpWindow', cfg.erpWindow, ...
         'trfLags', cfg.trfLags, ...
         'lambdaGrid', cfg.lambdaGrid, ...
-        'preprocess_config', preprocess_config, ...
-        'trf_config', trf_config, ...
+        'preprocess_config', hashablePpConfig, ...
+        'trf_config', hashableTrfConfig, ...
         'paths', paths); %trf config might be confusing in 
     % future, consider only keeping the normalization parameters since
     % that's all we end up using

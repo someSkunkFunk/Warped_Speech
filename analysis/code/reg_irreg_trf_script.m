@@ -3,7 +3,7 @@ clc
 
 %NOTES:
 
-for subj=[36]
+for subj=[37:38]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -540,15 +540,19 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     preprocessed_eeg.trials = [EEG.event.type];
     % why did aaron choose 100 in particular rather than preprocess_config.n_trials to
     % begin with?
-    % note: line below is now unnecessary since clean_eeg_events should
-    % only leave trial triggers... but we should verify that only one such
-    % even per trial remains for all subjects
-    warning('see comment above...')
+    % note: line below is now seems unnecessary since clean_eeg_events
+    % should handle it...
+    % TODO: verify this handles case where clicks are missing 
+    % (in which case hopefully the psychaudiotoolbox trial start trigger
+    % still there) AND the case where clicks dont overlap
+    % with psychaudiotoolbox trial start triggers 
+    
+
     preprocessed_eeg.trials(preprocessed_eeg.trials>preprocess_config.n_trials+1) = [];
-    bdf_triggers_missing=any(diff(preprocessed_eeg.trials)>1);
+    allTrialsInBdf=isequal(preprocessed_eeg.trials,1:preprocess_config.n_trials);
     % filter out missing trials from cond
-    if bdf_triggers_missing
-        warning('some trial triggers are missing, but ')
+    if ~allTrialsInBdf
+        warning('some trial triggers are missing')
         % % cond might still have recorded, which will mess indexing
         % % downstream
         % % note that this block ASSUMES cond has the missing trial, which
