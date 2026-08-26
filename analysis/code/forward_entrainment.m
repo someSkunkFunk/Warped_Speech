@@ -77,8 +77,9 @@ for subjIdx=1:numel(subjs)
     if isempty(checkpointData)
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
-        checkpointData=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
-        save_checkpoint(checkpointData,resultsCfg,cfg.overwrite)
+        results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
+        save_checkpoint(results,resultsCfg,cfg.overwrite)
+        checkpointData.results=results;
     else
         fprintf('loaded pre-existing results for subj %d\n',subj)
     end
@@ -249,15 +250,16 @@ function plot_subject_results(results, chanlocs, cfg, labelStr)
 % results: 1x1 struct containing results
     roiIdx=cfg.roiElectrodes;
     condVec=results.condVec;
+    trfTimes=results.trfTimes; % lag axis in ms
 
     for condIdx=1:numel(unique(condVec))
         % condMask=condVec==condIdx; % nStim x1 logical nvm dont need
-        trfTimes=results.trfModels(1).t; % lag axis in ms
+        
         condRoiSilERP=squeeze(mean(mean(results.erpData(condIdx,roiIdx,:),1),2)); % lags x 1
         condRoiSilTRF=squeeze(mean(results.silTRF(condIdx,:,roiIdx),3))'; % lags x 1
         condRoiEnvTRF=squeeze(mean(results.envTRF(condIdx,:,roiIdx),3))'; %lags x 1
         
-        figure('Name', ['ROI-averaged responses to offsets - ' labelStr]);
+        figure('Name', ['ROI-averaged ERPs to offsets - ' labelStr]);
         ax1=subplot(2,1,1);
         plot(1e3*results.erpTimes,condRoiSilERP,'LineWidth',1.5);
         xline(0,'k--')
@@ -265,7 +267,6 @@ function plot_subject_results(results, chanlocs, cfg, labelStr)
         title(['ROI ERP - ' labelStr]) %TODO: add topo marking selected electrodes
         
         ax2=subplot(2,1,2);
-        % silent trf is second feature
         plot(trfTimes, condRoiSilTRF,'Linewidth', 1.5)
         xline(0, 'k--')
         xlabel('Lag (ms)');ylabel('Amplitude (a.u)');
@@ -290,12 +291,12 @@ function plot_subject_results(results, chanlocs, cfg, labelStr)
         plotButterflyGFPTopo(squeeze(results.erpData(condIdx,:,:)), 1e3*results.erpTimes, chanlocs, ...
             cfg.baselineWinERP, sprintf('ERP (all channels) - %s - cond: %d',labelStr,condIdx))
         
-        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(1,:,:))', ...
+        plotButterflyGFPTopo(squeeze(results.envTRF(condIdx,:,:))', ...
             trfTimes, chanlocs, ...
             cfg.baselineWinTRF, sprintf('TRF - envelope feature - %s - cond: %d', labelStr,condIdx));
 
         
-        plotButterflyGFPTopo(squeeze(results.trfModels(condIdx).w(2,:,:))', ...
+        plotButterflyGFPTopo(squeeze(results.silTRF(condIdx,:,:))', ...
             trfTimes, chanlocs, ...
             cfg.baselineWinTRF, sprintf('TRF - silence onset feature - %s - cond: %d', labelStr,condIdx))
     end
@@ -477,8 +478,8 @@ winMask=gfp>2*baselineLevel;
 end
 
 function plotButterflyGFPTopo(data, times, chanlocs, baselineWin, titleStr)
-% Butterfly plot + GFP trace + topoplot of the time-averaged weights within
-% the GFP-define window (GFP > 2x baseline-window mean)
+% Butterfly plot + GFP trace + topoplots of the time-averaged weights within
+% the GFP-define windows (GFP > 2x baseline-window mean)
 %
 % data: nChn x nTimes matrix (ERP or single TRF feature)
 % times: 1 x nTimes time axis (ms)
