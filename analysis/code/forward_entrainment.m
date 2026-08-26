@@ -168,20 +168,31 @@ function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
     [trfModels, lambdaOpt, statsObs, outerFoldLambdas]=computeTRF( ...
         normEnvCell, onsetBinCell, normRespCell, condVec, cfg.fs, ...
         cfg.trfLags, cfg.lambdaGrid);
+   
     fprintf('Optimal lambda per outer fold: %s\n',mat2str(outerFoldLambdas));
     fprintf('Selected lambda for final fit: %g\n',lambdaOpt);
-    % extract useful vars from trf model -- NOTE: I don't like this because
-    % information already in trfModel but going with it for now, change if
-    % it causes memory issues
-    % trfTimes=trfModels(1).t; % lag axis in ms
-    % envTRF=squeeze(trfModels.w(1,:,:))'; % channels x lags
-    % silenceTRF=squeeze(trfModels.w(2,:,:))'; % channels x lags
+    % extract clean matrices from bloated trfModels
+    nCond=numel(unique(condVec));
+    nChans=size(EEG.resp{1},2);
+    nLags=numel(trfModels(1).t);
+
+    envTRF=nan(nCond,nLags,nChans);
+    silTRF=nan(nCond,nLags,nChans);
+    trfTimes=trfModels(1).t; % lag axis in ms
+
+    for condIdx=1:nCond
+        envTRF(condIdx,:,:)=squeeze(trfModels(condIdx).w(1,:,:));
+        silTRF(condIdx,:,:)=squeeze(trfModels(condIdx).w(2,:,:));
+    end
+    % NOTE: intentionally avoid saving trfModels
     results=struct("subj",subj, ...
     "silCell", {silCell}, ...
     "erpData", erpData, ...
     "erpTimes", erpTimes, ...
     "onsetBinCell",{onsetBinCell}, ...
-    "trfModels", trfModels, ...
+    "envTRF", envTRF, ...
+    "silTRF", silTRF, ...
+    "trfTimes",trfTimes, ...
     "lambdaOpt", lambdaOpt,...
     "statsObs",statsObs, ...
     "condVec",condVec);
@@ -196,43 +207,39 @@ function grand = computeGrandAverage(allResults, chanlocs)
     nSubj=numel(allResults);
 
     % sanity checks: all results should be able to share time axis
-    erpTimesRef=allResults{1}.erpTimes;
-    trfTimesRef=allResults{1}.trfModels(1).t;
-    nChanRef=numel(chanlocs);
-    nCondRef=numel(unique(allResults{1}.condVec));
+    erpTimes=allResults{1}.erpTimes;
+    trfTimes=allResults{1}.trfTimes;
+    nChan=numel(chanlocs);
+    nCond=numel(unique(allResults{1}.condVec));
 
     for ss=2:nSubj
-        assert(isequal(allResults{ss}.erpTimes,erpTimesRef), ...
+        assert(isequal(allResults{ss}.erpTimes,erpTimes), ...
             'Subj %d ERP time axis does not match Subj 1',ss)
-        for cc=1:nCondRef
-            assert(isequal(allResults{ss}.trfModels(cc).t,trfTimesRef), ...
-                ['Subj %d, condition %d trfTimes does not match subj 1, ' ...
-                'condition 1'],ss,cc)
-        end
-        assert(size(allResults{ss}.erpData,2)==nChanRef & ...
-            size(allResults{ss}.envTRF,1)==nChanRef & ...
-            size(allResults{ss}.silenceTRF,1)==nChanRef)
+        
+        assert(isequal(allResults{ss}.trfTimes,trfTimes), ...
+            'Subj %d trfTimes does not match subj 1',ss)
+        
+        assert(size(allResults{ss}.erpData,2)==nChan& ...
+            size(allResults{ss}.envTRF,1)==nChan& ...
+            size(allResults{ss}.silTRF,1)==nChan, ...
+            'number of expected channels not consistent')
     end
 
     % preallocate stack matrices
-    erpStack=nan(nCondRef,nChanRef,numel(erpTimesRef),nSubj);
-    envTRFStack=nan(nCondRef,nChanRef,numel(trfTimesRef),nSubj);
-    silenceTRFStack=nan(nCondRef,nChanRef,numel(trfTimesRef),nSubj);
+    erpStack=nan(nCond,nChan,numel(erpTimes),nSubj);
+    envTRFStack=nan(nCond,numel(trfTimes),nChan,nSubj);
+    silenceTRFStack=nan(nCond,numel(trfTimes),nChan,nSubj);
     for ss=1:nSubj
         erpStack(:,:,:,ss)=allResults{ss}.erpData;
-        for cc=1:nCondRef % is there a loopless method?
-            % NOTE: if we change stimulus order, hard-coded feature
-            % indexing below will surely cause issues.
-            envTRFStack(cc,:,:,ss)=permute(allResults{ss}.trfModels(cc).w(1,:,:),[1,3,2]); %envTRF
-            silenceTRFStack(cc,:,:,ss)=permute(allResults{ss}.trfModels(cc).w(2,:,:),[1,3,2]); %silenceTRF
-        end
+        envTRFStack(cc,:,:,ss)=allResults{ss}.envTRF; %envTRF
+        silenceTRFStack(cc,:,:,ss)=allResults{ss}.silTRF; %silenceTRF
     end
 
     % average across subjects
 
     grand.erpData=mean(erpStack,4);
     grand.envTRF=mean(envTRFStack,4);
-    grand.silenceTRF=mean(silenceTRFStack,4);
+    grand.silTRF=mean(silenceTRFStack,4);
 
 end
 
@@ -247,8 +254,8 @@ function plot_subject_results(results, chanlocs, cfg, labelStr)
         % condMask=condVec==condIdx; % nStim x1 logical nvm dont need
         trfTimes=results.trfModels(1).t; % lag axis in ms
         condRoiSilERP=squeeze(mean(mean(results.erpData(condIdx,roiIdx,:),1),2)); % lags x 1
-        condRoiSilTRF=squeeze(mean(results.trfModels(condIdx).w(2,:,roiIdx),3))'; % lags x 1
-        condRoiEnvTRF=squeeze(mean(results.trfModels(condIdx).w(1,:,roiIdx),3))'; %lags x 1
+        condRoiSilTRF=squeeze(mean(results.silTRF(condIdx,:,roiIdx),3))'; % lags x 1
+        condRoiEnvTRF=squeeze(mean(results.envTRF(condIdx,:,roiIdx),3))'; %lags x 1
         
         figure('Name', ['ROI-averaged responses to offsets - ' labelStr]);
         ax1=subplot(2,1,1);
