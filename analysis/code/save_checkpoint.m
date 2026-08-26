@@ -93,13 +93,14 @@ function save_checkpoint(data,inputConfig,overwrite)
         disp(registry)
         % save data
         if isfile(matFpth)
+            % new results from same config to add to file
             save(matFpth,'-struct','data_','-append');
         else
+            % make new file with results
             save(matFpth,'-struct','data_');
         end
-        % should overwrite pre-existing config but that's okay cuz they
-        % shld match -- and hopefully latest version captures schema at
-        % time of origin
+        % overwrite pre-existing config (they shld match -- and hopefully 
+        % latest version captures schema at checkpoint saving time
         config=hashableConfig;
         save(matFpth,'config','-append');
         % save updated registry

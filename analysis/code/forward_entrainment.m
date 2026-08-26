@@ -72,18 +72,18 @@ for subjIdx=1:numel(subjs)
     % actually, load_checkpoint runs buildHashableConfig internally so dont
     % even really need to hash it..
     
-    results=load_checkpoint(resultsCfg);
+    checkpointData=load_checkpoint(resultsCfg);
 
-    if isempty(results)
+    if isempty(checkpointData)
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
-        results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
-        save_checkpoint(results,resultsCfg,cfg.overwrite)
+        checkpointData=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
+        save_checkpoint(checkpointData,resultsCfg,cfg.overwrite)
     else
         fprintf('loaded pre-existing results for subj %d\n',subj)
     end
-    allResultsCell{subjIdx}=results;
-    clear results
+    allResultsCell{subjIdx}=checkpointData.results;
+    clear checkpointData
 end
 
 %% ------------------------------------------------------------------------
@@ -93,8 +93,6 @@ end
 % TODO: FFTs(?)
 % -------------------------------------------------------------------------
 % plotButterflyGFPTopo assumes times in ms
-%TODO: GET CONDVEC???????
-% condVec=allResultsCell{1}.condVec; 
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
     plot_subject_results(allResultsCell{subjIdx},chanlocs, ...
@@ -105,7 +103,7 @@ end
 % -------------------------------------------------------------------------
 if cfg.doGroupAverage
     grand=computeGrandAverage(allResultsCell,chanlocs);
-    plot_subject_results(grand,chanlocs,cfg)
+    plot_subject_results(grand,chanlocs,cfg,'Grand-Average')
 end
 
 
@@ -199,32 +197,42 @@ function grand = computeGrandAverage(allResults, chanlocs)
 
     % sanity checks: all results should be able to share time axis
     erpTimesRef=allResults{1}.erpTimes;
-    trfTimesRef=allResults{1}.trfTimes;
+    trfTimesRef=allResults{1}.trfModels(1).t;
     nChanRef=numel(chanlocs);
+    nCondRef=numel(unique(allResults{1}.condVec));
 
     for ss=2:nSubj
         assert(isequal(allResults{ss}.erpTimes,erpTimesRef), ...
-            'Subj %d ERP time axis does not match Subj 1')
-        assert(isequal(allResults{ss}.trfTimes,trfTimesRef), ...
-            'Subj %d trfTimes does not match subj 1')
-        assert(size(allResults{ss}.erpData,1)==nChanRef & ...
+            'Subj %d ERP time axis does not match Subj 1',ss)
+        for cc=1:nCondRef
+            assert(isequal(allResults{ss}.trfModels(cc).t,trfTimesRef), ...
+                ['Subj %d, condition %d trfTimes does not match subj 1, ' ...
+                'condition 1'],ss,cc)
+        end
+        assert(size(allResults{ss}.erpData,2)==nChanRef & ...
             size(allResults{ss}.envTRF,1)==nChanRef & ...
             size(allResults{ss}.silenceTRF,1)==nChanRef)
     end
 
     % preallocate stack matrices
-    erpStack=nan(nChanRef,numel(erpTimesRef),nSubj);
-    envTRFStack=nan(nChanRef,numel(trfTimesRef),nSubj);
-    silenceTRFStack=nan(nChanRef,numel(trfTimesRef),nSubj);
+    erpStack=nan(nCondRef,nChanRef,numel(erpTimesRef),nSubj);
+    envTRFStack=nan(nCondRef,nChanRef,numel(trfTimesRef),nSubj);
+    silenceTRFStack=nan(nCondRef,nChanRef,numel(trfTimesRef),nSubj);
     for ss=1:nSubj
-        erpStack(:,:,ss)=allResults.erpData;
-        envTRFStack(:,:,ss)=allResults.envTRF;
-        silenceTRFStack(:,:,ss)=allResults.silenceTRF;
+        erpStack(:,:,:,ss)=allResults{ss}.erpData;
+        for cc=1:nCondRef % is there a loopless method?
+            % NOTE: if we change stimulus order, hard-coded feature
+            % indexing below will surely cause issues.
+            envTRFStack(cc,:,:,ss)=permute(allResults{ss}.trfModels(cc).w(1,:,:),[1,3,2]); %envTRF
+            silenceTRFStack(cc,:,:,ss)=permute(allResults{ss}.trfModels(cc).w(2,:,:),[1,3,2]); %silenceTRF
+        end
     end
 
-    grand.erpData=mean(erpStack,3);
-    grand.envTRF=mean(envTRFStack,3);
-    grand.silenceTRF=mean(silenceTRFStack,3);
+    % average across subjects
+
+    grand.erpData=mean(erpStack,4);
+    grand.envTRF=mean(envTRFStack,4);
+    grand.silenceTRF=mean(silenceTRFStack,4);
 
 end
 
@@ -381,6 +389,8 @@ envCell, onsetBinCell, eegCell, condVec, fs, lags, lambdaGrid)
 % lambdaGrid: candidate ridge lambdas
 %
 % trfModel: (nCond x 1) final TRF model struct (mTRFtrain output) fit on ALL trials at
+%       trfModel weights have (feat x time x chans), 
+%           feats order: (1) envelope, (2) onset  
 % 
 % lambdaOptCell: (cond x 1) lambda selected for the final fit
 % outerFoldStatsObs: (cond x nTrials) struct mTRFcrossval output statistics
