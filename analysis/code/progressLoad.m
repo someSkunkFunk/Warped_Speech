@@ -1,4 +1,4 @@
-function data=load_checkpoint(config)
+function data=progressLoad(config)
 % checkpoint_data_struct=load_checkpoint(config)
 % all variables associated with config structure packaged into a structure
 % is returned, unpack:

@@ -1,4 +1,4 @@
-function save_checkpoint(data,inputConfig,overwrite)
+function progressSave(data,inputConfig,overwrite)
     arguments
         data
         inputConfig (1,1) struct
@@ -60,12 +60,15 @@ function save_checkpoint(data,inputConfig,overwrite)
     %if no matching registry exits, or file associated with registry 
     % is missing current variable, save and register
     if isfile(matFpth)
-        missing_var=~ismember(varname,{whos('-file',matFpth).name});
+        newCheckpointVar=~ismember(varname,{whos('-file',matFpth).name});
     else
-        missing_var=false;
+        newCheckpointVar=false;
     end
-    if isempty(config_match_idx)||missing_var||overwrite
+    if isempty(config_match_idx)||newCheckpointVar||overwrite
         if overwrite
+            % desired behavior when overwrite TRUE:
+            % if matching config exists, replace its registry entry and mat
+            % file with new data
             warning('overwrite set to true... ensure code will do what is intended...')
         end
         disp('original registry:')
@@ -84,6 +87,7 @@ function save_checkpoint(data,inputConfig,overwrite)
 
         idx = config_match_idx;
         if isempty(idx)
+            % none match, add new registry entry at end
             idx = numel(registry) + 1;
         end
         registry(idx) = entry;

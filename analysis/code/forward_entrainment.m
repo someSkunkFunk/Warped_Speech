@@ -72,16 +72,16 @@ for subjIdx=1:numel(subjs)
     % to be hashable -- still needs to be made hashable itself. As a
     % result, consider renaming function as it seems to imply that output
     % is ready-to-hash
-    % actually, load_checkpoint runs buildHashableConfig internally so dont
+    % actually, progressLoad runs buildHashableConfig internally so dont
     % even really need to hash it..
     
-    checkpointData=load_checkpoint(subjResultsCfg);
+    checkpointData=progressLoad(subjResultsCfg);
     noPreloadData=isempty(checkpointData);
     if noPreloadData
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
         results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
-        save_checkpoint(results,subjResultsCfg,cfg.overwrite)
+        progressSave(results,subjResultsCfg,cfg.overwrite)
         checkpointData.results=results;
     else
         fprintf('loaded pre-existing results for subj %d\n',subj)
@@ -144,7 +144,7 @@ function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
 % wrapper to do silence detection, ERP analysis, and TRF analysis on a
 % single-subject's data
 
-    pp_checkpoint_=load_checkpoint(preprocess_config);
+    pp_checkpoint_=progressLoad(preprocess_config);
     EEG=pp_checkpoint_.preprocessed_eeg;
     envCell=load_stim_cell(trf_config.paths.envelopesFile, EEG.cond, EEG.trials);
 
