@@ -87,8 +87,19 @@ function progressSave(data,inputConfig,overwrite)
 
         idx = config_match_idx;
         if isempty(idx)
-            % none match, add new registry entry at end
+            % existing entries dont match, add new registry entry at end
+            disp('adding new registry entry')
             idx = numel(registry) + 1;
+        else
+            if overwrite || newCheckpointVar
+                disp('rewriting existing registry entry:')
+                disp(registry(idx))
+            else
+                warning(['Existing registry matches input, ' ...
+                    'does not appear to be a new variable and ' ...
+                    'overwrite is false. Aborting.'])
+                return;
+            end
         end
         registry(idx) = entry;
 
@@ -96,8 +107,8 @@ function progressSave(data,inputConfig,overwrite)
         disp('new registry:')
         disp(registry)
         % save data
-        if isfile(matFpth)
-            % new results from same config to add to file
+        if isfile(matFpth) && newCheckpointVar || overwrite
+            % new results with same config to add to existing file
             save(matFpth,'-struct','data_','-append');
         else
             % make new file with results
