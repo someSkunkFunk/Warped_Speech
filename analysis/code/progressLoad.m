@@ -4,13 +4,13 @@ function data=progressLoad(config)
 % is returned, unpack:
 % desired_var=checkpoint_data_struct.desired_var;
     subj=config.subj;
-    registryFile=fullfile(config.paths.output_dir,'registry.json');
-    if ~isfile(registryFile)
+    registryFpth=fullfile(config.paths.output_dir,'registry.json');
+    if ~isfile(registryFpth)
         fprintf('No registry found for subject %02d\n',subj);
         data=[];
         return
     end
-    registry=jsondecode(fileread(registryFile));
+    registry=jsondecode(fileread(registryFpth));
 
     % normalize struct structure to get consistent hashes
     % configToHash=remove_nested_paths(config);
@@ -32,9 +32,9 @@ function data=progressLoad(config)
                 'FIRST MATCHING ENTRY...'])
             configMatchIdx=configMatchIdx(1);
         end
-        [~,file,~]=fileparts(registry(configMatchIdx).file);
-        [dir,~,~]=fileparts(registryFile);
-        data=load(fullfile(dir,file));
+        dataFile=registry(configMatchIdx).file;
+        [dir,~,~]=fileparts(registryFpth);
+        data=load(fullfile(dir,dataFile));
         fprintf(['finished loading checkpoint for ' ...
             'subj %02d (hash %s)\n'],subj,configHash)
     end

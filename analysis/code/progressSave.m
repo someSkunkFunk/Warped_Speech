@@ -1,10 +1,12 @@
 function progressSave(data,inputConfig,overwrite)
+% PROGRESSSAVE single variable of data saved to a mat file and json-encoded
+% registry using hash system to keep track of multiple data variables
+% originating from the same analysis parameters in a single mat file
     arguments
         data
         inputConfig (1,1) struct
         overwrite (1,1) logical=false;
     end
-    % warning('I think overwrite param is causing repeated entries to registry being recorded... we should fix that...')
     % record var name in outer scope so we can reference it when loading
     varname=inputname(1);
     data_.(varname)=data;
@@ -14,12 +16,7 @@ function progressSave(data,inputConfig,overwrite)
     if ~exist(outputDir,'dir')
         mkdir(outputDir);
     end
-    % normalize struct structure so hashes are consistent
-    % config=remove_nested_paths(config);
-    % hashableConfig=filterConfig(config,getHashFields(config.configType));
     hashableConfig=buildHashableConfig(inputConfig);
-    % configToHash=columnize_row_vectors(configToHash);
-    % config_hash=char(upper(DataHash(configToHash)));
     configHash=computeConfigHash(inputConfig);
 
     % define unique file names
@@ -65,6 +62,7 @@ function progressSave(data,inputConfig,overwrite)
         newCheckpointVar=false;
     end
     if isempty(config_match_idx)||newCheckpointVar||overwrite
+        
         if overwrite
             % desired behavior when overwrite TRUE:
             % if matching config exists, replace its registry entry and mat
@@ -75,18 +73,22 @@ function progressSave(data,inputConfig,overwrite)
         disp(registry)
         fprintf('saving %s\nto %s\nfor subj %02d\n(config hash:%s)\n', ...
             varname,matFpth,subj,configHash)
-        [~,mat_fnm,~]=fileparts(matFpth);
+        % include extension in registry filename entry
+        [~,matFnm,matExt]=fileparts(matFpth);
         %add or update entry
         entry=struct( ...
             'hash',configHash,...
             'config',hashableConfig, ...
             'hashFields',{getHashFields(inputConfig.configType)}, ...
             'configType',inputConfig.configType, ...
-            'file', mat_fnm, ...
+            'file', [matFnm, matExt], ...
             'timestamp',datetime('now'));
 
         idx = config_match_idx;
         if isempty(idx)
+            assert(~isfile(matFpth),['This function assumes the mat' ...
+                ' file does not exist without a registry, but ' ...
+                'matfile %s exists.'],matFpth)
             % existing entries dont match, add new registry entry at end
             disp('adding new registry entry')
             idx = numel(registry) + 1;
@@ -101,13 +103,31 @@ function progressSave(data,inputConfig,overwrite)
                 return;
             end
         end
+
+        % ADDRESS POSSIBLY DISSIMILAR STRUCTURES FROM SCHEMA CHANGES
+        % if new entry has new fields that current registry lacks, add
+        % fields to existing registry with empty entried
+        if ~isempty(registry)
+            regFields=fieldnames(registry);
+            entFields=fieldnames(entry);
+            newFields=setdiff(entFields,regFields);
+
+            if ~isempty(newFields)
+                for ii=1:numel(registry)
+                    for jj=numel(newFields)
+                        registry(ii).(newFields{jj})=[];
+                    end
+                end
+            end
+        end
+        
         registry(idx) = entry;
 
         
         disp('new registry:')
         disp(registry)
         % save data
-        if isfile(matFpth) && newCheckpointVar || overwrite
+        if isfile(matFpth)
             % new results with same config to add to existing file
             save(matFpth,'-struct','data_','-append');
         else
