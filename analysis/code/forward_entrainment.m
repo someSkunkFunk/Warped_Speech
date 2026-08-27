@@ -53,7 +53,7 @@ cfg.doExportFigures=true;
 %% ------------------------------------------------------------------------
 % LOAD DATA + BATCH LOOP
 % -------------------------------------------------------------------------
-subjs=[38];
+subjs=[24:38];
 allResultsCell=cell(numel(subjs),1);
 
 for subjIdx=1:numel(subjs)
@@ -67,7 +67,7 @@ for subjIdx=1:numel(subjs)
         load(loc_file)
     end
     %%
-    resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+    subjResultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
     % above function just adds paths and ensures nested configs are forced
     % to be hashable -- still needs to be made hashable itself. As a
     % result, consider renaming function as it seems to imply that output
@@ -75,25 +75,27 @@ for subjIdx=1:numel(subjs)
     % actually, load_checkpoint runs buildHashableConfig internally so dont
     % even really need to hash it..
     
-    checkpointData=load_checkpoint(resultsCfg);
+    checkpointData=load_checkpoint(subjResultsCfg);
     noPreloadData=isempty(checkpointData);
     if noPreloadData
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
         results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
-        save_checkpoint(results,resultsCfg,cfg.overwrite)
+        save_checkpoint(results,subjResultsCfg,cfg.overwrite)
         checkpointData.results=results;
     else
         fprintf('loaded pre-existing results for subj %d\n',subj)
     end
     allResultsCell{subjIdx}=checkpointData.results;
-    clear checkpointData
+    clear checkpointData subjResultsCfg
 end
 
 %% ------------------------------------------------------------------------
 % ROI-AVERAGED (over cfg.roiElectrodes) TIMECOURSES, 
 %               BUTTERFLY, GFP, TOPO PLOTS 
-% 
+% PLOT -> EXPORT -> CLOSE (unless cfg.doExportFigures=false) 
+%  SAFETY: figures stay open if cfg.doExportFigures=false, avoid if
+%  plotting more than one subject
 % TODO: FFTs(?)
 % -------------------------------------------------------------------------
 % plotButterflyGFPTopo assumes times in ms
@@ -101,20 +103,35 @@ for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
     plot_subject_results(allResultsCell{subjIdx},chanlocs, ...
         cfg,sprintf('Subj%0d', subj))
+    % EXPORT SUBJ FIGS
+    if cfg.doExportFigures
+        subjFigDir=fullfile(boxdir_mine,'figures',cfg.configType,sprintf('Subj%02d',subj));
+        subjResultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+        exportFiguresToFolder(subjFigDir,subjResultsCfg);
+        clear subjResultsCfg
+    end
+    fprintf('Plots for subj %02d done. Closed: %d\n',subj, cfg.doExportFigures)
+    
 end
+
+
 %% ------------------------------------------------------------------------
 % COMPUTE GRAND AVERAGE RESULTS + plot
 % -------------------------------------------------------------------------
 if cfg.doGroupAverage
     grand=computeGrandAverage(allResultsCell,chanlocs);
     plot_subject_results(grand,chanlocs,cfg,'Grand-Average')
-end
-%% ------------------------------------------------------------------------
-% AUTO-EXPORT ALL FIGURES TO A STRUCTURED FOLDER
-% -------------------------------------------------------------------------
-if cfg.doExportFigures
-    % Create a clean output directory
-    %TODO: WHERE TO PUT THIS??
+    if cfg.doExportFigures
+        grandAvgFigDir=fullfile(boxdir_mine,'figures',cfg.configType,'Grand Average');
+        % note that preprocess_config & trf_config are from a single
+        % subject but buildResultsCacheKey removes subject label... subject
+        % specific idiosyncracies in config might be problematic here
+        % though....
+        grandAvgResultsCfg=buildResultsCacheKey(subjs,cfg,preprocess_config,trf_config);
+        exportFiguresToFolder(grandAvgFigDir,grandAvgResultsCfg)
+        clear subjResultsCfg
+    end
+
 end
 
 
@@ -274,7 +291,7 @@ function plot_subject_results(results, chanlocs, cfg, subjLabelStr)
         condRoiEnvTRF=squeeze(mean(results.envTRF(condIdx,:,roiIdx),3))'; %lags x 1
         
         % define a clean prefix for subject/condition
-        figPrefix=sprintf('%s | Cond%d |',subjLabelStr,condIdx);
+        figPrefix=sprintf('%s | Cond%d | ',subjLabelStr,condIdx);
         figName=[figPrefix 'ROI-averaged timecourses'];
         figure('Name', figName);
         ax1=subplot(3,1,1);
@@ -307,11 +324,11 @@ function plot_subject_results(results, chanlocs, cfg, subjLabelStr)
         %TODO: add FFTs 
         
         plotButterflyGFPTopo(squeeze(results.erpData(condIdx,:,:)), 1e3*results.erpTimes, chanlocs, ...
-            cfg.baselineWinERP, [figPrefix '%s silERPs '])
+            cfg.baselineWinERP, [figPrefix 'silERPs'])
         
         plotButterflyGFPTopo(squeeze(results.envTRF(condIdx,:,:))', ...
             trfTimes, chanlocs, ...
-            cfg.baselineWinTRF, [figPrefix '%s envTRFs']);
+            cfg.baselineWinTRF, [figPrefix 'envTRFs']);
 
         
         plotButterflyGFPTopo(squeeze(results.silTRF(condIdx,:,:))', ...
@@ -567,7 +584,11 @@ function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
     hashableTrfConfig=buildHashableConfig(trf_config);
 
     global boxdir_mine
-    output_dir=sprintf('%s/analysis/forward_entrainment/%02d',boxdir_mine,subj);
+    if isscalar(subj)
+        output_dir=sprintf('%s/analysis/forward_entrainment/%02d',boxdir_mine,subj);
+    else
+        output_dir=sprintf('%s/analysis/forward_entrainment/Grand Average',boxdir_mine);
+    end
     paths=struct('output_dir',output_dir);
     resultsCfg=struct( ...
         'subj',subj, ...,
@@ -583,4 +604,60 @@ function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
         'paths', paths); %trf config might be confusing in 
     % future, consider only keeping the normalization parameters since
     % that's all we end up using
+end
+
+function exportFiguresToFolder(targetFolder, varargin)
+% EXPORTFIGURESTOFOLDER Exports all open figures to a specific folder,
+% optionally saves a metadata struct, and CLOSES all figures to free RAM
+%
+% Usage:
+%   export FiguresToFolder(targetFolder)
+%   exporrtFiguresToFolder(targetFolder,metadataStruct)
+
+% ensure target directory exists
+if ~exist(targetFolder, 'dir')
+    mkdir(targetFolder);
+end
+
+% find all open figures
+allFigs=findobj('Type','figure');
+nFigs=numel(allFigs);
+
+if nFigs==0
+    fprintf('No open figures to export to %s.\n',targetFolder)
+    return;
+end
+
+
+fprintf('Exporting %d figures to %s...\n',nFigs,targetFolder)
+
+% loop thru figs and export
+
+for ii=1:nFigs
+    fig=allFigs(ii);
+    figName=fig.Name;
+    % clean the figure name to make it a valid, readablefilename
+    cleanName=strrep(figName,' | ','_');
+    cleanName=strrep(cleanName,' ','_');
+    % note: not used in this script but probably good to generally avoid OS
+    % issues with unacceptable filenames
+    cleanName=strrep(cleanName,':','');
+    cleanName=strrep(cleanName,'/','_');
+    
+    % export as high-res PNG
+    exportgraphics(fig, fullfile(targetFolder, [cleanName '.png']), ...
+        'Resolution', 300);
+
+
+end
+% save metadata if provided
+if ~isempty(varargin)
+    metadataStruct=varargin{1};
+    metaFile=fullfile(targetFolder, 'metadata.mat');
+    save(metaFile,'metadataStruct');
+    fprintf('Saved metadata to %s\n', metaFile);
+end
+% close all figures to free up RAM
+close(allFigs);
+fprintf('Closed %d figures to free memory.\n',nFigs);
 end
