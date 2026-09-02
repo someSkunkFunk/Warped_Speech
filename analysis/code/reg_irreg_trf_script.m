@@ -3,7 +3,7 @@ clc
 
 %NOTES:
 
-for subj=[37:38]
+for subj=[39]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -18,15 +18,15 @@ trf_analysis_params;
 if overwrite
     if trf_config.separate_conditions
         %dont need to overwrite pp
-        pp_checkpoint_=load_checkpoint(preprocess_config);
+        pp_checkpoint_=progressLoad(preprocess_config);
         trf_checkpoint_=[];
     else
         pp_checkpoint_=[];
         trf_checkpoint_=[];
     end
 else
-    pp_checkpoint_=load_checkpoint(preprocess_config);
-    trf_checkpoint_=load_checkpoint(trf_config);
+    pp_checkpoint_=progressLoad(preprocess_config);
+    trf_checkpoint_=progressLoad(trf_config);
 end
 
 
@@ -39,7 +39,7 @@ if isempty(pp_checkpoint_)
     % preprocessing)
     preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.paths.output_dir)
-    save_checkpoint(preprocessed_eeg,preprocess_config,overwrite)
+    progressSave(preprocessed_eeg,preprocess_config,overwrite)
     preload_preprocessed=false;
 else
     disp('found existing preprocessed data - loading')
@@ -93,11 +93,11 @@ switch TRF_DIR
     case 1
         if (~preload_stats_obs && trf_config.crossvalidate)
             stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            save_checkpoint(stats_obs,trf_config,overwrite);
+            progressSave(stats_obs,trf_config,overwrite);
             fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
            %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
            %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
-           %%%%%SAVE_CHECKPOINT
+           %%%%%progressSave
         end
         %% --- obtain best peak ridge parameter ---
         if ~trf_config.separate_conditions
@@ -109,7 +109,7 @@ switch TRF_DIR
         %% --- train TRF model for analyzing weights ---
         if ~preload_model
             model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            save_checkpoint(model,trf_config,overwrite);
+            progressSave(model,trf_config,overwrite);
         end
         %%
         if do_nulltest && ~preload_stats_null
@@ -119,11 +119,11 @@ switch TRF_DIR
                 train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
             end
             stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            % error('stuff below should take place in save_checkpoint...')
+            % error('stuff below should take place in progressSave...')
             % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
             % save(trf_config.model_metric_path,'stats_null','-append')
-            save_checkpoint(stats_null,trf_config);
-            % disp(['TODO: not saving stats_null to bypass save_checkpoint error.. ' ...
+            progressSave(stats_null,trf_config);
+            % disp(['TODO: not saving stats_null to bypass progressSave error.. ' ...
             %     'determine if thats a problem'])
         else
             disp('not doing null test (or preloaded previous results)')
@@ -144,10 +144,10 @@ switch TRF_DIR
         %% --- train TRF model for analyzing weights ---
         if ~preload_model
             model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            save_checkpoint(model,trf_config,overwrite);
+            progressSave(model,trf_config,overwrite);
         end
         [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
-        save_checkpoint(stats_obs_bkwd,trf_config,overwrite);
+        progressSave(stats_obs_bkwd,trf_config,overwrite);
         fprintf('saving stats_obs_bkwd to %s...\n',trf_config.paths.output_dir)
 
 end
@@ -174,7 +174,7 @@ conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions,'UniformOutput
 %conditions case (especially once it contains multiple versions in last dimension)
 disp('cc indexing below might need double checking...')
 %NOTE: although it's possible I'm wrong and will work fine so long as we
-%select correct sub-structures out during load_checkpoint... i think
+%select correct sub-structures out during progressLoad... i think
 %cc_trials_idx below comes from first array dimension referenccing
 %individual trials, not our configs
 best_lam=train_params.best_lam;
