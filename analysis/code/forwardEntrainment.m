@@ -114,8 +114,9 @@ for subjIdx=1:numel(subjs)
     if cfg.doExportFigures
         % subjFigDir=fullfile(boxdir_mine,'figures',cfg.configType,sprintf('Subj%02d',subj));
         subjResultsCfg_=allResultsCell{subjIdx,2};
-        exportFiguresToFolder(subjResultsCfg_);
-        clear subjResultsCfg_
+        figs_=findobj(allchild(0),'flat','Type','figure');
+        exportFiguresToFolder(subjResultsCfg_.paths.fig_dir,subjresultsCfg_,figs_);
+        clear subjResultsCfg_ figs_
     end
     fprintf('Plots for subj %02d done. Closed: %d\n',subj, cfg.doExportFigures)
     
@@ -134,9 +135,10 @@ if cfg.doGroupAverage
         % subject but buildMetadataStruct removes subject label... subject
         % specific idiosyncracies in config might be problematic here
         % though....
+        figs_=findobj(allchild(0),'flat','Type','figure');
         grandAvgResultsCfg=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
-        exportFiguresToFolder(grandAvgFigDir,grandAvgResultsCfg)
-        clear subjResultsCfg_
+        exportFiguresToFolder(grandAvgResultsCfg.paths.fig_dir,grandAvgResultsCfg,figs_)
+        clear figs_
     end
 
 end
