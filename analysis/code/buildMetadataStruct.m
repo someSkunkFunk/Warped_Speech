@@ -37,6 +37,8 @@ function resultsCfg=buildMetadataStruct(subj,cfg,varargin)
     % note: this will have to be overwritten outside the function
     % for plotting scripts that
     % produce no new analysis results... e.g. trfTimeCoursePlots
+
+    % ALSO WE DONT USE SUBJTAG -- 
     metadata.paths.analysis_dir=fullfile(boxdir_mine,'analysis', ...
         cfg.configType,subjTag);
 end
