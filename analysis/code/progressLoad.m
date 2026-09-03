@@ -1,10 +1,10 @@
-function data=progressLoad(config)
+function data=progressLoad(inputConfig)
 % checkpoint_data_struct=load_checkpoint(config)
 % all variables associated with config structure packaged into a structure
 % is returned, unpack:
 % desired_var=checkpoint_data_struct.desired_var;
-    subj=config.subj;
-    registryFpth=fullfile(config.paths.output_dir,'registry.json');
+    subj=inputConfig.subj;
+    registryFpth=fullfile(inputConfig.paths.output_dir,'registry.json');
     if ~isfile(registryFpth)
         fprintf('No registry found for subject %02d\n',subj);
         data=[];
@@ -16,13 +16,15 @@ function data=progressLoad(config)
     % configToHash=remove_nested_paths(config);
 
     % config_hash=char(upper(DataHash(configToHash)));
-
-    configHash=computeConfigHash(config);
+    hashableConfig=buildHashableConfig(inputConfig);
+    % note computeConfigHash calls buildHashableConfig internally and
+    % actually expects the non-hashable version (including type) as input
+    configHash=computeConfigHash(inputConfig);
     configMatchIdx=find(strcmp({registry.hash},configHash));
 
     if isempty(configMatchIdx)
         % hashableConfig=filterConfig(config,getHashFields(config.configType));
-        hashableConfig=buildHashableConfig(config);
+        
         warning('no matching file found for config below in existing registry.')
         disp(hashableConfig)
         data=[];

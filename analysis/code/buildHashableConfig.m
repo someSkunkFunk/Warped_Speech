@@ -17,12 +17,19 @@ function hc=buildHashableConfig(config)
     end
     hashFields=getHashFields(config.configType);
     hc=filterConfig(config,hashFields);
+    % Hashify nested confings
 
-    if isfield(hc,'preprocess_config') && ...
-        isstruct(hc.preprocess_config) && ...
-        isfield(hc.preprocess_config,'configType')
-        
-        hc.preprocess_config=buildHashableConfig(hc.preprocess_config);
+    for ff=1:numel(hashFields)
+        ffField=hashFields{ff};
+        if isstruct(hc.(ffField)) && isfield(hc.(ffField),'configType')
+            hc.(ffField)=buildHashableConfig(hc.(ffField));
+        end
     end
+    % if isfield(hc,'preprocess_config') && ...
+    %     isstruct(hc.preprocess_config) && ...
+    %     isfield(hc.preprocess_config,'configType')
+    % 
+    %     hc.preprocess_config=buildHashableConfig(hc.preprocess_config);
+    % end
     hc=columnize_row_vectors(orderfields(hc));
 end

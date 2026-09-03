@@ -17,6 +17,7 @@ clear; clc; close all;
 % -------------------------------------------------------------------------
 
 dbstop if error
+dbstop if warning
 cfg=[];
 cfg.configType='fEntrainment';
 cfg.fs=128; % Hz
@@ -53,8 +54,8 @@ cfg.doExportFigures=true;
 %% ------------------------------------------------------------------------
 % LOAD DATA + BATCH LOOP
 % -------------------------------------------------------------------------
-subjs=[24:38];
-allResultsCell=cell(numel(subjs),1);
+subjs=[24:39];
+allResultsCell=cell(numel(subjs),2); %  {subjs x results , config}
 
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
@@ -66,8 +67,13 @@ for subjIdx=1:numel(subjs)
     if subjIdx==1&&~exist('chanlocs','var')
         load(loc_file)
     end
-    %%
-    subjResultsCfg=buildMetadataStruct(subj,cfg,preprocess_config,trf_config);
+    % build individual subject cfg from generic
+    subjResultsCfg_=cfg;
+    subjResultsCfg_.preprocess_config=preprocess_config; 
+    % trf_config doesnt need to be hashed here.. only using for envelopes filepath tbh... should probably decouple that dependency from that config
+    subjResultsCfg_.trf_config=trf_config;
+    
+    subjResultsCfg_=buildConfigPathsGeneric(subj,subjResultsCfg_);
     % above function just adds paths and ensures nested configs are forced
     % to be hashable -- still needs to be made hashable itself. As a
     % result, consider renaming function as it seems to imply that output
@@ -75,19 +81,20 @@ for subjIdx=1:numel(subjs)
     % actually, progressLoad runs buildHashableConfig internally so dont
     % even really need to hash it..
     
-    checkpointData=progressLoad(subjResultsCfg);
-    noPreloadData=isempty(checkpointData);
+    checkpointData_=progressLoad(subjResultsCfg_);
+    noPreloadData=isempty(checkpointData_);
     if noPreloadData
         fprintf(['saved results file for' ...
             ' subj %d not found, computing from start.\n'], subj)
-        results=runSubjectAnalysis(subj,cfg,preprocess_config, trf_config);
-        progressSave(results,subjResultsCfg,cfg.overwrite)
-        checkpointData.results=results;
+        results=runSubjectAnalysis(subj,subjResultsCfg_,trf_config);
+        progressSave(results,subjResultsCfg_,cfg.overwrite)
+        checkpointData_.results=results;
     else
         fprintf('loaded pre-existing results for subj %d\n',subj)
     end
-    allResultsCell{subjIdx}=checkpointData.results;
-    clear checkpointData subjResultsCfg
+    allResultsCell{subjIdx,1}=checkpointData_.results;
+    allResultsCell{subjIdx,2}=subjResultsCfg_; % so we can pass without calling trf_analysis params in other loops downstream
+    clear checkpointData_ subjResultsCfg_
 end
 
 %% ------------------------------------------------------------------------
@@ -101,14 +108,14 @@ end
 % plotButterflyGFPTopo assumes times in ms
 for subjIdx=1:numel(subjs)
     subj=subjs(subjIdx);
-    plot_subject_results(allResultsCell{subjIdx},chanlocs, ...
+    plot_subject_results(allResultsCell{subjIdx,1},chanlocs, ...
         cfg,sprintf('Subj%0d', subj))
     % EXPORT SUBJ FIGS
     if cfg.doExportFigures
-        subjFigDir=fullfile(boxdir_mine,'figures',cfg.configType,sprintf('Subj%02d',subj));
-        subjResultsCfg=buildMetadataStruct(subj,cfg,preprocess_config,trf_config);
-        exportFiguresToFolder(subjFigDir,subjResultsCfg);
-        clear subjResultsCfg
+        % subjFigDir=fullfile(boxdir_mine,'figures',cfg.configType,sprintf('Subj%02d',subj));
+        subjResultsCfg_=allResultsCell{subjIdx,2};
+        exportFiguresToFolder(subjResultsCfg_);
+        clear subjResultsCfg_
     end
     fprintf('Plots for subj %02d done. Closed: %d\n',subj, cfg.doExportFigures)
     
@@ -122,14 +129,14 @@ if cfg.doGroupAverage
     grand=computeGrandAverage(allResultsCell,chanlocs);
     plot_subject_results(grand,chanlocs,cfg,'Grand-Average')
     if cfg.doExportFigures
-        grandAvgFigDir=fullfile(boxdir_mine,'figures',cfg.configType,'Grand Average');
+        % grandAvgFigDir=fullfile(boxdir_mine,'figures',cfg.configType,'Grand Average');
         % note that preprocess_config & trf_config are from a single
         % subject but buildMetadataStruct removes subject label... subject
         % specific idiosyncracies in config might be problematic here
         % though....
-        grandAvgResultsCfg=buildMetadataStruct(subjs,cfg,preprocess_config,trf_config);
+        grandAvgResultsCfg=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
         exportFiguresToFolder(grandAvgFigDir,grandAvgResultsCfg)
-        clear subjResultsCfg
+        clear subjResultsCfg_
     end
 
 end
@@ -138,11 +145,13 @@ end
 %% ------------------------------------------------------------------------
 % Local Functions
 % -------------------------------------------------------------------------
-function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
+function results=runSubjectAnalysis(subj,cfg,trf_config)
 % subj: scalar, subject ID number
 % cfg: struct, with analysis params
 % wrapper to do silence detection, ERP analysis, and TRF analysis on a
 % single-subject's data
+    preprocess_config=cfg.preprocess_config;
+    
 
     pp_checkpoint_=progressLoad(preprocess_config);
     EEG=pp_checkpoint_.preprocessed_eeg;
@@ -230,9 +239,10 @@ function results=runSubjectAnalysis(subj,cfg,preprocess_config,trf_config)
     
 end
 
-function grand = computeGrandAverage(allResults, chanlocs)
+function grand = computeGrandAverage(allResultsCell, chanlocs)
 % GRAND MUST INHERET ALL RESULTS TO MATCH STRUCTURE OF PLOTTING FUNCTION
 % LATER
+    allResults=allResultsCell{:,1};
     nSubj=numel(allResults);
 
     % sanity checks: all results should be able to share time axis
@@ -576,4 +586,5 @@ else
     %MESSAAGE ON IT BUT OTHERWISE EMPTY
 end
 end
+
 
