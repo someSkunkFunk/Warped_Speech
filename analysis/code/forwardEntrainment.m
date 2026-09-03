@@ -67,7 +67,7 @@ for subjIdx=1:numel(subjs)
         load(loc_file)
     end
     %%
-    subjResultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+    subjResultsCfg=buildMetadataStruct(subj,cfg,preprocess_config,trf_config);
     % above function just adds paths and ensures nested configs are forced
     % to be hashable -- still needs to be made hashable itself. As a
     % result, consider renaming function as it seems to imply that output
@@ -106,7 +106,7 @@ for subjIdx=1:numel(subjs)
     % EXPORT SUBJ FIGS
     if cfg.doExportFigures
         subjFigDir=fullfile(boxdir_mine,'figures',cfg.configType,sprintf('Subj%02d',subj));
-        subjResultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config);
+        subjResultsCfg=buildMetadataStruct(subj,cfg,preprocess_config,trf_config);
         exportFiguresToFolder(subjFigDir,subjResultsCfg);
         clear subjResultsCfg
     end
@@ -124,10 +124,10 @@ if cfg.doGroupAverage
     if cfg.doExportFigures
         grandAvgFigDir=fullfile(boxdir_mine,'figures',cfg.configType,'Grand Average');
         % note that preprocess_config & trf_config are from a single
-        % subject but buildResultsCacheKey removes subject label... subject
+        % subject but buildMetadataStruct removes subject label... subject
         % specific idiosyncracies in config might be problematic here
         % though....
-        grandAvgResultsCfg=buildResultsCacheKey(subjs,cfg,preprocess_config,trf_config);
+        grandAvgResultsCfg=buildMetadataStruct(subjs,cfg,preprocess_config,trf_config);
         exportFiguresToFolder(grandAvgFigDir,grandAvgResultsCfg)
         clear subjResultsCfg
     end
@@ -575,34 +575,5 @@ else
     %TODO: IT WOULD BE MORE NICER IF THIS RETURNED A FIGURE WITH THAT
     %MESSAAGE ON IT BUT OTHERWISE EMPTY
 end
-end
-
-function resultsCfg=buildResultsCacheKey(subj,cfg,preprocess_config,trf_config)
-%   not yet hashable, but ensures nested configs are hashable
-
-    hashablePpConfig=buildHashableConfig(preprocess_config);
-    hashableTrfConfig=buildHashableConfig(trf_config);
-
-    global boxdir_mine
-    if isscalar(subj)
-        output_dir=sprintf('%s/analysis/forward_entrainment/%02d',boxdir_mine,subj);
-    else
-        output_dir=sprintf('%s/analysis/forward_entrainment/Grand Average',boxdir_mine);
-    end
-    paths=struct('output_dir',output_dir);
-    resultsCfg=struct( ...
-        'subj',subj, ...,
-        'configType',cfg.configType, ...
-        'fs', cfg.fs, ...
-        'silenceThresh', cfg.silenceThresh, ...
-        'minSilenceDur', cfg.minSilenceDur, ...
-        'erpWindow', cfg.erpWindow, ...
-        'trfLags', cfg.trfLags, ...
-        'lambdaGrid', cfg.lambdaGrid, ...
-        'preprocess_config', hashablePpConfig, ...
-        'trf_config', hashableTrfConfig, ...
-        'paths', paths); %trf config might be confusing in 
-    % future, consider only keeping the normalization parameters since
-    % that's all we end up using
 end
 
