@@ -115,7 +115,7 @@ for subjIdx=1:numel(subjs)
         % subjFigDir=fullfile(boxdir_mine,'figures',cfg.configType,sprintf('Subj%02d',subj));
         subjResultsCfg_=allResultsCell{subjIdx,2};
         figs_=findobj(allchild(0),'flat','Type','figure');
-        exportFiguresToFolder(subjResultsCfg_.paths.fig_dir,subjresultsCfg_,figs_);
+        exportFiguresToFolder(subjResultsCfg_.paths.fig_dir,subjResultsCfg_,figs_);
         clear subjResultsCfg_ figs_
     end
     fprintf('Plots for subj %02d done. Closed: %d\n',subj, cfg.doExportFigures)
