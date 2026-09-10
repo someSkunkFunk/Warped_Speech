@@ -118,6 +118,8 @@ cfg.experiment='fast-slow';
 cfg.custom_subjs=[];
 cfg.topos_from_peak_windows=false;
 
+cfg.doExportFigures=true;
+
 % best fast-slow subjs: 
 % subjs=[9,12];
 if isempty(cfg.custom_subjs)
@@ -201,7 +203,7 @@ for ss=1:n_subjs
 
     trf_analysis_params;
     S_=progressLoad(trf_config);
-    model_=S_.model;
+    subjModel_=S_.model;
     if ~isempty(butterfly_fig.r_thresh)
         rs_=squeeze(mean([S_.stats_obs(:).r],1));
         % gives conditions-by-chns, unless conditions missing
@@ -223,17 +225,17 @@ for ss=1:n_subjs
     clear S_
     if ss==1
         %preallocate
-        model_fields_=fieldnames(model_);
-        sz_=[size(model_),size(model_fields_)];
+        model_fields_=fieldnames(subjModel_);
+        sz_=[size(subjModel_),size(model_fields_)];
         sz_(1)=n_subjs;
-        ind_models=cell2struct(cell(sz_),model_fields_,3);
+        subjModels=cell2struct(cell(sz_),model_fields_,3);
         if ~isempty(butterfly_fig.r_thresh)
             sz_=[n_subjs, size(rs_)];
             rs=nan(sz_);
         end
         clear model_fields_ sz_
     end
-    ind_models(ss,:)=model_; clear model_
+    subjModels(ss,:)=subjModel_; clear subjModel_
     if ~isempty(butterfly_fig.r_thresh)
         rs(ss,:,:)=rs_; clear rs_
     end
@@ -258,7 +260,7 @@ if ~isempty(butterfly_fig.r_thresh)
 end
 % Note: loc_file defined in trf_analysis params...
 load(loc_file);
-avg_models=construct_avg_models(ind_models);
+avg_models=construct_avg_models(subjModels);
 
 %% compute GFP
 % calculates GFP (using standard deviation and not RMS because
@@ -266,11 +268,11 @@ avg_models=construct_avg_models(ind_models);
 % w has size: [1 x time x channels]
 gfp_grand=compute_gfp(avg_models, experiment_conditions);
 
-% plot per-condition GFP:
-gfp_plots=cell(size(experiment_conditions));
-for cc=1:numel(experiment_conditions)
-    gfp_plots{cc}=plot_gfp(gfp_grand,avg_models,cc,experiment_conditions,butterfly_fig);
-end
+% plot Grand-Average per-condition GFP by itself:
+% gfp_plots=cell(size(experiment_conditions));
+% for cc=1:numel(experiment_conditions)
+%     gfp_plots{cc}=plot_gfp(gfp_grand,avg_models,cc,experiment_conditions,butterfly_fig);
+% end
 
 %% estimate components via microstate analysis OR 
 % basic gfp-peak picking algorithm
@@ -322,7 +324,7 @@ for cc=1:numel(experiment_conditions)
     postFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
     
     % 3. ISOLATE: Find the handles of the NEW figures created in this block
-    newFigs_=setdiff(postFigs_, preFigs);
+    newFigs_=setdiff(postFigs_, preFigs_);
 
     % EXPORT SUBJ FIGS
     if cfg.doExportFigures
@@ -339,16 +341,16 @@ end
 if cfg.show_individual_weights
     for ss=1:n_subjs
         for cc=1:numel(configs(ss).trf_config.conditions)
-            model_=ind_models(ss,cc);
-            if ~isempty(model_.w)
+            subjModel_=subjModels(ss,cc);
+            if ~isempty(subjModel_.w)
                 % 1. SNAPSHOT: Record all currently open figures BEFORE plotting
                 preFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
                 title_str_=sprintf('subj: %d - %s',configs(ss).trf_config.subj, ...
                         configs(ss).trf_config.conditions{cc});
                 % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
-                figure
+                figure('Name',title_str_)
                 
-                h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
+                h_=mTRFplot(subjModel_,'trf','all',mtrf_plot_chns);
                 % make all the lines within a condition the same color
                 set(h_,'LineWidth',butterfly_fig.lw, ...
                 'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
@@ -362,7 +364,7 @@ if cfg.show_individual_weights
                 postFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
                 
                 % 3. ISOLATE: Find the handles of the NEW figures created in this block
-                newFigs_=setdiff(postFigs_, preFigs);
+                newFigs_=setdiff(postFigs_, preFigs_);
             
                 % EXPORT SUBJ FIGS
                 if cfg.doExportFigures
@@ -376,28 +378,29 @@ if cfg.show_individual_weights
             else
                 fprintf('nothing to plot for %s\n', configs(ss).trf_config.conditions{cc})
             end 
-            clear title_str_ h_ model_
+            clear title_str_ h_ subjModel_
         end
     end
 end
 %% Plot Grand average butterly 
 if cfg.show_avg_weights
     for cc=1:numel(configs(end).trf_config.conditions)
-        model_=avg_models(1,cc);
-        if ~isempty(model_.w)
-            % 1. SNAPSHOT: Record all currently open figures BEFORE plotting
-            preFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
+        subjModel_=avg_models(1,cc);
+        if ~isempty(subjModel_.w)
+            
             if cc>1&&butterfly_fig.stack
                 % skip adding fig
             else
+                % 1. SNAPSHOT: Record all currently open figures BEFORE plotting
+                preFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
                 figure('Units','inches','Position',[1 1 3 3], ...
                     'Color','White','Name','Grand-Average Butterfly solo')
             end
 
             if isempty(butterfly_fig.r_thresh)
-                h_=mTRFplot(model_,'trf','all',mtrf_plot_chns);
+                h_=mTRFplot(subjModel_,'trf','all',mtrf_plot_chns);
             else
-                h_=mTRFplot(model_,'trf','all',find(chns_m(cc,:)));
+                h_=mTRFplot(subjModel_,'trf','all',find(chns_m(cc,:)));
             end
             % make all the lines within a condition the same color
             set(h_,'LineWidth',butterfly_fig.lw, ...
@@ -416,33 +419,50 @@ if cfg.show_avg_weights
                 hold on
             else
                 legend(experiment_conditions{cc},'Location','northeast')
+                % 2. SNAPSHOT: Record all open figures AFTER plotting
+                postFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
+                
+                % 3. ISOLATE: Find the handles of the NEW figures created in this block
+                newFigs_=setdiff(postFigs_, preFigs_);
             end
         else
             % useful for pilot subjects that only listen to a single
             % condition...
             fprintf('nothing to plot for %s\n',configs(ss).trf_config.conditions{cc})
         end
-        % 2. SNAPSHOT: Record all open figures AFTER plotting
-        postFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
         
-        % 3. ISOLATE: Find the handles of the NEW figures created in this block
-        newFigs_=setdiff(postFigs_, preFigs);
     
-        % EXPORT SUBJ FIGS
-        if cfg.doExportFigures
-            subjResultsCfg_=buildConfigPathsGeneric(subjs(ss),cfg);
-            exportFiguresToFolder(subjResultsCfg_.paths.fig_dir, ...
-                subjResultsCfg_,newFigs_)
+        % EXPORT GRAND AVG FIGS (unstacked)
+        if cfg.doExportFigures && ~butterfly_fig.stack
+            grandAvgResultsCfg_=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
+            exportFiguresToFolder(grandAvgResultsCfg_.paths.fig_dir, ...
+                grandAvgResultsCfg_,newFigs_)
+            fprintf('Grand Average, cond%d plots done. Closed: %d\n', ...
+            cc,cfg.doExportFigures)
+            clear preFigs_ postFigs_ newFigs_ grandAvgResultsCfg_
         end
-        fprintf('Subj %02d, cond%d plots done. Closed: %d\n', ...
-            subjs(ss), cc,cfg.doExportFigures)
-        clear preFigs_ postFigs_ newFigs_ subjResultsCfg_
+        
+        
     end
     if butterfly_fig.stack
         % NOTE export will happen prematurely 3 times if this is true
         %TODO: FIX THAT BUG
-        hold off
         legend_helper(gca,experiment_conditions,butterfly_fig.condition_colors)
+        hold off
+        % 2. SNAPSHOT: Record all open figures AFTER plotting
+        postFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
+        % 3. ISOLATE: Find the handles of the NEW figures created in this block
+        newFigs_=setdiff(postFigs_, preFigs_);
+        % EXPORT GRAND AVG FIGS (stacked)
+        if butterfly_fig.stack
+            grandAvgResultsCfg_=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
+            exportFiguresToFolder(grandAvgResultsCfg_.paths.fig_dir, ...
+                grandAvgResultsCfg_,newFigs_)
+            fprintf('Grand Average, stacked plot done. Closed: %d\n', ...
+            cfg.doExportFigures)
+            clear preFigs_ postFigs_ newFigs_ grandAvgResultsCfg_
+        end
+
     end
     clear  h_ lg_
 end

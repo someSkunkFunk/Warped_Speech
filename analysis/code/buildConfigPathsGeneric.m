@@ -12,7 +12,7 @@ if isscalar(subj) && isempty(subjTag)
     % subj could be vecotr as well in case of gran average
     subjTag=sprintf('%02d',subj);
 else
-    if ~isempty(subjTag)
+    if isempty(subjTag)
         error('buildSubjConfigFromGeneric:When subj is non-scalar, expecting a subjTag, but was empty')
     end
 end
