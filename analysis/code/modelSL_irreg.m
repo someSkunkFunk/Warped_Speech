@@ -26,7 +26,7 @@ sl_config.sim_trials=[10];
 % find parameter by optimizing if true, otherwise use hard-coded (in future
 % should look up saved optimized parameters -- or maybe that can be part of
 % optimization script also)
-sl_config.optimize_sl=true;
+sl_config.optimize_sl=false;
 
 sl_config.match_syllable_frequency=false;
 sl_config.avg_syllable_rate=4; % Hz
@@ -156,7 +156,8 @@ title(sprintf('Undriven %s phase portrait',sl_config.model))
 % we'll have to continue updating the code.
 global boxdir_mine
 
-sl_config.simulated_trf_experiment={'fast-slow'};
+% sl_config.simulated_trf_experiment={'fast-slow'};
+sl_config.simulated_trf_experiment
 switch sl_config.simulated_trf_experiment
     case 'reg-irreg'
     % --- load reg-irreg envs ---
@@ -169,7 +170,9 @@ switch sl_config.simulated_trf_experiment
     case 'fast-slow'
         fastslow_envelopes_path=sprintf(['%s/stimuli/wrinkle/', ...
             'fastSlowEnvelopes128hz.mat'],boxdir_mine);
-        load()
+        % load()
+    otherwise
+        warning('stimuli & data manually loaded...')
 end
 
 
