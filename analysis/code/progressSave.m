@@ -75,6 +75,7 @@ function progressSave(data,inputConfig,overwrite)
             varname,matFpth,subj,configHash)
         % include extension in registry filename entry
         [~,matFnm,matExt]=fileparts(matFpth);
+        
         %add or update entry
         entry=struct( ...
             'hash',configHash,...
@@ -135,8 +136,8 @@ function progressSave(data,inputConfig,overwrite)
             save(matFpth,'-struct','data_');
         end
         % overwrite pre-existing config (they shld match -- and hopefully 
-        % latest version captures schema at checkpoint saving time
-        config=hashableConfig;
+        % latest version captures schema at checkpoint saving time)
+        config=inputConfig;
         save(matFpth,'config','-append');
         % save updated registry
         fid=fopen(registryFile,'w');

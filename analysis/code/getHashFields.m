@@ -7,11 +7,10 @@ function flds=getHashFields(configType)
 % to define them when needed:
 % -------------------------------------------------------------------------
 % REMOVE from PREPROCESS: 
-%   nchan - redundant from other info and only used in preprocess
-%   stim_delay_time
-%   experiment (?) - does it need to be hashed or can it just be extracted from subj
-%       num and be defined where needed in script? did we include it simply to
-%       avoid having to rewrite basic label strings in each analysis script?
+%   stim_delay_time - not sure why I deemed this unnecessary, possibly
+%   because meaningless in regIrreg because no noise addition = no extra
+%   second? so experiment 
+%   experiment (?) - 
 %       -> does not need to be hashed, simply functions as helper for labelling
 %       plots... we actually want it to be mutable without necessitating a new
 %       hash/trf calculation pipeline
@@ -20,10 +19,8 @@ function flds=getHashFields(configType)
 %   do_lambda_optimization - can just define empty lam
 %       range to imply desired behavior, then have manually-defined "best" 
 %       lambda in analysis script
-%   experiment - same logic as above, also apply to anything that can be
-%   recovered from preprocess config since trf_config already should have
-%   it
-%   conditions - just condition labels for plots? if so, don't need here
+%   have not removed yet because it would require refactor of a bunch of
+%   other code I dont currently have time to do and is not that important 
 %%:IDK???
 % SHOULD SUBJ REMAIN ? DO WE WANT TO POSSIBLY HAVE HASH-CONSISTENCY ACROSS
 % SUBJECTS?
@@ -31,12 +28,12 @@ switch configType
     case 'preprocess'
         flds={'bpfilter','ref','fs','interpBadChans','bad_chans', ...
             'manually_selected_bad_chans','stim_delay_time', ... 
-            'epoch_dur','experiment','use_triggers'};
+            'epoch_dur','use_triggers'};
     case 'trf'
         flds={'lam_range','tmin_ms','tmax_ms', ...
             'do_lambda_optimization','separate_conditions', ...
             'crossvalidate', 'zscore_envs', 'norm_envs', ...
-            'zscore_eeg', 'experiment', 'conditions', 'use_triggers', ...
+            'zscore_eeg', 'use_triggers', ...
             'subsample_trfs','sep_ridge','preprocess_config', 'trf_direction'};
     case 'fEntrainment'
         flds={'fs','silenceThresh','minSilenceDur','erpWindow', 'trfLags', ...

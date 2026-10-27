@@ -69,7 +69,7 @@ end
 
 
 %%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
-preprocess_config=config_preprocess(preprocess_config);
+preprocess_config=configPreprocess(preprocess_config);
 trf_config=config_trf(trf_config,preprocess_config);
 
 if exist("trf_config_","var")

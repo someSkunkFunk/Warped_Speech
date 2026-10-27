@@ -204,8 +204,8 @@ peaktimes_subjlvl=cellfun(@(x) repmat({nan(n_subjs,1)},1,size(x,1)), ...
 
 for ss=1:n_subjs
     for cc=1:numel(experiment_conditions)
-        w_=ind_models(ss,cc).w;
-        t_=ind_models(ss,cc).t;
+        w_=subjModels(ss,cc).w;
+        t_=subjModels(ss,cc).t;
 
         w_avg_=squeeze(mean(w_,3));
         w_avg_rect_=sign(w_avg_).*w_avg_;
@@ -295,8 +295,8 @@ for ss=1:n_subjs
             if ci<=numel(selected_electrodes{cc})       
                 % get mask for electrodes containing a prominent peak
                 prominent_elecs_mask_=selected_electrodes{cc}{ci}(:);
-                trf_=squeeze(ind_models(ss,cc).w)'; % [chn x time]
-                times_ms_=ind_models(cc).t; % [1 x time, ms]
+                trf_=squeeze(subjModels(ss,cc).w)'; % [chn x time]
+                times_ms_=subjModels(ss,cc).t; % [1 x time, ms]
                 ttl_=titles_{cc,ci};
         
                 % --- get column indices in the tiled grid ---
@@ -370,8 +370,12 @@ T_peak_lat=array2table(peak_lat,'VariableNames', experiment_conditions);
 % define within-subject factor specified as 
 % r-by-k table that contains the values of the k within-subject factors.
 rm_conditions=table(experiment_conditions', 'VariableNames',{'SpeechRate'});
+
+%DYnamically construct repeated measures formulat
+responseVars=strjoin(T_peak_lat.Properties.VariableNames,'+');
+rmFormula=sprintf('%s~1',responseVars);
 % fit repeated measures model
-rm=fitrm(T_peak_lat,'fast-slow ~ 1', 'WithinDesign',rm_conditions);
+rm=fitrm(T_peak_lat,rmFormula, 'WithinDesign',rm_conditions);
 %run rm-anova
 ranova_result=ranova(rm);
 % to interpret results, should confirm sphericity assuption of ranova
@@ -435,7 +439,7 @@ clear fig_jitter_
 % 
 %             % need to convert to time:
 %             win_=stats_windows{cc}(ci,:);
-%             win_ms=ind_models(1).t(win_);
+%             win_ms=subjModels(1).t(win_);
 %             title(ax, sprintf('%s - Component %d (%0.0f-%0.0f ms)', ...
 %                 experiment_conditions{cc},ci,win_ms(1),win_ms(2)))
 % 

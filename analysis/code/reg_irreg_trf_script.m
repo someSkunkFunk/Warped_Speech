@@ -1,7 +1,9 @@
 clearvars -except user_profile boxdir_mine boxdir_lab
 clc
 
-%NOTES:
+%NOTES:MOST UP-TO-DATE BASIC ANALYSIS SCRIPT, HAVENT TRIED IT ON FASTsLOW
+%SO IT MAY HAVE ISSUES THERE BUT NOT INTERESTED IN FIXING THAT CURRENTLY
+%SINCE NEED REG IRREG RESULTS FOR SFN AND COMMITTEE MEETING
 
 for subj=[39]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
