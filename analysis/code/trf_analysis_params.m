@@ -70,13 +70,13 @@ end
 
 %%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=configPreprocess(preprocess_config);
-trf_config=config_trf(trf_config,preprocess_config);
+trf_config=configTrf(trf_config,preprocess_config);
 
 if exist("trf_config_","var")
     % load best_lambda from condition-agnostic crossvalidation with same
     % preprocessing params
 
-    trf_config_=config_trf(trf_config_,preprocess_config);
+    trf_config_=configTrf(trf_config_,preprocess_config);
     S_=progressLoad(trf_config_);
     disp(['(ignore above hash lookup result, generated in ' ...
         'trf_analysis_params as intermediate step to retrieve best_lam)'])

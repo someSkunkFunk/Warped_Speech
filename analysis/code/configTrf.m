@@ -81,7 +81,7 @@ elseif trfConfig.subj<23
         preprocess_config.fs);
 end
 
-trfConfig.paths.output_dir=sprintf('%s/analysis/%s/trf_models/%02d', ...
+trfConfig.paths.outputDir=sprintf('%s/analysis/%s/trf_models/%02d', ...
     boxdir_mine,trfConfig.experiment,trfConfig.subj);
 trfConfig.configType='trf';
 % column-major order for consistency

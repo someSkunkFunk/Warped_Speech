@@ -6,9 +6,13 @@ function data=progressLoad(inputConfig)
     subj=inputConfig.subj;
     registryFpth=fullfile(inputConfig.paths.output_dir,'registry.json');
     if ~isfile(registryFpth)
-        fprintf('No registry found for subject %02d\n',subj);
-        data=[];
-        return
+        % note: not sure if desired behavior was for this to output an
+        % empty array when registry could not be located for some
+        % downstream reason, but currently it feels like it is always
+        % treated as an error?
+        error('No registry found for subject %02d\n',subj);
+        % data=[];
+        % return
     end
     registry=jsondecode(fileread(registryFpth));
 

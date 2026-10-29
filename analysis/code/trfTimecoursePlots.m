@@ -25,7 +25,7 @@ clear; clc; close all
 %% Key configuration parameters (affect final output)
 %
 % script_config.experiment
-%   Selects which experiment to analyze ('fast-slow' or 'reg-irreg').
+%   Selects which experiment to analyze ('fastSlow' or 'regIrreg').
 %   This determines which subject IDs and condition labels are used.
 %
 % subjs
@@ -114,7 +114,7 @@ addpath('./trf_plot_lib/')
 close all
 cfg=[];
 cfg.configType='fTrfTimecourses';
-cfg.experiment='fast-slow';
+cfg.experiment='regIrreg';
 cfg.custom_subjs=[];
 cfg.topos_from_peak_windows=false;
 
@@ -124,12 +124,12 @@ cfg.doExportFigures=true;
 % subjs=[9,12];
 if isempty(cfg.custom_subjs)
     switch cfg.experiment
-        case 'fast-slow'
+        case 'fastSlow'
             % fast-slow subjs:
             subjs=[2:7,9:22];
             % subjs=22;
             butterfly_fig.ylims=[-.5 .6];
-        case 'reg-irreg'
+        case 'regIrreg'
             % reg-irreg subjects:
             subjs=[24:36];
             butterfly_fig.ylims=[-1 1];
@@ -302,10 +302,10 @@ end
 % GRAND AVERAGE stacked butterfly + GFP plots with component boundaries
 % as in Lalor et al 2009 Fig 4
 switch cfg.experiment
-    case 'fast-slow'
+    case 'fastSlow'
         gfp_ylim=[0 .2];
         trf_ylim= [-.6 .6];
-    case 'reg-irreg'
+    case 'regIrreg'
         gfp_ylim=[0 .6];
         trf_ylim= [-.9 .9];
 end

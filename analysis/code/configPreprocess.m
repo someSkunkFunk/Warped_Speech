@@ -77,12 +77,12 @@ preprocessConfig.opts = {'channels',1:(preprocessConfig.nchan+2),'importannot','
 % package box foldertree stuff into single field we can later ignore in
 % datahash:
 
-preprocessConfig.paths.datafolder = sprintf('%s/data/%s', ...
+preprocessConfig.paths.datafolder = sprintf('%s/data/%s/', ...
     boxdir_mine,preprocessConfig.experiment);
 if preprocessConfig.subj>=90
 
 
-    preprocessConfig.paths.output_dir=sprintf('%spreprocessed_eeg/%s/s%0.2d', ...
+    preprocessConfig.paths.outputDir=sprintf('%spreprocessed_eeg/%s/s%0.2d', ...
         preprocessConfig.paths.datafolder,preprocessConfig.subj);
     
     
@@ -93,7 +93,7 @@ if preprocessConfig.subj>=90
 
 else
     
-    preprocessConfig.paths.output_dir=sprintf('%spreprocessed_eeg/s%0.2d', ...
+    preprocessConfig.paths.outputDir=sprintf('%spreprocessed_eeg/s%0.2d', ...
         preprocessConfig.paths.datafolder,preprocessConfig.subj);
     
     
