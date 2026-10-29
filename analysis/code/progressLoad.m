@@ -29,7 +29,7 @@ function data=progressLoad(inputConfig)
     if isempty(configMatchIdx)
         % hashableConfig=filterConfig(config,getHashFields(config.configType));
         disp(hashableConfig)
-        error('no matching file found for config above ^in existing registry:\n')
+        error('no matching file found for config above ^in existing registry.')
         % 
         % data=[];
     else

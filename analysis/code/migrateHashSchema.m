@@ -1,4 +1,9 @@
 function migrateHashSchema(rootDir,forceOverwrite)
+% DEPRECIATE: updateRehashConfig should already do the same thing, probably
+% better... ALTHOUGH it probably is useful to have a version of that
+% function that works on selected directory as this one does instead of
+% having to run setTrfAnalysisParams to initialize configs (in order to
+% cover different kinds outputs
  % miggrateHashSchema: Rehashes and renames checkpoint files after a schema change.
 %
 %   migrateHashSchema(rootDir) searches for all registry.json files within 

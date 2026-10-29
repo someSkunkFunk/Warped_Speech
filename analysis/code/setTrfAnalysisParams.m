@@ -8,7 +8,7 @@
 % do_nulltest, train_params, show_tuning_curves
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% NOTES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % need this to avoid conflicts when looping over subjects
-disp('setting trf_analysis_params...')
+disp('setting TRF analysis params...')
 clear trf_config preprocess_config trf_config_
 % if ~exist('script_config','var')||~isfield(script_config,'show_tuning_curves')
 %     error('define a script config w show_tuning_curves at least..')
@@ -18,7 +18,7 @@ clear trf_config preprocess_config trf_config_
 preprocess_config.subj=subj;
 preprocess_config.use_triggers='click';
 
-trf_config.separate_conditions=true;
+trf_config.separate_conditions=false;
 trf_config.subsample_trfs=false;
 
 trf_config.crossvalidate=true; %note: i think the intended behavior when 

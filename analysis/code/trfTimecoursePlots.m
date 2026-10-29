@@ -201,7 +201,7 @@ for ss=1:n_subjs
     subj=subjs(ss);
     fprintf('loading subj %d data...\n',subj)
 
-    trf_analysis_params;
+    setTrfAnalysisParams;
     S_=progressLoad(trf_config);
     subjModel_=S_.model;
     if ~isempty(butterfly_fig.r_thresh)

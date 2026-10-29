@@ -1,9 +1,9 @@
-function update_rehash_config(newConfig)
-% UPDATE_REHASH_CONFIG(new_config)
+function updateRehashConfig(newConfig)
+% updateRehashConfig(newConfig)
 %
-% migrates every entry in config.paths.output_dir/registry.json to the
+% migrates every entry in config.paths.outputDir/registry.json to the
 % current hash schema (using getHashFields) and current config-builder
-% defaults (config_preprocess/config_trf)
+% defaults (configPreprocess/configTrf)
 %
 % CHANGED FROM OLD VERSION: instead of trying to match one
 % externally-supplied config against ssved files and work with the first
@@ -16,11 +16,11 @@ function update_rehash_config(newConfig)
 % that happens to match each one.
 %
 % USAGE:
-% trf_analysis_params;
-% update_rehash_config(trf_config)
-% update_rehash_config(preprocess_config)
+% setTrfAnalysisParams;
+% updateRehashConfig(trf_config)
+% updateRehashConfig(preprocess_config)
 %
-% config only needs valid .paths.output_dir and .configType. It locates the
+% config only needs valid .paths.outputDir and .configType. It locates the
 % registry, it is NOT ground truth to match against
 %
 % SAFETY: rebuild is only expcted to ADD fields. If rebuilding an entry
@@ -31,7 +31,7 @@ function update_rehash_config(newConfig)
 % config-equivalent) doesnt overwrite more recent data (delete older 
 % conflicting mats before running script)"
 
-outputDir=newConfig.paths.output_dir;
+outputDir=newConfig.paths.outputDir;
 registryFile=fullfile(outputDir,'registry.json');
 if ~isfile(registryFile)
     error('registry not found in %s', registryFile)
@@ -43,13 +43,20 @@ registry=jsondecode(fileread(registryFile));
 % probably unnecessary, but scared to commit to removing it from save/load
 % checkpoint without first implementing the first re-hash and addressing
 % any bugs that may surface.
-% if isstruct(registry)
-%     registry=reshape(registry,[],1); %
-% end
+
+% ^ idk wtf this guy's talking about
+if isstruct(registry)
+    registry=reshape(registry,[],1);
+end
 
 nUpdated=0; nUnchanged=0; nSkipped=0;
 disp('--Registry on file:')
-disp(struct2table(registry))
+if isscalar(registry)
+    registryTableFmt=repmat(registry,2,1);
+else
+    registryTableFmt=registry;
+end
+disp(struct2table(registryTableFmt))
 
 for ii=1:numel(registry)
     
@@ -72,17 +79,27 @@ for ii=1:numel(registry)
         oldConfig.configType=newConfig.configType;
     end
 
+    % config trf removes subj info when making it a hashable
+    % config, so need to temporarily re-instate to avoid error, g et from
+    % directory since in the name
+    if ~isfield(oldConfig,'subj')
+        [~, subjDir_]=fileparts(outputDir);
+        oldConfig.subj=double(string(subjDir_));
+        clear subjDir_
+    end
+
     try
         newConfig=rebuildConfig(oldConfig);
     catch ME
-        warning ('enrty %d (%s): could not rebuild config - %s. Skipping.', ...
+        warning ('entry %d (%s): could not rebuild config - %s. Skipping.', ...
             ii, entry.file,ME.message)
         nSkipped=nSkipped+1;
         continue
     end
     conflictFields=findConflictingFields(oldConfig,newConfig);
 
-    if ~isempty(conflictFields)
+    if ~isempty(conflictFields) && ...
+        any(ismember(conflictFields,getHashFields(newConfig.configType)))
         warning(['entry %d (%s): rebuilding changed existing field(s): ' ...
             '{%s}\n check this apparent semantic change. Skipping.'], ...
             ii,entry.file,strjoin(conflictFields,','));
@@ -166,16 +183,15 @@ fprintf(['Done with %s.\n %d updated, %d unchanged, %d skipped ' ...
     function newConfig=rebuildConfig(oldConfig)
         switch oldConfig.configType
             case 'preprocess'
-                newConfig=config_preprocess(oldConfig);
+                newConfig=configPreprocess(oldConfig);
             case 'trf'
                 % re-derive the nested preprocess config first
                 ppSeed=oldConfig.preprocess_config;
                 ppSeed.configType='preprocess';
-                % config trf removes subj info when making it a hashable
-                % config, so need to temporarily re-instate to avoid error
+
                 ppSeed.subj=oldConfig.subj;
-                ppRebuilt=config_preprocess(ppSeed);
-                newConfig=config_trf(oldConfig,ppRebuilt);
+                ppRebuilt=configPreprocess(ppSeed);
+                newConfig=configTrf(oldConfig,ppRebuilt);
             otherwise
                 error(['no rebuild rule defined for configType%s\n' ...
                     '--add a case to rebuild_config'],oldConfig.configType);
