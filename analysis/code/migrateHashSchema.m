@@ -70,6 +70,11 @@ for ii=1:numel(regs)
         % using the UPDATED getHashFields
         % this should automatically strip out 'experiment' and other
         % removed fields
+
+        % NOTE: newHash should usually be defined using computeConfigHash
+        % for general use, but as of when this was written (oct 28 2026)
+        % this basically replicates the exact same steps so hash should
+        % be correct
         newHc=buildHashableConfig(oldConfig);
         % compute new hash
         newHash=char(upper(DataHash(newHc)));

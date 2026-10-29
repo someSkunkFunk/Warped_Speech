@@ -4,7 +4,7 @@ function data=progressLoad(inputConfig)
 % is returned, unpack:
 % desired_var=checkpoint_data_struct.desired_var;
     subj=inputConfig.subj;
-    registryFpth=fullfile(inputConfig.paths.output_dir,'registry.json');
+    registryFpth=fullfile(inputConfig.paths.outputDir,'registry.json');
     if ~isfile(registryFpth)
         % note: not sure if desired behavior was for this to output an
         % empty array when registry could not be located for some
@@ -28,10 +28,10 @@ function data=progressLoad(inputConfig)
 
     if isempty(configMatchIdx)
         % hashableConfig=filterConfig(config,getHashFields(config.configType));
-        
-        warning('no matching file found for config below in existing registry.')
         disp(hashableConfig)
-        data=[];
+        error('no matching file found for config above ^in existing registry:\n')
+        % 
+        % data=[];
     else
         if length(configMatchIdx)>1
             warning(['redundant entries found... SELECTING ' ...
