@@ -87,8 +87,8 @@ trfConfig.configType='trf';
 % column-major order for consistency
 trfConfig=orderfields(trfConfig);
 trfConfig=columnize_row_vectors(trfConfig);
-disp('voila trf_config:')
-disp(trfConfig)
+% disp('voila trf_config:')
+% disp(trfConfig)
 
 end
 

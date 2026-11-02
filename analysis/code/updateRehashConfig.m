@@ -51,12 +51,9 @@ end
 
 nUpdated=0; nUnchanged=0; nSkipped=0;
 disp('--Registry on file:')
-if isscalar(registry)
-    registryTableFmt=repmat(registry,2,1);
-else
-    registryTableFmt=registry;
-end
-disp(struct2table(registryTableFmt))
+displayRegistry(registry)
+
+% disp(struct2table(tableFormat(registry)))
 
 for ii=1:numel(registry)
     
@@ -82,10 +79,16 @@ for ii=1:numel(registry)
     % config trf removes subj info when making it a hashable
     % config, so need to temporarily re-instate to avoid error, g et from
     % directory since in the name
-    if ~isfield(oldConfig,'subj')
+    if ~isfield(oldConfig,'subj') || ~isnumeric(oldConfig.subj) || isnan(oldConfig.subj)
+        warning('subj field missing in old config, attempting to insert here.')
         [~, subjDir_]=fileparts(outputDir);
-        oldConfig.subj=double(string(subjDir_));
-        clear subjDir_
+        subjNum_=double(strip(string(subjDir_),'s'));
+
+        if isnan(subjNum_)
+            error('theres a fucking problem here.' )
+        end
+        oldConfig.subj=subjNum_;
+        clear subjDir_ subjNum_
     end
 
     try
@@ -153,7 +156,8 @@ for ii=1:numel(registry)
 
     if updateRegistry
         disp('--Registry BEFORE updating:')
-        disp(struct2table(registry))
+        displayRegistry(registry)
+        % disp(struct2table(tableFormat(registry)))
         registry(ii).hash=newHash;
         registry(ii).configType=newConfig.configType;
         registry(ii).hashFields=getHashFields(newConfig.configType);
@@ -161,7 +165,8 @@ for ii=1:numel(registry)
         registry(ii).file=newFnm;
         registry(ii).timestamp=datetime('now');
         disp('--Registry AFTER updating:')
-        disp(struct2table(registry))
+        displayRegistry(registry);
+        % disp(struct2table(tableFormat(registry)))
 
     end
     nUpdated=nUpdated+1;
@@ -179,8 +184,31 @@ fclose(fid);
 fprintf(['Done with %s.\n %d updated, %d unchanged, %d skipped ' ...
     '(see warnings aboved for skipped entries)\n'], ...
     outputDir,nUpdated,nUnchanged,nSkipped)
-
+    function displayRegistry(registry)
+        % registryTableFmt=tableFormat(registry)
+        % wrapper to bypass disp error when registry is scalar
+        % registry: struct (decoded contents of json registry)
+        if isscalar(registry)
+            registryTableFmt=struct2table(repmat(registry,2,1));
+            disp(registryTableFmt(1,:))
+        else
+            disp(struct2table(registry))
+            % registryTableFmt=registry;
+        end
+    end
     function newConfig=rebuildConfig(oldConfig)
+        % some subjects missing a subj num in registry config, I suspect
+        % might be because we saved the hashable config which stripped
+        % subject into the registry, to be honest, that's probably fine but
+        % vaguely remember maybe setting subj to NaN in forwardEntrainment,
+        % though it seems that script assumes preprocessed data already
+        % exists from trfAnalysisScript... so not sure if this is just an
+        % accidental bug or if we intended NaN to indicate something -- if
+        % so, should only arise when rehashing analysis results for grand
+        % average or many-subjects analyses...
+        % if isnan(oldConfig.subj)
+        %     insertSubj=input('SUBJ IS NAN, PROCEED WITH CHANGING TO ')
+        % end
         switch oldConfig.configType
             case 'preprocess'
                 newConfig=configPreprocess(oldConfig);
