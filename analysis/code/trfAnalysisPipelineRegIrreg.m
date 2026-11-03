@@ -6,12 +6,9 @@ close all
 %SO IT MAY HAVE ISSUES THERE BUT NOT INTERESTED IN FIXING THAT CURRENTLY
 %SINCE NEED REG IRREG RESULTS FOR SFN AND COMMITTEE MEETING
 
-% for subj=[28]
-% clearvars -except user_profile boxdir_mine boxdir_lab subj
-% close all
 tic
 %% setup analysis
-TRF_DIR=-1;
+TRF_DIR=-1; % defaults to 1
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 do_nulltest=false;
 show_tuning_curves=true;
