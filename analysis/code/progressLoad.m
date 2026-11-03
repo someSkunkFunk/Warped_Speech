@@ -10,9 +10,14 @@ function data=progressLoad(inputConfig)
         % empty array when registry could not be located for some
         % downstream reason, but currently it feels like it is always
         % treated as an error?
-        error('No registry found for subject %02d\n',subj);
-        % data=[];
-        % return
+        % ^ turns out that was the original functionality in main analysis
+        % script. decided a good compromise was to turn it into a warning
+        % and return empty arrays.
+        % error('No registry found for subject %02d\n',subj);
+        warning('Could not locate registry at %s for \nsubj:%d\nconfigType:', ...
+            registryFpth,subj,inputConfig.configType)
+        data=[];
+        return
     end
     registry=jsondecode(fileread(registryFpth));
 
@@ -29,9 +34,12 @@ function data=progressLoad(inputConfig)
     if isempty(configMatchIdx)
         % hashableConfig=filterConfig(config,getHashFields(config.configType));
         disp(hashableConfig)
-        error('no matching file found for config above ^in existing registry.')
+        warning(['Existing registry contains no matching hash (%s) for\n' ...
+            ' subj: %d\ninput configType:%s\nreturning empty array'], ...
+            configHash,subj,inputConfig.configType)
         % 
-        % data=[];
+        data=[];
+        return
     else
         if length(configMatchIdx)>1
             warning(['redundant entries found... SELECTING ' ...
@@ -41,8 +49,8 @@ function data=progressLoad(inputConfig)
         dataFile=registry(configMatchIdx).file;
         [dir,~,~]=fileparts(registryFpth);
         data=load(fullfile(dir,dataFile));
-        fprintf(['finished loading checkpoint for ' ...
-            'subj %02d (hash %s)\n'],subj,configHash)
+        fprintf(['finished loading %s checkpoint for ' ...
+            'subj %02d (hash %s)\n'],inputConfig.configType,subj,configHash)
     end
 
 end

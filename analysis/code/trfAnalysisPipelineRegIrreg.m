@@ -1,18 +1,19 @@
-clearvars -except user_profile boxdir_mine boxdir_lab
+clearvars -except user_profile boxdir_mine boxdir_lab subj
 clc
+close all
 
 %NOTES:MOST UP-TO-DATE BASIC ANALYSIS SCRIPT, HAVENT TRIED IT ON FASTsLOW
 %SO IT MAY HAVE ISSUES THERE BUT NOT INTERESTED IN FIXING THAT CURRENTLY
 %SINCE NEED REG IRREG RESULTS FOR SFN AND COMMITTEE MEETING
 
-for subj=[26]
-clearvars -except user_profile boxdir_mine boxdir_lab subj
-close all
-
+% for subj=[28]
+% clearvars -except user_profile boxdir_mine boxdir_lab subj
+% close all
+tic
 %% setup analysis
-TRF_DIR=1;
+TRF_DIR=-1;
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
-do_nulltest=true;
+do_nulltest=false;
 show_tuning_curves=true;
 setTrfAnalysisParams;
 
@@ -40,7 +41,7 @@ if isempty(pp_checkpoint_)
     % trim resp to have same durations as stim (only need to do during
     % preprocessing)
     preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg);
-    fprintf('saving to %s\n',preprocess_config.paths.output_dir)
+    fprintf('saving to %s\n',preprocess_config.paths.outputDir)
     progressSave(preprocessed_eeg,preprocess_config,overwrite)
     preload_preprocessed=false;
 else
@@ -96,7 +97,7 @@ switch TRF_DIR
         if (~preload_stats_obs && trf_config.crossvalidate)
             stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
             progressSave(stats_obs,trf_config,overwrite);
-            fprintf('saving stats_obs to %s...\n',trf_config.paths.output_dir)
+            fprintf('saving stats_obs to %s...\n',trf_config.paths.outputDir)
            %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
            %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
            %%%%%progressSave
@@ -150,12 +151,12 @@ switch TRF_DIR
         end
         [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
         progressSave(stats_obs_bkwd,trf_config,overwrite);
-        fprintf('saving stats_obs_bkwd to %s...\n',trf_config.paths.output_dir)
+        fprintf('Saved stats_obs_bkwd to %s...\n',trf_config.paths.outputDir)
 
 end
+toc
 
-
-end
+% end
 
 
 %% Helpers

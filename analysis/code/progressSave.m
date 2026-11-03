@@ -11,7 +11,7 @@ function progressSave(data,inputConfig,overwrite)
     varname=inputname(1);
     data_.(varname)=data;
     subj=inputConfig.subj;
-    outputDir=inputConfig.paths.output_dir;
+    outputDir=inputConfig.paths.outputDir;
     % ENSURE OUTPUT DIRECTORY EXISTS
     if ~exist(outputDir,'dir')
         mkdir(outputDir);
