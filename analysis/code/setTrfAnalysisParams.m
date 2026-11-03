@@ -33,12 +33,6 @@ train_params=struct('tmin_ms', -150,'tmax_ms',450);
 % trf_config.tmax_ms=train_params.tmax_ms;
 %%%%%%%%%%%%%%%%%%%%%%% additional params whose logic we've%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% automated in fast/slow %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if subj<23
-    preprocess_config.experiment='fast-slow';
-else
-    preprocess_config.experiment='reg-irreg';
-end
-% use extended timelims for model so TRFs don't include edge artefacts
 
 if trf_config.separate_conditions
     % we assume optimization done on data from all conditions
@@ -50,7 +44,6 @@ if trf_config.separate_conditions
 else
     % is false by default
     trf_config.do_lambda_optimization=true;
-    
 end
 
 
@@ -70,6 +63,12 @@ end
 
 %%%% INSTANTIATE ALL CONFIGS LAST SO SET PARAMS DONT GET OVERWRITTEN BY DEFAULTS &&&&&&&&
 preprocess_config=configPreprocess(preprocess_config);
+if exist('TRF_DIR','var')
+    % probably a backward model, otherwise configTrf will default to
+    % forward firection
+    trf_config.trf_direction=TRF_DIR;
+end
+
 trf_config=configTrf(trf_config,preprocess_config);
 
 if exist("trf_config_","var")

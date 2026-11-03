@@ -5,7 +5,7 @@ clc
 %SO IT MAY HAVE ISSUES THERE BUT NOT INTERESTED IN FIXING THAT CURRENTLY
 %SINCE NEED REG IRREG RESULTS FOR SFN AND COMMITTEE MEETING
 
-for subj=[39]
+for subj=[26]
 clearvars -except user_profile boxdir_mine boxdir_lab subj
 close all
 
@@ -14,7 +14,7 @@ TRF_DIR=1;
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 do_nulltest=true;
 show_tuning_curves=true;
-trf_analysis_params;
+setTrfAnalysisParams;
 
 %% check if data exists already...
 if overwrite
@@ -235,23 +235,23 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,T
             fprintf(repmat('\b',msg,1))
             msg = fprintf('iteration #%0.4d\n',n_perm);
         end
-        resp_shuf = cell(size(preprocessed_eeg.resp));
+        respShuf = cell(size(preprocessed_eeg.resp));
         % shuffle stim/responses within conditions
         
         switch trf_config.experiment
-            case 'fast-slow'
+            case 'fastSlow'
                 for cc=conditions
                     % permute condition labels
                     I = find(preprocessed_eeg.cond==cc);
                     I2 = I(randperm(length(I)));
-                    resp_shuf(I2) = preprocessed_eeg.resp(I);
+                    respShuf(I2) = preprocessed_eeg.resp(I);
                 end
-            case 'reg-irreg'
+            case 'regIrreg'
                 % reg/irreg stimuli don't have consistent durations even within
                 % condition
                 % -> circularly shift responses
                 shift_amt=randi(min(cellfun('length',preprocessed_eeg.resp)));
-                resp_shuf=cellfun(@(x) circshift(x,shift_amt,1),preprocessed_eeg.resp,'UniformOutput',false);
+                respShuf=cellfun(@(x) circshift(x,shift_amt,1),preprocessed_eeg.resp,'UniformOutput',false);
 
         end
 
@@ -263,11 +263,11 @@ function stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,T
                 % fprintf('null TRF for condition %d...\n',cc)
                 cc_mask=preprocessed_eeg.cond==cc;
                 stats_null(1,cc,n_perm)=mTRFcrossval(stim(cc_mask), ...
-                    resp_shuf(cc_mask),fs,TRF_DIR,tmin_ms,tmax_ms, ...
+                    respShuf(cc_mask),fs,TRF_DIR,tmin_ms,tmax_ms, ...
                     best_lam,'Verbose',0);
             end
         else
-            stats_null(1,1,n_perm) = mTRFcrossval(stim,resp_shuf,fs,TRF_DIR,tmin_ms, ...
+            stats_null(1,1,n_perm) = mTRFcrossval(stim,respShuf,fs,TRF_DIR,tmin_ms, ...
                 tmax_ms,best_lam,'Verbose',0);
         end
     end
@@ -406,14 +406,14 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
     %note: we could just use experiment var here but this also functions as
     %check that conditions are what's expected
     switch preprocess_config.experiment
-        case 'reg-irreg'
+        case 'regIrreg'
             % double-check conditions
             if isequal(m_,[1,0])
                 cond=round(m(:,2))+2;
             else
-                error('conditions in m dont match reg-irreg pattern.')
+                error('conditions in m dont match regIrreg pattern.')
             end
-        case 'fast-slow'
+        case 'fastSlow'
             % double-check conditions
             if isequal(m_,[0,1])
                 cond = round(m(:,1),2);
@@ -421,7 +421,7 @@ function preprocessed_eeg=preprocess_eeg(preprocess_config)
                 cond(cond==1) = 2;
                 cond(cond<1) = 1;
             else
-                error('conditions in m dont match fast-slow pattern')
+                error('conditions in m dont match fastSlow pattern')
             end
         otherwise
             error('(preprocess_eeg) set of conditions unexpected.')
