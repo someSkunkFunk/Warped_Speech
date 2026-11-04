@@ -98,7 +98,8 @@ clear; clc; close all
 %    - Legend construction
 
 %%TODO / known issues
-%
+% - path-related field names in configs need updating
+% - *** CONFIG TYPE IS INSUFFICIENT TO DISTINGUISH FRWD vs BKWD TRF FIGURES
 % - Improve PSD/SNR analyses (currently simplistic RMS-based)
 % - Make model-loading logic a standalone function
 % - Consider generating TRF topo movies across time instead of fixed latencies
