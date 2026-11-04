@@ -1,11 +1,20 @@
 % consider filtering triggers so only unpause/pause/click triggers remain
 % ^ might make pop_eegplot output more easily readable but not necessary
 % really
-
-clear, close all
-subj=22;
+% USAGE:
+% subj=<subjNum>
+% inspectRawData
+% TODO:
+% add a trial-checker to flag trigger issues before calling time-consuming 
+% pipeline code on unusable data
+% something like the following works assuming click triggers overlap with
+% arduino triggers, and no missing triggers:
+%   nTrialsExpected=75
+%   evTypes=[EEG.event(:).type-2048];
+%   evTypes=[EEG.event(:).type]-2048;
+%   nTrials=sum(evTypes>0&evTypes<nTrialsExpected+1)
 preprocess_config.subj=subj;
-preprocess_config=config_preprocess(preprocess_config);
+preprocess_config=configPreprocess(preprocess_config);
 
 inspect_config=[];
 inspect_config.show_biosig=true;

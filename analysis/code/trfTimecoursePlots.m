@@ -115,7 +115,7 @@ close all
 cfg=[];
 cfg.configType='fTrfTimecourses';
 cfg.experiment='regIrreg';
-cfg.custom_subjs=[];
+cfg.custom_subjs=[41];
 cfg.topos_from_peak_windows=false;
 
 cfg.doExportFigures=true;
@@ -343,6 +343,11 @@ if cfg.show_individual_weights
         for cc=1:numel(configs(ss).trf_config.conditions)
             subjModel_=subjModels(ss,cc);
             if ~isempty(subjModel_.w)
+                if strcmp(butterfly_fig.condition_colors.(experiment_conditions{cc}),'all conditions'))
+                    cond_color_='k';
+                else
+                    cond_color_=butterfly_fig.condition_colors.(experiment_conditions{cc});
+                end
                 % 1. SNAPSHOT: Record all currently open figures BEFORE plotting
                 preFigs_=findobj(allchild(0), 'flat', 'Type', 'figure');
                 title_str_=sprintf('subj: %d - %s',configs(ss).trf_config.subj, ...
@@ -353,7 +358,8 @@ if cfg.show_individual_weights
                 h_=mTRFplot(subjModel_,'trf','all',mtrf_plot_chns);
                 % make all the lines within a condition the same color
                 set(h_,'LineWidth',butterfly_fig.lw, ...
-                'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+                'Color',cond_color_)
+                clear cond_color_
  
                 title(title_str_)
                 title(title_str_,'FontSize',butterfly_fig.fz)
@@ -385,6 +391,11 @@ end
 %% Plot Grand average butterly 
 if cfg.show_avg_weights
     for cc=1:numel(configs(end).trf_config.conditions)
+        if strcmp('all conditions',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+            cond_color_='k';
+        else
+        cond_color_=butterfly_fig.condition_colors.(experiment_conditions{cc});
+        end
         subjModel_=avg_models(1,cc);
         if ~isempty(subjModel_.w)
             
@@ -404,7 +415,8 @@ if cfg.show_avg_weights
             end
             % make all the lines within a condition the same color
             set(h_,'LineWidth',butterfly_fig.lw, ...
-                'Color',butterfly_fig.condition_colors.(experiment_conditions{cc}))
+                'Color',cond_color_)
+            clear cond_color_
 
             title_str='Grand-Average TRFs';
             title(title_str,'FontSize',butterfly_fig.title_fz)

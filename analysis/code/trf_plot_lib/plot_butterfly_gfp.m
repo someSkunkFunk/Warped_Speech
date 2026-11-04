@@ -54,7 +54,11 @@ function h = plot_butterfly_gfp(model, gfp_row, active_result, ...
 
 t=model.t;
 
-cond_color = butterfly_fig.condition_colors.(cond_name);
+if strcmp('all conditions', cond_name)
+    cond_color='k';
+else
+    cond_color = butterfly_fig.condition_colors.(cond_name);
+end
 baseline_color = [.85 .85 .85];
 
 h.fig = figure('Units','inches','Position',[1 1 6 2], ...

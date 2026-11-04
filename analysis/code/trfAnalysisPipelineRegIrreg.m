@@ -8,7 +8,10 @@ close all
 
 tic
 %% setup analysis
-TRF_DIR=-1; % defaults to 1
+
+% 
+TRF_DIR=1;
+preprocessOnly=false;
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 do_nulltest=false;
 show_tuning_curves=true;
@@ -49,107 +52,111 @@ else
 end
 clear pp_checkpoint_
 
-%% TRF ANALYSIS
-
-preload_stats_null=false;
-preload_stats_obs=false;
-preload_model=false;
-
-% preload trf results
-
-if ~isempty(trf_checkpoint_)
-    disp('loading trf checkpoint data...')
-    if isfield(trf_checkpoint_,'stats_obs')
-        stats_obs=trf_checkpoint_.stats_obs;
-        preload_stats_obs=true;
-        disp('stats_obs preloaded.')
+if ~preprocessOnly
+    %% TRF ANALYSIS
+    
+    preload_stats_null=false;
+    preload_stats_obs=false;
+    preload_model=false;
+    
+    % preload trf results
+    
+    if ~isempty(trf_checkpoint_)
+        disp('loading trf checkpoint data...')
+        if isfield(trf_checkpoint_,'stats_obs')
+            stats_obs=trf_checkpoint_.stats_obs;
+            preload_stats_obs=true;
+            disp('stats_obs preloaded.')
+        end
+        if isfield(trf_checkpoint_,'model')
+            model=trf_checkpoint_.model;
+            preload_model=true;
+            disp('model preloaded.')
+        end
+        if isfield(trf_checkpoint_,'stats_null')        
+            stats_null=trf_checkpoint_.stats_null;
+            preload_stats_null=true;
+            disp('stats_null preloaded.')
+        end
+    else
+        disp('no data preloaded for trf checkpoint with trf_config:')
+        disp(trf_config)
+        disp('running analysis')
     end
-    if isfield(trf_checkpoint_,'model')
-        model=trf_checkpoint_.model;
-        preload_model=true;
-        disp('model preloaded.')
-    end
-    if isfield(trf_checkpoint_,'stats_null')        
-        stats_null=trf_checkpoint_.stats_null;
-        preload_stats_null=true;
-        disp('stats_null preloaded.')
+    clear trf_checkpoint_
+    % note: we don't necessarily need these if results can preload from
+    % checkpoint but it doesn't take very long AND we definitely will def need
+    % to set up any trf training so just set it up in case needed
+    disp('rescaling trf vars.')
+    % will defnitely need rescaled vars
+    [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
+        trf_config);
+    
+    %% --- CROSSVALIDATE TRF MODEL ---
+    switch TRF_DIR
+        case 1
+            if (~preload_stats_obs && trf_config.crossvalidate)
+                stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+                progressSave(stats_obs,trf_config,overwrite);
+                fprintf('saving stats_obs to %s...\n',trf_config.paths.outputDir)
+               %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
+               %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
+               %%%%%progressSave
+            end
+            %% --- obtain best peak ridge parameter ---
+            if ~trf_config.separate_conditions
+                % otherwise it gets set in trf_analysis_params
+                % note if we want to crossvalidate with manual lam value this will
+                % cause bug
+                train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
+            end
+            %% --- train TRF model for analyzing weights ---
+            if ~preload_model
+                model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+                progressSave(model,trf_config,overwrite);
+            end
+            %%
+            if do_nulltest && ~preload_stats_null
+                %note this is dumb and clunky but avoids error when model is preloaded
+                if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
+                    % otherwise it gets set in trf_analysis_params
+                    train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
+                end
+                stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+                % error('stuff below should take place in progressSave...')
+                % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
+                % save(trf_config.model_metric_path,'stats_null','-append')
+                progressSave(stats_null,trf_config);
+                % disp(['TODO: not saving stats_null to bypass progressSave error.. ' ...
+                %     'determine if thats a problem'])
+            else
+                disp('not doing null test (or preloaded previous results)')
+            end
+            
+            %%
+            if do_nulltest
+                nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
+            end
+        case -1
+            % Backward model protocol 
+            %% --- PREDICT USING MODEL ---
+            % assuming backward model NOTE: this should be crossvalidated and
+            % automatically enabled when TRF dir is -1
+    
+            train_params.best_lam=100; % REMOVE THIS
+    
+            %% --- train TRF model for analyzing weights ---
+            if ~preload_model
+                model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
+                progressSave(model,trf_config,overwrite);
+            end
+            [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
+            progressSave(stats_obs_bkwd,trf_config,overwrite);
+            fprintf('Saved stats_obs_bkwd to %s...\n',trf_config.paths.outputDir)
+    
     end
 else
-    disp('no data preloaded for trf checkpoint with trf_config:')
-    disp(trf_config)
-    disp('running analysis')
-end
-clear trf_checkpoint_
-% note: we don't necessarily need these if results can preload from
-% checkpoint but it doesn't take very long AND we definitely will def need
-% to set up any trf training so just set it up in case needed
-disp('rescaling trf vars.')
-% will defnitely need rescaled vars
-[stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
-    trf_config);
-
-%% --- CROSSVALIDATE TRF MODEL ---
-switch TRF_DIR
-    case 1
-        if (~preload_stats_obs && trf_config.crossvalidate)
-            stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            progressSave(stats_obs,trf_config,overwrite);
-            fprintf('saving stats_obs to %s...\n',trf_config.paths.outputDir)
-           %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
-           %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
-           %%%%%progressSave
-        end
-        %% --- obtain best peak ridge parameter ---
-        if ~trf_config.separate_conditions
-            % otherwise it gets set in trf_analysis_params
-            % note if we want to crossvalidate with manual lam value this will
-            % cause bug
-            train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config);
-        end
-        %% --- train TRF model for analyzing weights ---
-        if ~preload_model
-            model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            progressSave(model,trf_config,overwrite);
-        end
-        %%
-        if do_nulltest && ~preload_stats_null
-            %note this is dumb and clunky but avoids error when model is preloaded
-            if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
-                % otherwise it gets set in trf_analysis_params
-                train_params.best_lam=plot_lambda_tuning_curve(stats_obs,trf_config,85);
-            end
-            stats_null=get_nulldist(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            % error('stuff below should take place in progressSave...')
-            % fprintf('append-saving stats_null to %s...\n',trf_config.model_metric_path)
-            % save(trf_config.model_metric_path,'stats_null','-append')
-            progressSave(stats_null,trf_config);
-            % disp(['TODO: not saving stats_null to bypass progressSave error.. ' ...
-            %     'determine if thats a problem'])
-        else
-            disp('not doing null test (or preloaded previous results)')
-        end
-        
-        %%
-        if do_nulltest
-            nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
-        end
-    case -1
-        % Backward model protocol 
-        %% --- PREDICT USING MODEL ---
-        % assuming backward model NOTE: this should be crossvalidated and
-        % automatically enabled when TRF dir is -1
-
-        train_params.best_lam=100; % REMOVE THIS
-
-        %% --- train TRF model for analyzing weights ---
-        if ~preload_model
-            model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-            progressSave(model,trf_config,overwrite);
-        end
-        [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
-        progressSave(stats_obs_bkwd,trf_config,overwrite);
-        fprintf('Saved stats_obs_bkwd to %s...\n',trf_config.paths.outputDir)
-
+    fprintf('Skipping TRF analysis, because preprocessOnly=%d\n',preprocessOnly)
 end
 toc
 

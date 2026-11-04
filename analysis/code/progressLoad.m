@@ -14,7 +14,7 @@ function data=progressLoad(inputConfig)
         % script. decided a good compromise was to turn it into a warning
         % and return empty arrays.
         % error('No registry found for subject %02d\n',subj);
-        warning('Could not locate registry at %s for \nsubj:%d\nconfigType:', ...
+        warning('Could not locate registry at %s\n for subj:%d\n& configType:%s', ...
             registryFpth,subj,inputConfig.configType)
         data=[];
         return
