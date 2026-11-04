@@ -1,4 +1,4 @@
-clearvars -except user_profile boxdir_mine boxdir_lab subj
+clearvars -except user_profile boxdir_mine boxdir_lab subj TRF_DIR subjs
 clc
 close all
 
@@ -10,7 +10,20 @@ tic
 %% setup analysis
 
 % 
-TRF_DIR=1;
+% TRF_DIR=1;
+if ~exist('subjs','var') && ~exist('subj', 'var')
+    error('must define a subj or subjs before calling this script.')
+end
+if exist('subjs','var') && exist('subj', 'var')
+    warning('Defined both subj and subjs vars, assuming meant subj and deleting subjs')
+    clear subj
+end
+if ~exist('subjs','var') || exist('subj', 'var')
+    subjs=subj;
+end
+for ss=1:numel(subjs)
+subj=subjs(ss); % this seems dumb as fuck lol but i think it works
+fprintf('Setting params for subj %d...\n', subj);
 preprocessOnly=false;
 overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 do_nulltest=false;
@@ -62,11 +75,30 @@ if ~preprocessOnly
     % preload trf results
     
     if ~isempty(trf_checkpoint_)
+        switch TRF_DIR
+            case -1
+               stats_obs_nm_='stats_obs_bkwd';
+               
+            case 1
+                stats_obs_nm_='stats_obs';
+        end
         disp('loading trf checkpoint data...')
-        if isfield(trf_checkpoint_,'stats_obs')
-            stats_obs=trf_checkpoint_.stats_obs;
+        if isfield(trf_checkpoint_,stats_obs_nm_)
+            switch TRF_DIR
+                case -1
+                    stats_obs_bkwd=trf_checkpoint_.stats_obs_bkwd;
+                    % display summary
+                   fprintf(['Mean reconstruction accuracy (all conditions):' ...
+                       '%0.4f %\n'],mean(stats_obs_bkwd.r))
+                case 1
+                    stats_obs=trf_checkpoint_.stats_obs;
+                    % todo: display summary stats accounting 
+                    % for case with different
+                    % conditions
+            end
             preload_stats_obs=true;
             disp('stats_obs preloaded.')
+            clear stats_obs_nm_
         end
         if isfield(trf_checkpoint_,'model')
             model=trf_checkpoint_.model;
@@ -142,7 +174,7 @@ if ~preprocessOnly
             %% --- PREDICT USING MODEL ---
             % assuming backward model NOTE: this should be crossvalidated and
             % automatically enabled when TRF dir is -1
-    
+            warning('HARD CODED LAMBDA VALUE BEING USED FOR TRAINING AND TESTING BACKWARD MODEL')
             train_params.best_lam=100; % REMOVE THIS
     
             %% --- train TRF model for analyzing weights ---
@@ -150,9 +182,11 @@ if ~preprocessOnly
                 model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
                 progressSave(model,trf_config,overwrite);
             end
-            [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
-            progressSave(stats_obs_bkwd,trf_config,overwrite);
-            fprintf('Saved stats_obs_bkwd to %s...\n',trf_config.paths.outputDir)
+            if ~preload_stats_obs
+                [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
+                progressSave(stats_obs_bkwd,trf_config,overwrite);
+                fprintf('Saved stats_obs_bkwd to %s...\n',trf_config.paths.outputDir)
+            end
     
     end
 else
@@ -160,7 +194,7 @@ else
 end
 toc
 
-% end
+end
 
 
 %% Helpers
@@ -172,7 +206,7 @@ subj=trf_config.subj;
 % if trf_config.separate_conditions
 %     % conditions=unique(preprocessed_eeg.cond)';
 %     % conditions={' - fast - ',' - original - ',' - slow - '};
-%     conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions);
+    % conditions=cellfun(@(x) sprintf('- %s -',x),trf_config.conditions);
 % else
 %     conditions={''};
 % end

@@ -9,10 +9,10 @@
 % pipeline code on unusable data
 % something like the following works assuming click triggers overlap with
 % arduino triggers, and no missing triggers:
-%   nTrialsExpected=75
-%   evTypes=[EEG.event(:).type-2048];
-%   evTypes=[EEG.event(:).type]-2048;
-%   nTrials=sum(evTypes>0&evTypes<nTrialsExpected+1)
+  % nTrialsExpected=75
+  % evTypes=[EEG.event(:).type]-2048;
+  % evTypes=[EEG.event(:).type]-2048;
+  % nTrials=sum(evTypes>0&evTypes<nTrialsExpected+1)
 preprocess_config.subj=subj;
 preprocess_config=configPreprocess(preprocess_config);
 
