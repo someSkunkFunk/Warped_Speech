@@ -1,4 +1,3 @@
-clear; clc; close all
 %note: plotting sep conditions gives errors when constructing avg models
 %AND ind models havve 3 cols even though should be 1...
 
@@ -109,46 +108,45 @@ clear; clc; close all
 %% -----------------------------------------------------------------------------
 % USER CONFIG
 % -------------------------------------------------------------
+clearvars -except user_profile boxdir_mine boxdir_lab subj TRF_DIR subjs experimentsBySubj
+clc
+close all
 
 dbstop if error
 addpath('./trf_plot_lib/')
-close all
+checkInputSubjs
+% use subjs=[9,12] for 'best' fastSlow
+% use subjs=[29,46] for best regIrreg
 cfg=[];
+% cfg.experiment used to set some figure params, and script assumes all
+% subjs provided are from the same experiment so just check that assumption
+% is valid and set cfg.experiment once
+if length(unique(experimentsBySubjNum))==1
+    cfg.experiment=experimentsBySubjNum{1};
+else
+    error('script needs all subjs to be from same experimenet')
+end
+
 cfg.configType='fTrfTimecourses';
-cfg.experiment='regIrreg';
-cfg.custom_subjs=[41];
+
 cfg.topos_from_peak_windows=false;
 
 cfg.doExportFigures=true;
 
-% best fast-slow subjs: 
-% subjs=[9,12];
-if isempty(cfg.custom_subjs)
-    switch cfg.experiment
-        case 'fastSlow'
-            % fast-slow subjs:
-            subjs=[2:7,9:22];
-            % subjs=22;
-            butterfly_fig.ylims=[-.5 .6];
-        case 'regIrreg'
-            % reg-irreg subjects:
-            subjs=[24:36];
-            butterfly_fig.ylims=[-1 1];
-            % subjs=[96:98];
-        otherwise
-            warning('script_config.experiment=',cfg.experiment);
-            disp('plotting custom subjs...')
-    end
-else
-    % script_config.experiment=[];
-    subjs=cfg.custom_subjs;
-    butterfly_fig.ylims=[-1 1];
+switch cfg.experiment
+    case 'fastSlow'
+        butterfly_fig.ylims=[-.5 .6];
+    case 'regIrreg'
+        butterfly_fig.ylims=[-1 1];
+    otherwise
+        warning('script_config.experiment=',cfg.experiment);
+        disp('plotting custom subjs...')
 end
 
 % for reg-irreg:
-% select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
-select_plot_chns='all';
-mtrf_plot_chns=normalize_channels(select_plot_chns);
+cfg.select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
+% cfg.select_plot_chns='all';
+cfg.mtrf_plot_chns=normalize_channels(cfg.select_plot_chns);
 n_subjs=numel(subjs);
 cfg.show_individual_weights=true;
 cfg.show_avg_weights=true;
@@ -156,6 +154,8 @@ cfg.show_topos=false; % for particular latency specified in topo_fig_param
 cfg.show_snr=false;
 cfg.show_tuning_curves=true;
 cfg.analyze_pk_latencies=false;
+disp('plotting trf Time Courses with following config:')
+disp(cfg)
 % params for select latency topos
 topo_fig_param.latencies=[54 164]; % in ms
 % params for butterfly with all conditions
@@ -166,7 +166,7 @@ butterfly_fig.lw=0.5; %linewidth in plot
 butterfly_fig.leg_lw=3; % linewidth in legend
 butterfly_fig.fz=9; % fontsize
 butterfly_fig.title_fz=11;
-% picked from Okabe and Ito pallete
+
 butterfly_fig.condition_colors=struct( ...
     'slow','r', ...
     'original','k', ...
@@ -175,9 +175,9 @@ butterfly_fig.condition_colors=struct( ...
     'irreg','b');
 % r_thresh: correlation-based filter on TRF weights to show
 % leave empty if all chns should be kept for sbj-averaged plot
-% for fast slow
+% previously used values for fastSlow
 % trf_fig_param.r_thresh=[0.03];
-% for reg-irreg
+% defaults (for regIrreg)
 butterfly_fig.r_thresh=[];
 % if false, separate TRF weight plots by condition
 butterfly_fig.stack=true;
@@ -330,7 +330,7 @@ for cc=1:numel(experiment_conditions)
     % EXPORT SUBJ FIGS
     if cfg.doExportFigures
         grandAvgResultsCfg=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
-        exportFiguresToFolder(grandAvgResultsCfg.paths.fig_dir, ...
+        exportFiguresToFolder(grandAvgResultsCfg.paths.figDir, ...
             grandAvgResultsCfg,newFigs_)
     end
     fprintf('Grand average plots done. Closed: %d\n',cfg.doExportFigures)
@@ -344,7 +344,7 @@ if cfg.show_individual_weights
         for cc=1:numel(configs(ss).trf_config.conditions)
             subjModel_=subjModels(ss,cc);
             if ~isempty(subjModel_.w)
-                if strcmp(butterfly_fig.condition_colors.(experiment_conditions{cc}),'all conditions'))
+                if strcmp(butterfly_fig.condition_colors.(experiment_conditions{cc}),'all conditions')
                     cond_color_='k';
                 else
                     cond_color_=butterfly_fig.condition_colors.(experiment_conditions{cc});
@@ -356,7 +356,7 @@ if cfg.show_individual_weights
                 % plot_model_weights(ind_models(ss,:),trf_config,plot_chns)
                 figure('Name',title_str_)
                 
-                h_=mTRFplot(subjModel_,'trf','all',mtrf_plot_chns);
+                h_=mTRFplot(subjModel_,'trf','all',cfg.mtrf_plot_chns);
                 % make all the lines within a condition the same color
                 set(h_,'LineWidth',butterfly_fig.lw, ...
                 'Color',cond_color_)
@@ -376,7 +376,7 @@ if cfg.show_individual_weights
                 % EXPORT SUBJ FIGS
                 if cfg.doExportFigures
                     subjResultsCfg_=buildConfigPathsGeneric(subjs(ss),cfg);
-                    exportFiguresToFolder(subjResultsCfg_.paths.fig_dir, ...
+                    exportFiguresToFolder(subjResultsCfg_.paths.figDir, ...
                         subjResultsCfg_,newFigs_)
                 end
                 fprintf('Subj %02d, cond%d plots done. Closed: %d\n', ...
@@ -410,7 +410,7 @@ if cfg.show_avg_weights
             end
 
             if isempty(butterfly_fig.r_thresh)
-                h_=mTRFplot(subjModel_,'trf','all',mtrf_plot_chns);
+                h_=mTRFplot(subjModel_,'trf','all',cfg.mtrf_plot_chns);
             else
                 h_=mTRFplot(subjModel_,'trf','all',find(chns_m(cc,:)));
             end
@@ -448,7 +448,7 @@ if cfg.show_avg_weights
         % EXPORT GRAND AVG FIGS (unstacked)
         if cfg.doExportFigures && ~butterfly_fig.stack
             grandAvgResultsCfg_=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
-            exportFiguresToFolder(grandAvgResultsCfg_.paths.fig_dir, ...
+            exportFiguresToFolder(grandAvgResultsCfg_.paths.figDir, ...
                 grandAvgResultsCfg_,newFigs_)
             fprintf('Grand Average, cond%d plots done. Closed: %d\n', ...
             cc,cfg.doExportFigures)
@@ -469,7 +469,7 @@ if cfg.show_avg_weights
         % EXPORT GRAND AVG FIGS (stacked)
         if butterfly_fig.stack
             grandAvgResultsCfg_=buildConfigPathsGeneric(subjs,cfg,'Grand Average');
-            exportFiguresToFolder(grandAvgResultsCfg_.paths.fig_dir, ...
+            exportFiguresToFolder(grandAvgResultsCfg_.paths.figDir, ...
                 grandAvgResultsCfg_,newFigs_)
             fprintf('Grand Average, stacked plot done. Closed: %d\n', ...
             cfg.doExportFigures)
@@ -509,6 +509,10 @@ if cfg.show_rgb_topo
     colormap(cmap);
     title("XYZ->RGB")
 end
+
+disp('trfTimecoursePlots for:')
+disp(cfg)
+disp('done')
 
 % REFERENCES
 % Lalor, Edmund C., Alan J. Power, Richard B. Reilly, and John J. Foxe. 

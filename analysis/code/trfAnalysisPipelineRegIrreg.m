@@ -11,16 +11,7 @@ tic
 
 % 
 % TRF_DIR=1;
-if ~exist('subjs','var') && ~exist('subj', 'var')
-    error('must define a subj or subjs before calling this script.')
-end
-if exist('subjs','var') && exist('subj', 'var')
-    warning('Defined both subj and subjs vars, assuming meant subj and deleting subjs')
-    clear subj
-end
-if ~exist('subjs','var') || exist('subj', 'var')
-    subjs=subj;
-end
+checkInputSubjs
 for ss=1:numel(subjs)
 subj=subjs(ss); % this seems dumb as fuck lol but i think it works
 fprintf('Setting params for subj %d...\n', subj);
