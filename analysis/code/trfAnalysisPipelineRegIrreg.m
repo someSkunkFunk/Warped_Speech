@@ -14,8 +14,7 @@ checkInputSubjs
 pipeConfig.preprocessOnly=false;
 pipeConfig.overwritePreprocess=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
 pipeConfig.overwriteTrfResult=true;
-pipeConfig.do_nulltest=false;
-pipeConfig.show_tuning_curves=true;
+pipeConfig.doNulltest=false;
 disp('Running pipeline with pipeConfig:')
 disp(pipeConfig)
 for ss=1:numel(subjs)
@@ -57,9 +56,11 @@ else
 end
 clear pp_checkpoint_
 
-if ~pipeConfig.preprocessOnly
-    %% TRF ANALYSIS
-    
+
+%% TRF ANALYSIS
+if pipeConfig.preprocessOnly
+    fprintf('Skipping TRF analysis, because preprocessOnly=%d\n',pipeConfig.preprocessOnly)
+else
     preload_stats_null=false;
     preload_stats_obs=false;
     preload_model=false;
@@ -140,7 +141,7 @@ if ~pipeConfig.preprocessOnly
                 progressSave(model,trf_config,pipeConfig.overwriteTrfResult);
             end
             %%
-            if do_nulltest && ~preload_stats_null
+            if pipeConfig.doNulltest && ~preload_stats_null
                 %note this is dumb and clunky but avoids error when model is preloaded
                 if ~trf_config.separate_conditions&&~isfield(train_params,'best_lam')
                     % otherwise it gets set in trf_analysis_params
@@ -158,31 +159,40 @@ if ~pipeConfig.preprocessOnly
             end
             
             %%
-            if do_nulltest
+            if pipeConfig.doNulltest
                 nulltest_plot_wrapper(stats_obs,stats_null,trf_config,train_params)
             end
         case -1
-            % Backward model protocol 
-            %% --- PREDICT USING MODEL ---
-            % assuming backward model NOTE: this should be crossvalidated and
-            % automatically enabled when TRF dir is -1
+            %% Backward model protocol 
             warning('HARD CODED LAMBDA VALUE BEING USED FOR TRAINING AND TESTING BACKWARD MODEL')
-            train_params.best_lam=100; % REMOVE THIS
-    
+            train_params.best_lam=100; % maybe okay to use this 
+            %                               value rather than optimize?
+            %                       just using bkwd models to validate 
+            %                               time alignment...
+
             %% --- train TRF model for analyzing weights ---
             if ~preload_model
+                % how did we train a model during crossval in fwd case?
                 model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
                 progressSave(model,trf_config,pipeConfig.overwriteTrfResult);
             end
             if ~preload_stats_obs
-                [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
-                progressSave(stats_obs_bkwd,trf_config,overwrite);
+                if trf_config.crossvalidate
+                    kfolds_=5;
+                    [sTrain_,rTrain_] = mTRFpartition(stim, ...
+                        preprocessed_eeg.resp,kfolds_);
+                    warning('Hard-coded crossvalidation folds number, and model will be trained on full dataset.')
+                    stats_obs_bkwd=mTRFcrossval(sTrain_,rTrain_, ...
+                        preprocessed_eeg.fs,TRF_DIR,train_params.tmin_ms,train_params.tmax_ms);
+                    clear sTrain_ rTrain_ kfolds_
+                else
+                    % do we need prediction?
+                    [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
+                end
+                progressSave(stats_obs_bkwd,trf_config,pipeConfig.overwriteTrfResult);
                 fprintf('Saved stats_obs_bkwd to %s...\n',trf_config.paths.outputDir)
             end
-    
     end
-else
-    fprintf('Skipping TRF analysis, because preprocessOnly=%d\n',pipeConfig.preprocessOnly)
 end
 toc
 

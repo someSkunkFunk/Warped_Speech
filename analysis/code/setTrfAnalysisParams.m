@@ -81,6 +81,9 @@ if exist("trf_config_","var")
         'trf_analysis_params as intermediate step to retrieve best_lam)'])
     train_params.best_lam=plot_lambda_tuning_curve(S_.stats_obs,S_.config);
     if ~exist('show_tuning_curves','var')
+        %TODO: function should probably just never show them unless flag is
+        %set to true in the function
+        warning('show_tuning_curves set to false automatically.')
         show_tuning_curves=false;
     end
     if ~show_tuning_curves
