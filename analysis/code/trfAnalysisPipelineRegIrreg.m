@@ -10,29 +10,30 @@ tic
 %% setup analysis
 
 % 
-% TRF_DIR=1;
 checkInputSubjs
+pipeConfig.preprocessOnly=false;
+pipeConfig.overwritePreprocess=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
+pipeConfig.overwriteTrfResult=true;
+pipeConfig.do_nulltest=false;
+pipeConfig.show_tuning_curves=true;
+disp('Running pipeline with pipeConfig:')
+disp(pipeConfig)
 for ss=1:numel(subjs)
 subj=subjs(ss); % this seems dumb as fuck lol but i think it works
 fprintf('Setting params for subj %d...\n', subj);
-preprocessOnly=false;
-overwrite=false; %NOTE: not sure how this would behave if true at sep conditions step... would it delete the existing registry or just the entry in the registry that corresponds to separate conditions?
-do_nulltest=false;
-show_tuning_curves=true;
 setTrfAnalysisParams;
 
 %% check if data exists already...
-if overwrite
-    if trf_config.separate_conditions
-        %dont need to overwrite pp
-        pp_checkpoint_=progressLoad(preprocess_config);
-        trf_checkpoint_=[];
-    else
-        pp_checkpoint_=[];
-        trf_checkpoint_=[];
-    end
+
+if pipeConfig.overwritePreprocess    
+    pp_checkpoint_=[];
 else
     pp_checkpoint_=progressLoad(preprocess_config);
+    
+end
+if pipeConfig.overwriteTrfResult
+    trf_checkpoint_=[];
+else
     trf_checkpoint_=progressLoad(trf_config);
 end
 
@@ -46,7 +47,7 @@ if isempty(pp_checkpoint_)
     % preprocessing)
     preprocessed_eeg=remove_excess_epoch(stim,preprocessed_eeg);
     fprintf('saving to %s\n',preprocess_config.paths.outputDir)
-    progressSave(preprocessed_eeg,preprocess_config,overwrite)
+    progressSave(preprocessed_eeg,preprocess_config,pipeConfig.overwritePreprocess)
     preload_preprocessed=false;
 else
     disp('found existing preprocessed data - loading')
@@ -56,7 +57,7 @@ else
 end
 clear pp_checkpoint_
 
-if ~preprocessOnly
+if ~pipeConfig.preprocessOnly
     %% TRF ANALYSIS
     
     preload_stats_null=false;
@@ -120,7 +121,7 @@ if ~preprocessOnly
         case 1
             if (~preload_stats_obs && trf_config.crossvalidate)
                 stats_obs=crossval_wrapper(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-                progressSave(stats_obs,trf_config,overwrite);
+                progressSave(stats_obs,trf_config,pipeConfig.overwriteTrfResult);
                 fprintf('saving stats_obs to %s...\n',trf_config.paths.outputDir)
                %%%%%NOTE: DO NOT SAVE RESULT YET BECAUSE CONFIG ISNT UPDATED WITH
                %%%%%BEST_LAM, WHICH WILL RESULT IN A DIFFERENT HASH VALUE IN
@@ -136,7 +137,7 @@ if ~preprocessOnly
             %% --- train TRF model for analyzing weights ---
             if ~preload_model
                 model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-                progressSave(model,trf_config,overwrite);
+                progressSave(model,trf_config,pipeConfig.overwriteTrfResult);
             end
             %%
             if do_nulltest && ~preload_stats_null
@@ -171,7 +172,7 @@ if ~preprocessOnly
             %% --- train TRF model for analyzing weights ---
             if ~preload_model
                 model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
-                progressSave(model,trf_config,overwrite);
+                progressSave(model,trf_config,pipeConfig.overwriteTrfResult);
             end
             if ~preload_stats_obs
                 [pred, stats_obs_bkwd]=mTRFpredict(stim,preprocessed_eeg.resp,model);
@@ -181,7 +182,7 @@ if ~preprocessOnly
     
     end
 else
-    fprintf('Skipping TRF analysis, because preprocessOnly=%d\n',preprocessOnly)
+    fprintf('Skipping TRF analysis, because preprocessOnly=%d\n',pipeConfig.preprocessOnly)
 end
 toc
 
