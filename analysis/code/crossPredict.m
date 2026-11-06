@@ -80,7 +80,7 @@ if baseCfg.compute_cross_stats
     end
     fair=true;
     rng(1); % seed for reproducibility
-    for subj=subjs
+    for ss=1:numel(subjs)
         tic
         fprintf('computing stats_cross for subj %d...\n',subj)
         % load saved model
@@ -154,7 +154,7 @@ if baseCfg.compute_cross_stats
             stats_cross_cv.r(shuff,shuff,:)=stats_cross_cv.r;
             stats_cross_cv.err(shuff,shuff,:)=stats_cross_cv.err;
             %save to file
-            subjCfg_=addPaths(baseCfg,subj);
+            subjCfg_=addResultsPaths(baseCfg,subj);
             progressSave(stats_cross_cv,subjCfg_,baseCfg.overwrite_stats_cross)
             % also record trf_config & preprocess_config for reference
             progressSave(trf_config,subjCfg_,baseCfg.overwrite_stats_cross)
@@ -202,7 +202,7 @@ if baseCfg.get_all_subj_Rcs
             % R_sf,R_so,R_ss]
             Rcs=compile_rvals(stats_cross_cv,exp_cond_,baseCfg.avg_cross_trials_rcross);
             fprintf('saving Rcs for subj %d...\n',subj);
-            subjCfg_=addPaths(baseCfg,subj);
+            subjCfg_=addResultsPaths(baseCfg,subj);
             progressSave(Rcs,subjCfg_,baseCfg.overwrite_stats_cross)
             % also record trf_config & preprocess_config for reference
             progressSave(trf_config,subjCfg_,baseCfg.overwrite_stats_cross)
