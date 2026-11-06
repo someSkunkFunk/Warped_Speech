@@ -43,7 +43,7 @@ baseCfg.configType='crossPredict';
 baseCfg.show_tuning_curves=false;
 baseCfg.compute_cross_stats=true; % do calculation from start, 
 %               otherwise just skip ahead to lookup of pre-existing results
-baseCfg.overwrite_stats_cross=false;
+baseCfg.overwrite_stats_cross=true;
 % trim end of trials to match minimum-duration trial length across all
 % trials for data balancing
 baseCfg.trim_stimuli=false;
@@ -81,6 +81,7 @@ if baseCfg.compute_cross_stats
     fair=true;
     rng(1); % seed for reproducibility
     for ss=1:numel(subjs)
+        subj=subjs(ss);
         tic
         fprintf('computing stats_cross for subj %d...\n',subj)
         % load saved model
