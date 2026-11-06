@@ -25,24 +25,42 @@
 %   2. These are collapsed into a [conditions x conditions x electrodes]
 %   matrix of mean r-values per subject (Rcs).
 
+% TODO:
+% Compare & contrast with Giraud et al preprint
 
-clear, clc
+% fastSlow subjects:
+% subjs=[2:7,9:22];  
+
+cleanWorkspace
+checkInputSubjs
+
 %% --- CONFIGURATION ---
 plots_config=[]; %todo... defaults + use wrapper function
 plots_config.show_ind_subj=false;
-% subjs=[2:7,9:22];
-subjs=[2:7,9:22];
 
-script_config.show_tuning_curves=false;
-script_config.compute_cross_stats=true;
-script_config.overwrite_stats_cross=false;
-% trim end of trials for og/slow to match number of samples in fast trials
-script_config.trim_stimuli=true;
-script_config.get_all_subj_Rcs=true;
-script_config.avg_cross_trials_rcross=true;
+baseCfg=[];
+baseCfg.configType='crossPredict';
+baseCfg.show_tuning_curves=false;
+baseCfg.compute_cross_stats=true; % do calculation from start, 
+%               otherwise just skip ahead to lookup of pre-existing results
+baseCfg.overwrite_stats_cross=false;
+% trim end of trials to match minimum-duration trial length across all
+% trials for data balancing
+baseCfg.trim_stimuli=false;
+baseCfg.get_all_subj_Rcs=true;
+baseCfg.avg_cross_trials_rcross=true;
 % note: not sure how to interpret non-averaged results so non-averaged
 % cross-trial reslts are not currently handled downstreamm
-script_config.overwrite_Rcs=false;
+baseCfg.overwrite_Rcs=false;
+
+% cfg.experiment used to set some figure params, and script assumes all
+% subjs provided are from the same experiment so just check that assumption
+% is valid and set cfg.experiment once
+if length(unique(experimentsBySubjNum))==1
+    baseCfg.experiment=experimentsBySubjNum{1};
+else
+    error('script needs all subjs to be from same experimenet')
+end
 
 %% --- COMPUTE CROSS-PREDICTION STATISTICS (per subject, LOOCV) ---
 % For each subject, trains a TRF model using LOOCV. Within each condition,
@@ -54,17 +72,23 @@ script_config.overwrite_Rcs=false;
 % struct of r/err.
 
 
-if script_config.compute_cross_stats
+if baseCfg.compute_cross_stats
+    disp('COMPUTING RCROSS BEFORE CHECKING FOR PRE-EXISTING RESULTS')
+    if baseCfg.overwrite_stats_cross
+        warning(['overwrite_stats_cross set to true, and re-computing results,' ...
+            'ARE YOU SURE THIS IS WHAT YOU WANT???'])
+    end
     fair=true;
     rng(1); % seed for reproducibility
     for subj=subjs
+        tic
         fprintf('computing stats_cross for subj %d...\n',subj)
         % load saved model
-        trf_analysis_params;
+        setTrfAnalysisParams;
         clear do_nulltest
-        trf_=load_checkpoint(trf_config);
-        if ~isfield(trf_,'stats_cross_cv')||script_config.overwrite_stats_cross
-            pp_=load_checkpoint(preprocess_config);
+        trf_=progressLoad(trf_config);
+        if ~isfield(trf_,'stats_cross_cv')||baseCfg.overwrite_stats_cross
+            pp_=progressLoad(preprocess_config);
             preprocessed_eeg=pp_.preprocessed_eeg;
             stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
             [stim,preprocessed_eeg]=rescale_trf_vars(stim,preprocessed_eeg, ...
@@ -72,94 +96,75 @@ if script_config.compute_cross_stats
             cond_labels=preprocessed_eeg.cond;
             resp=preprocessed_eeg.resp';
                 
-            if script_config.trim_stimuli
+            if baseCfg.trim_stimuli
             % trim stimuli so all conditions have equal number of samples
                 min_ns=min(cellfun('size',stim,1));
                 stim=cellfun(@(x) x(1:min_ns),stim,'UniformOutput',false);
                 resp=cellfun(@(x) x(1:min_ns,:),resp,'UniformOutput',false);
             end
         
-            if fair
-                % shuffle trial order so LOOCV folds are not
-                % condition-contiguous
-                best_lam=train_params.best_lam;
-                shuff=randperm(numel(cond_labels));
-                cond_labels=cond_labels(shuff);
-                resp=resp(shuff);
-                stim=stim(shuff);
+            % shuffle trial order so LOOCV folds are not
+            % condition-contiguous
+            best_lam=train_params.best_lam;
+            shuff=randperm(numel(cond_labels));
+            cond_labels=cond_labels(shuff);
+            resp=resp(shuff);
+            stim=stim(shuff);
 
-                n_trials=numel(cond_labels);
-                n_electrodes=size(resp{1},2);
-                %initialize stats_cross_cv.r(i,j,e):
-                % r-value when model was trained on the fold that held out
-                % trial i, evaluated on trial j, at electrode e.
-                % Diagonal (i==j): within-condition held-out prediction.
-                % off-diagonal: cross-condition prediction.
+            n_trials=numel(cond_labels);
+            n_electrodes=size(resp{1},2);
+            %initialize stats_cross_cv.r(i,j,e):
+            % r-value when model was trained on the fold that held out
+            % trial i, evaluated on trial j, at electrode e.
+            % Diagonal (i==j): within-condition held-out prediction.
+            % off-diagonal: cross-condition prediction.
 
-                stats_cross_cv=struct( ...
-                    'r',nan(n_trials,n_trials,n_electrodes), ...
-                    'err',nan(n_trials,n_trials,n_electrodes));
-        
-                for cc=1:3
-                    fprintf('%d of 3 conditions...\n',cc);
-                    n_folds=sum(cond_labels==cc);
-                    cc_trials=find(cond_labels==cc);
-                    cross_trials=find(cond_labels~=cc);
-                    for k=1:n_folds
-                        fprintf('%d of %d folds...\n',k,n_folds)
-                        test_trial=cc_trials(k);
-                        train_trials=cc_trials(cc_trials~=test_trial);
-                        % train model on all same-condition trials except
-                        % held out one
-                        temp_model=mTRFtrain(stim(train_trials),resp(train_trials), ...
-                            preprocess_config.fs,1,trf_config.tmin_ms, ...
-                            trf_config.tmax_ms,best_lam);
-                        % evaluate on the held-out trial AND all
-                        % cross-condition trials
-                        [~,temp_stats]=mTRFpredict([stim(test_trial);stim(cross_trials)] ...
-                            ,[resp(test_trial);resp(cross_trials)],temp_model);
-                        % store within-condition (diagonal) result
-                        stats_cross_cv.r(test_trial,test_trial,:)=temp_stats.r(1,:);
-                        stats_cross_cv.err(test_trial,test_trial,:,:)=temp_stats.err(1,:);
-                        % store cross-condition (off-diagonal) results
-                        stats_cross_cv.r(test_trial,cross_trials,:)=temp_stats.r(2:end,:);
-                        stats_cross_cv.err(test_trial,cross_trials,:)=temp_stats.err(2:end,:);
-                    end 
-                end
-                % invert the shuffle so saved indices correspond to the
-                % original trials order stored in preprocess_config
-                stats_cross_cv.r(shuff,shuff,:)=stats_cross_cv.r;
-                stats_cross_cv.err(shuff,shuff,:)=stats_cross_cv.err;
-                %save to file
-                save_checkpoint(stats_cross_cv,trf_config,script_config.overwrite_stats_cross)
-            else
-                error('DONT DO THIS')
-                % % unfair (non-LOOCV) comparison, kept for reference
-                % model_data=load(trf_config.trf_model_path,"model");
-                % stats_data=load(trf_config.model_metric_path,"stats_obs");
-                % stats_obs=stats_data.stats_obs(2,:); clear stats_data
-                % model=model_data.model(2,:); clear model_data
-                % conditions_=1:3;
-                % stats_cross=cell2struct(cell(2,1),fieldnames(stats_obs));
-                % 
-                % % train_condition, predict_condition, electrodes
-                % for cc=conditions_
-                %     % copy paste same-condition r values from nulldistribution file
-                %     % r_cross(cc,cc,:)=stats_obs.r(cc,:);
-                %     stats_cross(cc,cc)=stats_obs(cc); % assumes 1D struct array...
-                %     for icc=conditions_(conditions_~=cc)
-                %         [~,stats_cross(cc,icc)]=mTRFpredict(stim(cond==cc),resp(cond==cc),model(icc));
-                %     end
-                % end
-                % clear cc 
-                % fprintf('saving cross-prediction results for subj %d\n',subj)
-                % save(trf_config.model_metric_path,"stats_cross","-append")
-                % fprintf('result saved.\n')
+            stats_cross_cv=struct( ...
+                'r',nan(n_trials,n_trials,n_electrodes), ...
+                'err',nan(n_trials,n_trials,n_electrodes));
+    
+            for cc=1:3
+                fprintf('%d of 3 conditions...\n',cc);
+                n_folds=sum(cond_labels==cc);
+                cc_trials=find(cond_labels==cc);
+                cross_trials=find(cond_labels~=cc);
+                for k=1:n_folds
+                    fprintf('%d of %d folds...\n',k,n_folds)
+                    test_trial=cc_trials(k);
+                    train_trials=cc_trials(cc_trials~=test_trial);
+                    % train model on all same-condition trials except
+                    % held out one
+                    temp_model=mTRFtrain(stim(train_trials),resp(train_trials), ...
+                        preprocess_config.fs,1,trf_config.tmin_ms, ...
+                        trf_config.tmax_ms,best_lam);
+                    % evaluate on the held-out trial AND all
+                    % cross-condition trials
+                    [~,temp_stats]=mTRFpredict([stim(test_trial);stim(cross_trials)] ...
+                        ,[resp(test_trial);resp(cross_trials)],temp_model);
+                    % store within-condition (diagonal) result
+                    stats_cross_cv.r(test_trial,test_trial,:)=temp_stats.r(1,:);
+                    stats_cross_cv.err(test_trial,test_trial,:,:)=temp_stats.err(1,:);
+                    % store cross-condition (off-diagonal) results
+                    stats_cross_cv.r(test_trial,cross_trials,:)=temp_stats.r(2:end,:);
+                    stats_cross_cv.err(test_trial,cross_trials,:)=temp_stats.err(2:end,:);
+                end 
             end
+            % invert the shuffle so saved indices correspond to the
+            % original trials order stored in preprocess_config
+            stats_cross_cv.r(shuff,shuff,:)=stats_cross_cv.r;
+            stats_cross_cv.err(shuff,shuff,:)=stats_cross_cv.err;
+            %save to file
+            subjCfg_=addPaths(baseCfg,subj);
+            progressSave(stats_cross_cv,subjCfg_,baseCfg.overwrite_stats_cross)
+            % also record trf_config & preprocess_config for reference
+            progressSave(trf_config,subjCfg_,baseCfg.overwrite_stats_cross)
+            progressSave(preprocess_config,subjCfg_,baseCfg.overwrite_stats_cross)
         else
             disp('existing stats_cross found')
         end
-        clear trf_
+        clear trf_ subjCfg_
+        fprintf('Subj %d/%d stats_cross_cv evaluated & saved successfully.\n',ss,numel(subjs))
+        toc
     end
 end
 %% --- COMPILE PER-SUBJECT R-VALUE MATRICES (Rcs) ---
@@ -169,7 +174,7 @@ end
 % Diagonal entrials = within-condition r; off-diagonal = cross-condition r. 
 % All subjects are stacked into all_subj_Rcs [subjects x
 % cond x cond x electrodes].
-if script_config.get_all_subj_Rcs 
+if baseCfg.get_all_subj_Rcs 
     % note: could improve by pre-allocating?
     n_electrodes=128; % how to avoid hardcoding? does it even matter?
     n_cond=3;
@@ -177,34 +182,42 @@ if script_config.get_all_subj_Rcs
     all_subj_Rcs=nan(n_subjs,n_cond,n_cond,n_electrodes);
     do_lambda_optimization=false;
     for ss=1:numel(subjs)
+        tic
         subj=subjs(ss);
         % load saved model
         fprintf('fetching subj %d Rcs...\n',subj);
         % load saved model
-        trf_analysis_params;
+        setTrfAnalysisParams;
         clear do_nulltest
-        trf_=load_checkpoint(trf_config);
-        if ~isfield(trf_,'Rcs')||script_config.overwrite_Rcs
+        trf_=progressLoad(trf_config);
+        if ~isfield(trf_,'Rcs')||baseCfg.overwrite_Rcs
             fprintf('compiling subj %d Rcs...\n',subj);
             % load preprocessed data/stimuli
-            pp_=load_checkpoint(preprocess_config);
+            pp_=progressLoad(preprocess_config);
             exp_cond_=pp_.preprocessed_eeg.cond;
             clear preprocessed_eeg pp_
             stats_cross_cv=trf_.stats_cross_cv;
             % [R_ff,R_fo,R_fs,...
             % R_of, R_oo, R_os,...
             % R_sf,R_so,R_ss]
-            Rcs=compile_rvals(stats_cross_cv,exp_cond_,script_config.avg_cross_trials_rcross);
+            Rcs=compile_rvals(stats_cross_cv,exp_cond_,baseCfg.avg_cross_trials_rcross);
             fprintf('saving Rcs for subj %d...\n',subj);
-            save_checkpoint(Rcs,trf_config,script_config.overwrite_Rcs)
+            subjCfg_=addPaths(baseCfg,subj);
+            progressSave(Rcs,subjCfg_,baseCfg.overwrite_stats_cross)
+            % also record trf_config & preprocess_config for reference
+            progressSave(trf_config,subjCfg_,baseCfg.overwrite_stats_cross)
+            progressSave(preprocess_config,subjCfg_,baseCfg.overwrite_stats_cross)
+            progressSave(Rcs,trf_config,baseCfg.overwrite_Rcs)
         else
             fprintf('loading from saved file...\n')
-            S_=load_checkpoint(trf_config);
+            S_=progressLoad(trf_config);
             Rcs=S_.Rcs;
-            clear S_
+            clear subjCfg_ S_
         end
         clear trf_ exp_cond_
         all_subj_Rcs(ss,:,:,:)=Rcs; 
+        fprintf('Subj %d/%d Rcs copiled & saved successfully.\n',ss,numel(subjs))
+        toc
     end
 end
 %% --- ORGANIZE R-VALUES AND DEFINE CROSS-CONDITION PAIRS ---
@@ -304,7 +317,7 @@ T_obs=nan(n_comp,n_cond,n_electrodes);
 
 for dd=1:size(D_obs,1)
     % compute across-subjects t-statistics %TODO: SHOULD BE
-    % WITHIN-SUBJECTS
+    % WITHIN-SUBJECTS????
     D_perm_=D_perm(dd,:,:,:,:);
     T_perm(dd,:,:,:)=squeeze(mean(D_perm_,3)./(std(D_perm_,0,3)/sqrt(n_subjs)));
     clear D_perm_
@@ -889,7 +902,9 @@ function Rs=compile_rvals(stats_cross_cv,cond,avg_cross_trials)
 %
 %   stats_cross_cv  - struct with field .r [trials x trials x electrodes]
 %   cond            - [n_trials x 1] condition label vector
-%   avg_cross_trials - logical; if true, average over trial pairs (currently assumed true)
+%   avg_cross_trials - logical; if true, average over trial pairs 
+%       ^(currently the rest of script assumes true cuz not sure
+%                                           how to calculate otherwise)
 
     n_electrodes=size(stats_cross_cv.r,3);
     n_cond=numel(unique(cond));
@@ -986,6 +1001,12 @@ function [wttf,wtts]=welchttest_wrapper(stats_cross_cv,cond,avg_cross_trials)
     [wtts.h,wtts.p,wtts.ci,wtts.stats]=ttest2(R_ss, ...
         reshape(R_sf,[],n_electrodes),"Vartype","unequal");
 end
+
+% SOURCES
+% Giroud, Jérémy, Lucy MacGregor, Máté Aller, et al. 
+% Hierarchical Neural Adaptation Supports Flexible Speech Perception 
+% across Rates. n.d.
+
 
 
 %Maris, Eric, and Robert Oostenveld. "Nonparametric Statistical Testing of 

@@ -176,14 +176,19 @@ else
                 model=train_model(stim,preprocessed_eeg,trf_config,train_params,TRF_DIR);
                 progressSave(model,trf_config,pipeConfig.overwriteTrfResult);
             end
+            %% --- compute model prediction accuracy statistics ---
             if ~preload_stats_obs
                 if trf_config.crossvalidate
-                    kfolds_=5;
-                    [sTrain_,rTrain_] = mTRFpartition(stim, ...
-                        preprocessed_eeg.resp,kfolds_);
+                    % kfolds_=5;
+                    % [sTrain_,rTrain_] = mTRFpartition(stim, ...
+                    %     preprocessed_eeg.resp',kfolds_);
                     warning('Hard-coded crossvalidation folds number, and model will be trained on full dataset.')
-                    stats_obs_bkwd=mTRFcrossval(sTrain_,rTrain_, ...
-                        preprocessed_eeg.fs,TRF_DIR,train_params.tmin_ms,train_params.tmax_ms);
+                    % stats_obs_bkwd=mTRFcrossval(sTrain_,rTrain_, ...
+                    %     preprocessed_eeg.fs,TRF_DIR,train_params.tmin_ms, ...
+                    %     train_params.tmax_ms,train_params.best_lam);
+                    stats_obs_bkwd=mTRFcrossval(stim,preprocessed_eeg.resp, ...
+                        preprocessed_eeg.fs,TRF_DIR,train_params.tmin_ms, ...
+                        train_params.tmax_ms,train_params.best_lam);
                     clear sTrain_ rTrain_ kfolds_
                 else
                     % do we need prediction?

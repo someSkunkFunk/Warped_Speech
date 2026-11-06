@@ -108,16 +108,19 @@
 %% -----------------------------------------------------------------------------
 % USER CONFIG
 % -------------------------------------------------------------
-clearvars -except user_profile boxdir_mine boxdir_lab subj TRF_DIR subjs experimentsBySubj
-clc
-close all
-
+cleanWorkspace
+checkInputSubjs
 dbstop if error
 addpath('./trf_plot_lib/')
-checkInputSubjs
+
 % use subjs=[9,12] for 'best' fastSlow
 % use subjs=[29,46] for best regIrreg
 cfg=[];
+cfg.select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
+% cfg.select_plot_chns='all';
+cfg.mtrf_plot_chns=normalize_channels(cfg.select_plot_chns);
+n_subjs=numel(subjs);
+
 % cfg.experiment used to set some figure params, and script assumes all
 % subjs provided are from the same experiment so just check that assumption
 % is valid and set cfg.experiment once
@@ -128,36 +131,28 @@ else
 end
 
 cfg.configType='fTrfTimecourses';
-
 cfg.topos_from_peak_windows=false;
-
 cfg.doExportFigures=true;
-
-switch cfg.experiment
-    case 'fastSlow'
-        butterfly_fig.ylims=[-.5 .6];
-    case 'regIrreg'
-        butterfly_fig.ylims=[-1 1];
-    otherwise
-        warning('script_config.experiment=',cfg.experiment);
-        disp('plotting custom subjs...')
-end
-
-% for reg-irreg:
-cfg.select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
-% cfg.select_plot_chns='all';
-cfg.mtrf_plot_chns=normalize_channels(cfg.select_plot_chns);
-n_subjs=numel(subjs);
 cfg.show_individual_weights=true;
 cfg.show_avg_weights=true;
 cfg.show_topos=false; % for particular latency specified in topo_fig_param
 cfg.show_snr=false;
 cfg.show_tuning_curves=true;
 cfg.analyze_pk_latencies=false;
+
 disp('plotting trf Time Courses with following config:')
 disp(cfg)
 % params for select latency topos
 topo_fig_param.latencies=[54 164]; % in ms
+switch cfg.experiment
+    case 'fastSlow'
+        butterfly_fig.ylims=[-.5 .6];
+    case 'regIrreg'
+        butterfly_fig.ylims=[-1 1];
+    otherwise
+        warning('script_config.experiment=%s',cfg.experiment);
+        disp('plotting custom subjs...')
+end
 % params for butterfly with all conditions
 butterfly_fig.t_lims=[-100 400];
 
@@ -344,7 +339,7 @@ if cfg.show_individual_weights
         for cc=1:numel(configs(ss).trf_config.conditions)
             subjModel_=subjModels(ss,cc);
             if ~isempty(subjModel_.w)
-                if strcmp(butterfly_fig.condition_colors.(experiment_conditions{cc}),'all conditions')
+                if strcmp(experiment_conditions{cc},'all conditions')
                     cond_color_='k';
                 else
                     cond_color_=butterfly_fig.condition_colors.(experiment_conditions{cc});

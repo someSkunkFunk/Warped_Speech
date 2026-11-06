@@ -38,6 +38,8 @@ switch configType
     case 'fEntrainment'
         flds={'fs','silenceThresh','minSilenceDur','erpWindow', 'trfLags', ...
             'lambdaGrid','preprocess_config','trf_config'};
+    case 'crossPredict'
+        flds={'trim_stimuli'};
     otherwise
         error('unknown configType "%s" add hash fields explicitly here.', ...
             configType)

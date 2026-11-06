@@ -18,6 +18,7 @@ function progressSave(data,inputConfig,overwrite)
     subj=inputConfig.subj;
     outputDir=inputConfig.paths.outputDir;
     if ~exist(outputDir,'dir')
+        warning('MAKING NEW OUTPUT DIRECTORY: %s',outputDir)
         mkdir(outputDir);
     end
     hashableConfig=buildHashableConfig(inputConfig);
