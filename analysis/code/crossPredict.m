@@ -41,13 +41,13 @@ plots_config.show_ind_subj=false;
 baseCfg=[];
 baseCfg.configType='crossPredict';
 baseCfg.show_tuning_curves=false;
-baseCfg.compute_cross_stats=true; % do calculation from start, 
+baseCfg.compute_cross_stats=false; % do calculation from start, 
 %               otherwise just skip ahead to lookup of pre-existing results
-baseCfg.overwrite_stats_cross=true;
+baseCfg.overwrite_stats_cross=false;
 % trim end of trials to match minimum-duration trial length across all
 % trials for data balancing
 baseCfg.trim_stimuli=false;
-baseCfg.get_all_subj_Rcs=true;
+baseCfg.get_all_subj_Rcs=true; % NEEDS TO BE TRUE TO DO THE STATISTICAL TESTS AND SHIT
 baseCfg.avg_cross_trials_rcross=true;
 % note: not sure how to interpret non-averaged results so non-averaged
 % cross-trial reslts are not currently handled downstreamm
@@ -87,8 +87,8 @@ if baseCfg.compute_cross_stats
         % load saved model
         setTrfAnalysisParams;
         clear do_nulltest
-        trf_=progressLoad(trf_config);
-        if ~isfield(trf_,'stats_cross_cv')||baseCfg.overwrite_stats_cross
+        crossResultsSubj_=progressLoad(trf_config);
+        if ~isfield(crossResultsSubj_,'stats_cross_cv')||baseCfg.overwrite_stats_cross
             pp_=progressLoad(preprocess_config);
             preprocessed_eeg=pp_.preprocessed_eeg;
             stim=load_stim_cell(trf_config.paths.envelopesFile,preprocessed_eeg.cond,preprocessed_eeg.trials);
@@ -163,7 +163,7 @@ if baseCfg.compute_cross_stats
         else
             disp('existing stats_cross found')
         end
-        clear trf_ subjCfg_
+        clear crossResultsSubj_ subjCfg_
         fprintf('Subj %d/%d stats_cross_cv evaluated & saved successfully.\n',ss,numel(subjs))
         toc
     end
@@ -190,24 +190,25 @@ if baseCfg.get_all_subj_Rcs
         % load saved model
         setTrfAnalysisParams;
         clear do_nulltest
-        trf_=progressLoad(trf_config);
-        if ~isfield(trf_,'Rcs')||baseCfg.overwrite_Rcs
+        subjCfg_=addResultsPaths(baseCfg,subj);
+        crossResultsSubj_=progressLoad(subjCfg_);
+        if ~isfield(crossResultsSubj_,'Rcs')||baseCfg.overwrite_Rcs
             fprintf('compiling subj %d Rcs...\n',subj);
             % load preprocessed data/stimuli
             pp_=progressLoad(preprocess_config);
             exp_cond_=pp_.preprocessed_eeg.cond;
             clear preprocessed_eeg pp_
-            stats_cross_cv=trf_.stats_cross_cv;
+            stats_cross_cv=crossResultsSubj_.stats_cross_cv;
             % [R_ff,R_fo,R_fs,...
             % R_of, R_oo, R_os,...
             % R_sf,R_so,R_ss]
             Rcs=compile_rvals(stats_cross_cv,exp_cond_,baseCfg.avg_cross_trials_rcross);
             fprintf('saving Rcs for subj %d...\n',subj);
-            subjCfg_=addResultsPaths(baseCfg,subj);
-            progressSave(Rcs,subjCfg_,baseCfg.overwrite_stats_cross)
+
+            progressSave(Rcs,subjCfg_,baseCfg.overwrite_Rcs)
             % also record trf_config & preprocess_config for reference
-            progressSave(trf_config,subjCfg_,baseCfg.overwrite_stats_cross)
-            progressSave(preprocess_config,subjCfg_,baseCfg.overwrite_stats_cross)
+            progressSave(trf_config,subjCfg_,baseCfg.overwrite_Rcs)
+            progressSave(preprocess_config,subjCfg_,baseCfg.overwrite_Rcs)
             progressSave(Rcs,trf_config,baseCfg.overwrite_Rcs)
         else
             fprintf('loading from saved file...\n')
@@ -215,7 +216,7 @@ if baseCfg.get_all_subj_Rcs
             Rcs=S_.Rcs;
             clear subjCfg_ S_
         end
-        clear trf_ exp_cond_
+        clear crossResultsSubj_ exp_cond_ trf_config preprocess_config
         all_subj_Rcs(ss,:,:,:)=Rcs; 
         fprintf('Subj %d/%d Rcs copiled & saved successfully.\n',ss,numel(subjs))
         toc
@@ -226,8 +227,15 @@ end
 %   R_within [subj cond x electrodes]: diagonal entries
 %   R_cross [subj x train_cond x test_cond x electrodes]: off-diagonal entries
 % also enumerates all ordered (train, test) cross-condition pairs.
-
-cond_labels=trf_config.conditions;
+if ~exist('trf_config','var')
+    warning('dumb workaround!')
+    % better option: record in baseConfig, or define in checkInputSubjs so
+    % they are always available without having to worry about them being in
+    % the config or whatever
+    setTrfAnalysisParams
+    clear preprocess_config
+end
+cond_labels=trf_config.conditions; clear trf_config_
 [R_within,R_cross]=split_all_subj_Rs(all_subj_Rcs);
 % R_within: [subj x train_cond x electrodes]
 % R_cross:  [subj x train_cond x test_cond x electrodes]
