@@ -9,6 +9,8 @@
 cleanWorkspace
 checkInputSubjs
 
+metadata=struct('trf_config',[],'preprocess_config',[]);
+
 nTrialsPerCond=25; %TODO: what if we wanna plot all conditions?
 nChans=128;
 nCond=3;
@@ -17,12 +19,24 @@ allSubjRvals=nan(ss,nCond,nTrialsPerCond,nChans);
 for ss=1:numel(subjs)
     subj=subjs(ss);
     setTrfAnalysisParams
+    metadata(ss).trf_config=trf_config; metadata(ss).preprocess_config=preprocess_config;
     allSubjRvals(ss,:,:,:)=statsLoadWrapper(trf_config);
+    clear subj trf_config preprocess_config
 end
-condLabels=trf_config.conditions;
+
 %% -- PLOT SUBJECT-LEVEL PRETTY SCATS (BOXPLOT)
+baseCfg.configType='fwdTrfRvalStats';
+
 for ss=1:numel(subjs)
-    prettyScat(squeeze(allSubjRvals(ss,:,:,:)),condLabels,1)
+    subj=subjs(ss);
+    subjCfg_=baseCfg;
+    subjCfg_.experiment=experimentsBySubjNum{ss}; % note: not assuming all subjects from same experiment
+    subjCfg_=addResultsPaths(subjCfg_,subj);
+    condLabels_=metadata(ss).trf_config.conditions;
+    fig=prettyScat(squeeze(allSubjRvals(ss,:,:,:)),condLabels_,1);
+    title(sprintf('Subj %d TRF Accuracies',subj))
+    exportFiguresToFolder(subjCfg_.paths.figDir,metadata(ss),fig,0)
+    clear subj condLabels_
 end
 
 
@@ -98,4 +112,5 @@ xticklabels(condLabels)
 ylabel('Value');
 title('Pretty scatter with lines and boxplots');
 xlim([0.5 n_cond+0.5]);
+hold off
 end
