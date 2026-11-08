@@ -118,7 +118,7 @@ addpath('./trf_plot_lib/')
 cfg=[];
 cfg.select_plot_chns=[54 55 56 61 62 63 106 107 108 115 116 117]; % 'all' or vector with indices
 % cfg.select_plot_chns='all';
-cfg.mtrf_plot_chns=normalize_channels(cfg.select_plot_chns);
+cfg.mtrf_plot_chns=normalizeChnsSelection(cfg.select_plot_chns);
 n_subjs=numel(subjs);
 
 % cfg.experiment used to set some figure params, and script assumes all

@@ -10,22 +10,23 @@ cleanWorkspace
 checkInputSubjs
 
 metadata=struct('trf_config',[],'preprocess_config',[]);
+baseCfg.configType='frwdTrfRvalStats';
 
-nTrialsPerCond=25; %TODO: what if we wanna plot all conditions?
-nChans=128;
-nCond=3;
-allSubjRvals=nan(ss,nCond,nTrialsPerCond,nChans);
-
+baseCfg.nTrialsPerCond=25; %TODO: what if we wanna plot all conditions?
+baseCfg.nChans=128;
+baseCfg.nCond=3;
+allSubjRvals=nan(ss,baseCfg.nCond,baseCfg.nTrialsPerCond,baseCfg.nChans);
+doFigExport=true;
 for ss=1:numel(subjs)
     subj=subjs(ss);
     setTrfAnalysisParams
+    clear show_tuning_curves
     metadata(ss).trf_config=trf_config; metadata(ss).preprocess_config=preprocess_config;
     allSubjRvals(ss,:,:,:)=statsLoadWrapper(trf_config);
     clear subj trf_config preprocess_config
 end
 
 %% -- PLOT SUBJECT-LEVEL PRETTY SCATS (BOXPLOT)
-baseCfg.configType='fwdTrfRvalStats';
 
 for ss=1:numel(subjs)
     subj=subjs(ss);
@@ -33,15 +34,33 @@ for ss=1:numel(subjs)
     subjCfg_.experiment=experimentsBySubjNum{ss}; % note: not assuming all subjects from same experiment
     subjCfg_=addResultsPaths(subjCfg_,subj);
     condLabels_=metadata(ss).trf_config.conditions;
-    fig=prettyScat(squeeze(allSubjRvals(ss,:,:,:)),condLabels_,1);
+    % average across trials before plotting
+    fig=prettyScat(squeeze(mean(allSubjRvals(ss,:,:,:),3)),condLabels_,1,'scatBox');
     title(sprintf('Subj %d TRF Accuracies',subj))
-    exportFiguresToFolder(subjCfg_.paths.figDir,metadata(ss),fig,0)
-    clear subj condLabels_
+    if doFigExport
+        exportFiguresToFolder(subjCfg_.paths.figDir,metadata(ss),fig,0)
+    end
+    clear subj condLabels_ subjCfg_
 end
 
 
 %% -- PLOT ACROSS SUBJECTS PRETTY SCATS (VIOLIN)
 
+% HERE WE SHOULD ASSUME ALL SUBJECTS BELONG TO SAME EXPERIMENT
+assert(isscalar(unique(experimentsBySubjNum)),'nonHomogenousExperiment: all subjects must be from same experiment!')
+baseCfg.experiment=experimentsBySubjNum{1};
+condLabels=metadata(1).trf_config.conditions;
+baseCfg.selectChns=[54 55 56 61 62 63 106 107 108 115 116 117]; %'all' works
+baseCfg.acrossSubjsChnsPlotted=normalizeChnsSelection(baseCfg.selectChns);
+baseCfg=addResultsPaths(baseCfg,subjs,'allSubjs');
+
+acrossSubjsRvals=mean(allSubjRvals(:,:,:,baseCfg.selectChns),[3,4]);
+
+fig=prettyScat(acrossSubjsRvals,condLabels,2,'scatViolin');
+title('Prediction Accuracy Across Subjects (auditory-responsive channels)')
+if doFigExport
+    exportFiguresToFolder(baseCfg.paths.figDir,metadata,fig,0)
+end
 
 
 
@@ -60,7 +79,7 @@ subjR(cc,:,:)=squeeze(matData.stats_obs(cc).r);
 end
 
 end
-function fig=prettyScat(D,condLabels,condDim)
+function fig=prettyScat(D,condLabels,condDim,plotType)
 % PRETTYSCAT scatterplot with per-sample connecting lines and boxplots OR violin plots.
 %
 % pretty_scat(D, cond_dim)
@@ -70,6 +89,10 @@ function fig=prettyScat(D,condLabels,condDim)
 %
 % Permutes D so that cond_dim is last, then reshapes to [n_smaples x
 % n_cond] and plots grey connecting lines, scatter points, and boxplots.
+
+if nargin<4
+    plotType='scatBox'; % 'scatBox' or 'scatViolin'
+end
 
 sz = size(D);
 n_cond = sz(condDim);
@@ -103,7 +126,14 @@ scatter(repmat(1:n_cond, n_per_cc, 1), Dmat, 15, point_color, 'filled', ...
     'MarkerFaceAlpha', 0.6, 'MarkerEdgeColor', 'none');
 
 % --- 3) Add boxplots
-boxplot(Dmat, 'Colors', [0.2 0.2 0.2], 'Symbol', '', 'Widths', 0.4);
+switch plotType
+    case 'scatBox'
+        boxplot(Dmat, 'Colors', [0.2 0.2 0.2], 'Symbol', '', 'Widths', 0.4);
+    case 'scatViolin'
+        violinplot(Dmat)
+    otherwise
+        error('InvalidPlotType:%s not a valid plot type',plotType)
+end
 
 % --- 4) Beautify axes
 set(gca, 'XTick', 1:n_cond, 'Box', 'off', 'TickDir', 'out');
