@@ -81,7 +81,8 @@ end
 end
 function fig=prettyScat(D,condLabels,condDim,plotType)
 % PRETTYSCAT scatterplot with per-sample connecting lines and boxplots OR violin plots.
-%
+% TODO: SEPARATE THIS FUNCTION TO IS OWN .m FILE TO AVOID CONFLICTS ACROSS
+% SCRIPTS?
 % pretty_scat(D, cond_dim)
 %
 % D - data matrix of any dimensionality

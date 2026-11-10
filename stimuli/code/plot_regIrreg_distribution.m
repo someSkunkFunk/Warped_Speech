@@ -8,8 +8,7 @@ clear, clc
 global boxdir_mine
 %% set params
 % pilot_stimfolder = 'rule11_seg_textgrid_4p545Hz_0_0';
-warp_dir='rule14_seg_textgrid_4p545Hz_0_0_0750msMax';
-regularity=1; %1-> irreg -1-> reg
+regularity=-1; %1-> irreg -1-> reg
 
 [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
 
@@ -25,9 +24,9 @@ hist_config=[]; %use defaults
 hist_config.normalization='count';
 hist_config.domain='time';
 
-condition_colors=struct('original',[1 150 55]./206, ...
-    'Regular',[255 0 0]./255, ...
-    'Irregular',[0 0 0]);
+condition_colors=struct('original',[0.93,0.69,0.13], ...
+    'Regular',[0.87,0.33,0.00], ...
+    'Irregular',[0.52,0.09,0.82]);
 %% plot og
 h=rates_hist_wrapper(s_intervals(:,1),hist_config);
 title('og')
@@ -128,9 +127,18 @@ function [s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regu
 global boxdir_mine
 switch regularity
     case 1
+        warp_dir='rule14_seg_textgrid_4p545Hz_0_0_0750msMax'; % works for irreg
+        % + 95% sure it's what we ultimately used for experimental stimuli
+        % -- TODO: verify that with the warp_config contained in stimuli
+        % folder
         cond_dir='stretchy_irreg';
         cond_nm='Irregular';
     case -1
+        warp_dir='rule11_seg_textgrid_4p545Hz_0_0'; % works for reg
+        % + 95% sure it's what we ultimately used for experimental stimuli
+        % -- TODO: verify that with the warp_config contained in stimuli
+        % folder
+
         cond_dir='compressy_reg';
         cond_nm='Regular';
     otherwise
