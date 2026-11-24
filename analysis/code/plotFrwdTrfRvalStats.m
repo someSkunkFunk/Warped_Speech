@@ -4,6 +4,8 @@
 % across conditons) of forward-model encoding accuracy accuracy
 % 2. across-subjs pretty scat (+ boxplot OR violin [???] +
 % subject-connecting lines), averaging r across anointed electrodes
+% allSubjRvals: [subjs x conditions x trials per condition x channels]
+% 
 %% -- LOAD rVALS
 
 cleanWorkspace

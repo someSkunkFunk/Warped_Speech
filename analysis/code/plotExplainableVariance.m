@@ -1,4 +1,4 @@
-dataDir='C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results';
+dataDir='C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results_v2';
 
 D=dir(fullfile(dataDir,'*.json'));
 nCond=3;
@@ -46,8 +46,9 @@ for ss=1:nSubjs
 
 end
 
-fig=prettyScat(subjNoiseCeilings,baseCfg.condLabels,2,'scatViolin');
-
+fig=prettyScat(subjNoiseCeilings,baseCfg.condLabels,2,'scatBox');
+% for sfn poster hehe
+set([findall(gcf, 'Type', 'axes'); findall(gcf, 'Type', 'text')], 'FontSize', 24, 'FontName', 'Arial');
 %%
 function [subjNum, condNum]=getSubjInfo(fileName)
 condMatch=regexp(fileName,'condition~(\d+)','tokens');
@@ -109,7 +110,11 @@ switch plotType
     case 'scatBox'
         boxplot(Dmat, 'Colors', [0.2 0.2 0.2], 'Symbol', '', 'Widths', 0.4);
     case 'scatViolin'
-        violinplot(Dmat)
+        v=violinplot(Dmat);
+        v(1).FaceColor=[0.87,0.33,0.00];
+        v(2).FaceColor=[0.93,0.69,0.13];
+        v(3).FaceColor=[0.52,0.09,0.82];
+
     otherwise
         error('InvalidPlotType:%s not a valid plot type',plotType)
 end

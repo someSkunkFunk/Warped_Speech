@@ -1,0 +1,1334 @@
+mod(9,3)
+
+ans =
+
+     0
+
+mod(9,2)
+
+ans =
+
+     1
+
+mod(1,3)
+
+ans =
+
+     1
+
+mod(12,3)
+
+ans =
+
+     0
+
+mod(11,3)
+
+ans =
+
+     2
+
+plotExplainableVariance
+{Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('fileread', 'C:\Program Files\MATLAB\R2026b\toolbox\matlab\io\filesystem\fileread.m', 1)" style="font-weight:bold">fileread</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026b\toolbox\matlab\io\filesystem\fileread.m',1,0)">line 1</a>)
+Invalid argument at position 2. Function requires exactly 1 positional
+input(s).
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 10)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',10,0)">line 10</a>)
+        allSubjData{ss,cc}=jsondecode(fileread(fullfile(D(ss).folder),D(ss).name));
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+} 
+        allSubjData{ss,cc}=jsondecode(fileread(fullfile(D(ss).folder,D(ss).name)));
+        allSubjsData{ss,cc}=jsondecode(fileread(fullfile(D(ss).folder,D(ss).name)));
+plotExplainableVariance
+edit compute_gfp
+edit startup
+edit boxdirs_startup
+startup
+[ders startup] Adding GCFB toolbox
+[ders startup] Adding Noise Tools
+[der sstartup] Adding eeglab
+[ders startup] Adding TSM toolbox
+[ders startup] Adding mTRF tooolbox
+[ders startup] Adding useful filters
+[ders startup] added gen utils
+[ders startup] added fieldtrip
+[ders startup] added datahash
+[dre startup] Added toolboxes to path
+setting boxpaths
+boxdir_mine:
+C:/Users/ninet/Box/my box/LALOR LAB/oscillations project/MATLAB/Warped Speech
+boxdir_lab:C:/Users/ninet/Box/Lalor Lab Box/Research Projects/Aaron - Warped Speech
+edit boxdirs_startup
+help addResultsPaths
+  pathsCfg=addPaths(baseCfg,subjs)
+  helper for adding outputDir & figDir paths to a base analysis config
+  handles single subject or multiple subjects differently
+
+help regexp
+ <strong>regexp</strong> - Match regular expression (case sensitive)
+
+    <strong>Syntax</strong>
+      startIndex = regexp(str,expression)
+      [startIndex,endIndex] = regexp(str,expression)
+
+      out = regexp(str,expression,outkey)
+      [out1,...,outN] = regexp(str,expression,outkey1,...,outkeyN)
+
+      ___ = regexp(___,option1,...,optionM)
+
+      ___ = regexp(___,'forceCellOutput')
+
+    <strong>Input Arguments</strong>
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45_sep_shared-str')">str</a> - Input text
+        character vector | cell array of character vectors | string array
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45_sep_shared-expression')">expression</a> - Regular expression
+        character vector | cell array of character vectors | string array
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45_sep_shared-outkey')">outkey</a> - Keyword that indicates which outputs to return
+        'start' (default) | 'end' | 'tokenExtents' | 'match' | 'tokens' |
+        'names' | 'split'
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45-option')">option</a> - Search option
+        'once' | 'warnings' | 'ignorecase' | 'emptymatch' |
+        'dotexceptnewline' | 'lineanchors' | ...
+
+    <strong>Output Arguments</strong>
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45_sep_shared-startIndex')">startIndex</a> - Starting index of each match
+        row vector | cell array of row vectors
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45_sep_shared-endIndex')">endIndex</a> - Ending index of each match
+        row vector | cell array of row vectors
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/regexp.html#btn_p45_sep_shared-out')">out</a> - Information about matches
+        numeric array | cell array | string array | structure array
+
+    <strong>Examples</strong>
+      <a href="matlab:openExample('matlab/FindPatternsinSingleStringsExample')">Find Patterns in Text</a>
+      <a href="matlab:openExample('matlab/FindPatternsinMultipleStringsExample')">Find Patterns in Multiple Pieces of Text</a>
+      <a href="matlab:openExample('matlab/ReturnSubstringsUsingmatchKeywordExample')">Return Substrings Using match Keyword</a>
+      <a href="matlab:openExample('matlab/SplitStringatDelimiterUsingsplitKeywordExample')">Split Text at Delimiter Using split Keyword</a>
+      <a href="matlab:openExample('matlab/ReturnBothMatchingandNonmatchingSubstringsExample')">Return Both Matching and Nonmatching Substrings</a>
+      <a href="matlab:openExample('matlab/CaptureSubstringsofMatchesUsingOrdinalTokensExample')">Capture Substrings of Matches Using Ordinal Tokens</a>
+      <a href="matlab:openExample('matlab/CaptureSubstringsofMatchesUsingNamedTokensExample')">Capture Substrings of Matches Using Named Tokens</a>
+      <a href="matlab:openExample('matlab/PerformCaseInsensitiveMatchesExample')">Perform Case-Insensitive Matches</a>
+      <a href="matlab:openExample('matlab/ParseStringswithNewlineCharactersExample')">Parse Text with Newline Characters</a>
+      <a href="matlab:openExample('matlab/ReturnMatchesInCellExample')">Return Matches in Cell</a>
+
+    <strong>See also</strong> <a href="matlab:help regexpi -displayBanner">regexpi</a>, <a href="matlab:help regexprep -displayBanner">regexprep</a>, <a href="matlab:help regexptranslate -displayBanner">regexptranslate</a>, <a href="matlab:help strfind -displayBanner">strfind</a>, <a href="matlab:help strjoin -displayBanner">strjoin</a>,
+      <a href="matlab:help strsplit -displayBanner">strsplit</a>, <a href="matlab:help strrep -displayBanner">strrep</a>, <a href="matlab:help contains -displayBanner">contains</a>, <a href="matlab:help replace -displayBanner">replace</a>
+
+    Introduced in MATLAB before R2006a
+    <a href="matlab:doc regexp">Documentation for regexp</a>
+
+Error: <a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',24,49)">File: plotExplainableVariance.m Line: 24 Column: 49</a>
+Invalid text character. Check for unsupported symbol, invisible
+character, or pasting of non-ASCII characters.
+
+Error: <a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',24,49)">File: plotExplainableVariance.m Line: 24 Column: 49</a>
+Invalid text character. Check for unsupported symbol, invisible
+character, or pasting of non-ASCII characters.
+
+Unrecognized function or variable 'nSubjs'.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 13)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',13,0)">line 13</a>)
+subjs=nan(nSubjs,1);
+          ^^^^^^
+
+plotExplainableVariance
+{Unrecognized function or variable 'fileName_'.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 15)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',15,0)">line 15</a>)
+    subjMatch_=regexp(fileName_,'subject~(%d+)','tokens');
+                      ^^^^^^^^^
+} 
+<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',15,1)">15  </a>    subjMatch_=regexp(fileName_,'subject~(%d+)','tokens');
+Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('eq')" style="font-weight:bold"> == </a>
+Arrays have incompatible sizes for this operation.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 18)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',18,0)">line 18</a>)
+    if ~any(subjNum_==subjs)
+                    ^
+<a href="matlab:helpview('matlab','error_sizeDimensionsMustMatch')" style="font-weight:bold">Related documentation</a>
+
+    subjMatch_=regexp(fileName_,'subject~(\d+)','tokens');
+Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('isnan')" style="font-weight:bold">isnan</a>
+Too many input arguments.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 19)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',19,0)">line 19</a>)
+        subjs(find(isnan(subjs,'first')))=subjNum_;
+                   ^^^^^^^^^^^^^^^^^^^^
+
+Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('find')" style="font-weight:bold">find</a>
+Second argument must be a positive scalar integer.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 19)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',19,0)">line 19</a>)
+        subjs(find(isnan(subjs),'first'))=subjNum_;
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+nFiles
+
+nFiles =
+
+     9
+
+clear
+plotExplainableVariance
+{Unrecognized function or variable 'ss'.
+
+ss requires one of the following:
+  <a href="matlab:matlab.internal.addons.launchers.showExplorer('ErrorRecovery', 'identifier', 'CT', 'focused', 'ss');">Control System Toolbox</a>
+  <a href="matlab:matlab.internal.addons.launchers.showExplorer('ErrorRecovery', 'identifier', 'DS', 'focused', 'ss');">DSP System Toolbox</a>
+  <a href="matlab:matlab.internal.addons.launchers.showExplorer('ErrorRecovery', 'identifier', 'MP', 'focused', 'ss');">Model Predictive Control Toolbox</a>
+  <a href="matlab:matlab.internal.addons.launchers.showExplorer('ErrorRecovery', 'identifier', 'SG', 'focused', 'ss');">Signal Processing Toolbox</a>
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 15)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',15,0)">line 15</a>)
+    fileName_=fullfile(D(ss).folder,D(ss).name);
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+} 
+<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',15,1)">15  </a>    fileName_=fullfile(D(ss).folder,D(ss).name);
+plotExplainableVariance
+{Unrecognized function or variable 'condNnum'.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 30)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',30,0)">line 30</a>)
+    condNnum
+    ^^^^^^^^
+} 
+<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',30,1)">30  </a>    condNnum
+plotExplainableVariance
+<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',18,1)">18  </a>    if ~any(subjNum_==subjs)
+~any(subjNum_==subjs)
+
+ans =
+
+  <a href="matlab:helpPopup('logical')" style="font-weight:bold">logical</a>
+
+   1
+
+find(isnan(subjs),1)
+
+ans =
+
+     1
+
+subjNum_
+
+subjNum_ =
+
+   NaN
+
+subjMatch_
+
+subjMatch_ =
+
+  1×1 <a href="matlab:helpPopup('cell')" style="font-weight:bold">cell</a> array
+
+    {1×1 cell}
+
+str2double(subjMatch_{1})
+
+ans =
+
+    29
+
+str2double(subjMatch_{1}{1})
+
+ans =
+
+    29
+
+subjs(find(isnan(subjs),1))=subjNum_;
+subjNum_=str2double(subjMatch_{1}{1});
+        subjs(find(isnan(subjs),1))=subjNum_;
+plotExplainableVariance
+clear
+plotExplainableVariance
+{Unrecognized function or variable 'subj'.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plotExplainableVariance', 'C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m', 40)" style="font-weight:bold">plotExplainableVariance</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',40,0)">line 40</a>)
+    fig=prettyScat(allSubjsData{subj})
+                                ^^^^
+} 
+<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\analysis\code\plotExplainableVariance.m',40,1)">40  </a>    fig=prettyScat(allSubjsData{subj})
+    R=vertcat(allSubjsData(ss,:).center);
+{Dot indexing is not supported for variables of type cell.
+} 
+    R=vertcat(allSubjsData{ss,:}.center);
+{Intermediate brace '{}' indexing produced a comma-separated list with
+3 values, but it must produce a single value when followed by
+subsequent indexing operations.
+
+<a href="matlab:helpview('matlab','error_index_expected_one_output_from_intermediate_indexing')" style="font-weight:bold">Related documentation</a>
+} 
+
+    subjData_=vertcat(allSubjsData{ss,:});
+subjNoiseCeilings=[subjData_.center];
+clear
+close all
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~1_subject~29.json";
+DATA=jsondecode(fileread(fileName));
+DATA29_1=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~2_subject~29.json";
+DATA=jsondecode(fileread(fileName));
+DATA29_2=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~3_subject~29.json";
+DATA=jsondecode(fileread(fileName));
+DATA29_3=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~1_subject~46.json";
+DATA=jsondecode(fileread(fileName));
+DATA46_1=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~2_subject~46.json";
+DATA=jsondecode(fileread(fileName));
+DATA=jsondecode(fileread(fileName));
+DATA46_2=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~3_subject~46.json";
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~3_subject~46.json";
+DATA=jsondecode(fileread(fileName));
+DATA46_3=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~1_subject~39.json";
+DATA=jsondecode(fileread(fileName));
+DATA39_1=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~2_subject~39.json";
+DATA=jsondecode(fileread(fileName));
+DATA39_2=DATA;
+fileName="C:\Users\ninet\Box\AndreJinSharedFolder\noise_ceiling_results\noise-ceiling_condition~3_subject~39.json";
+DATA=jsondecode(fileread(fileName));
+DATA39_3=DATA;
+isequal(DATA46_2,DATA46_1)
+
+ans =
+
+  <a href="matlab:helpPopup('logical')" style="font-weight:bold">logical</a>
+
+   1
+
+ 8.74/(2*pi)
+
+ans =
+
+    1.3910
+
+plot_regIrreg_distribution
+fano factor for Irregular: 0.251
+fano factor for og: 0.409
+fig=gcf
+
+fig = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0.0104 0.0104 7.9792 8.3854]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('fig', 'var'), matlab.graphics.internal.getForDisplay('fig', fig, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('fig'), end">all properties</a>
+
+xlim([0 800])
+targetWidth=3.5, targetHeight=4
+
+targetWidth =
+
+    3.5000
+
+
+targetHeight =
+
+     4
+
+edit resizeExportFigToEmf.m
+resizeExportFigToEmf([],'irregularSyllableIntervalsDist',targetWidth,targetWidth)
+updating fig -> targetWidth: 3.500, targetHeight: 3.500...
+Updating  & saving emf at irregularSyllableIntervalsDist..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3.5000 3.5000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+legend('off')
+resizeExportFigToEmf([],'irregularSyllableIntervalsDistNoLegend',targetWidth,targetWidth)
+updating fig -> targetWidth: 3.500, targetHeight: 3.500...
+Updating  & saving emf at irregularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3.5000 3.5000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=5
+
+targetHeight =
+
+     5
+
+resizeExportFigToEmf([],'irregularSyllableIntervalsDistNoLegend',targetWidth,targetWidth)
+updating fig -> targetWidth: 3.500, targetHeight: 3.500...
+Updating  & saving emf at irregularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3.5000 3.5000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=5
+
+targetHeight =
+
+     5
+
+resizeExportFigToEmf([],'irregularSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 3.500, targetHeight: 5.000...
+Updating  & saving emf at irregularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3.5000 5]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetWidth=4, targetHeight=4
+
+targetWidth =
+
+     4
+
+
+targetHeight =
+
+     4
+
+targetWidth=4, targetHeight=4
+
+targetWidth =
+
+     4
+
+
+targetHeight =
+
+     4
+
+resizeExportFigToEmf([],'irregularSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at irregularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'irregularSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at irregularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'originalSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at originalSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'originalSyllableIntervalsDist',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at originalSyllableIntervalsDist..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+legend('off')
+resizeExportFigToEmf([],'originalSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at originalSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+close all
+plot_regIrreg_distribution
+{Unrecognized function or variable 'warp_config'.
+
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plot_regIrreg_distribution>load_smat_intervals', 'C:\Users\ninet\Documents\Warped_Speech\stimuli\code\plot_regIrreg_distribution.m', 179)" style="font-weight:bold">plot_regIrreg_distribution>load_smat_intervals</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\stimuli\code\plot_regIrreg_distribution.m',179,0)">line 179</a>)
+max_interval=warp_config.sil_tol;
+             ^^^^^^^^^^^^^^^^^^^
+Error in <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('plot_regIrreg_distribution', 'C:\Users\ninet\Documents\Warped_Speech\stimuli\code\plot_regIrreg_distribution.m', 14)" style="font-weight:bold">plot_regIrreg_distribution</a> (<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\stimuli\code\plot_regIrreg_distribution.m',14,0)">line 14</a>)
+[s_intervals,peakrate_mat,warp_config,cond_nm]=load_smat_intervals(regularity,warp_dir);
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+} 
+<a href="matlab: opentoline('C:\Users\ninet\Documents\Warped_Speech\stimuli\code\plot_regIrreg_distribution.m',179,1)">179 </a>max_interval=warp_config.sil_tol;
+plot_regIrreg_distribution
+fano factor for Regular: 0.000
+fano factor for og: 0.409
+resizeExportFigToEmf([],'regularSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+{Unrecognized function or variable 'targetWidth'.
+} 
+clear
+targetWidth=4, targetHeight=4
+
+targetWidth =
+
+     4
+
+
+targetHeight =
+
+     4
+
+resizeExportFigToEmf([],'regularSyllableIntervalsDist',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at regularSyllableIntervalsDist..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (3) with properties:
+
+      Number: 3
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+legend('off')
+resizeExportFigToEmf([],'regularSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at regularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (3) with properties:
+
+      Number: 3
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'regularSyllableIntervalsDistNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at regularSyllableIntervalsDistNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (3) with properties:
+
+      Number: 3
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+close all
+clear
+plotExplainableVariance
+subj
+{Unrecognized function or variable 'subj'.
+} 
+subjs
+
+subjs =
+
+    29
+    39
+    46
+
+plotExplainableVariance
+set(gcf,'Color','w'),targetWidth=8.4,targetHeight=4.8resizeExportFigToEmf([],'explainableVarianceViolin',targetWidth,targetHeight)
+ set(gcf,'Color','w'),targetWidth=8.4,targetHeight=4.8resizeExportFigToEmf([],'explainableVarianceViolin',targetWidth,targetHeight)
+                                                      ↑
+{Error: Unexpected 'resizeExportFigToEmf'. Check for missing multiplication operator.
+} 
+set(gcf,'Color','w'), targetWidth=8.4, targetHeight=4.8,resizeExportFigToEmf([],'explainableVarianceViolin',targetWidth,targetHeight)
+
+targetWidth =
+
+    8.4000
+
+
+targetHeight =
+
+    4.8000
+
+updating fig -> targetWidth: 8.400, targetHeight: 4.800...
+Updating  & saving emf at explainableVarianceViolin..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 8.4000 4.8000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+fig=gcf
+
+fig = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 16 8.4688]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('fig', 'var'), matlab.graphics.internal.getForDisplay('fig', fig, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('fig'), end">all properties</a>
+
+figure
+fig=gcf
+
+fig = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0.4792 0.4792 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('fig', 'var'), matlab.graphics.internal.getForDisplay('fig', fig, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('fig'), end">all properties</a>
+
+fig=gcf
+
+fig = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0.4792 0.4792 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('fig', 'var'), matlab.graphics.internal.getForDisplay('fig', fig, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('fig'), end">all properties</a>
+
+targetWidth=4
+
+targetWidth =
+
+     4
+
+targetHeight=4
+
+targetHeight =
+
+     4
+
+resizeExportFigToEmf([],'syllableIntervalsDistOriginal',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistOriginal..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+xlabel('syllable intervals (ms)')
+resizeExportFigToEmf([],'syllableIntervalsDistOriginal',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistOriginal..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistOriginalNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistOriginalNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistRegularNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistRegularNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistOriginalNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistOriginalNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistRegularNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistRegularNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistRegularNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistRegularNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistRegularNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistRegularNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistRegularNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistRegularNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistOriginalNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistOriginalNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistRegularNoLegend',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistRegularNoLegend..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistNoLegendIrregular',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistNoLegendIrregular..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (3) with properties:
+
+      Number: 3
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+resizeExportFigToEmf([],'syllableIntervalsDistNoLegendRegular',targetWidth,targetHeight)
+updating fig -> targetWidth: 4.000, targetHeight: 4.000...
+Updating  & saving emf at syllableIntervalsDistNoLegendRegular..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 4 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=1,targetWidth=3,resizeExportFigToEmf([],'syllableIntervalsDistNoLegendOriginalNAKED',targetWidth,targetHeight)
+
+targetHeight =
+
+     1
+
+
+targetWidth =
+
+     3
+
+updating fig -> targetWidth: 3.000, targetHeight: 1.000...
+Updating  & saving emf at syllableIntervalsDistNoLegendOriginalNAKED..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3 1]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+xtick('off')
+{Unrecognized function or variable 'xtick'.
+} 
+xticks('off')
+{Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('xticks', 'C:\Program Files\MATLAB\R2026b\toolbox\matlab\graphics\graphics\graph3d\xticks.m', 6)" style="font-weight:bold">xticks</a> (<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026b\toolbox\matlab\graphics\graphics\graph3d\xticks.m',6,0)">line 6</a>)
+Specify tick values or one of the following options: 'mode', 'auto', 'manual'.
+} 
+<a href="matlab: opentoline('C:\Program Files\MATLAB\R2026b\toolbox\matlab\graphics\graphics\graph3d\xticks.m',6,1)">6   </a>varargout = matlab.graphics.internal.ruler.rulerFunctions(mfilename, nargout, varargin);
+set(gcf,'xticklabel',[],'yticklabel',[])
+{Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('matlab.ui.Figure/set')" style="font-weight:bold">matlab.ui.Figure/set</a>
+Unrecognized property xticklabel for class Figure.
+} 
+set(gcf,'xticklabels',[],'yticklabels',[])
+{Error using <a href="matlab:matlab.lang.internal.introspective.errorDocCallback('matlab.ui.Figure/set')" style="font-weight:bold">matlab.ui.Figure/set</a>
+Unrecognized property xticklabels for class Figure.
+} 
+set(gca,'xticklabel',[],'yticklabel',[])
+targetHeight=1,targetWidth=3,resizeExportFigToEmf([],'syllableIntervalsDistNoLegendOriginalNAKED',targetWidth,targetHeight)
+
+targetHeight =
+
+     1
+
+
+targetWidth =
+
+     3
+
+updating fig -> targetWidth: 3.000, targetHeight: 1.000...
+Updating  & saving emf at syllableIntervalsDistNoLegendOriginalNAKED..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3 1]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=1,targetWidth=3,resizeExportFigToEmf([],'syllableIntervalsDistNoLegendOriginalNAKED',targetWidth,targetHeight)
+
+targetHeight =
+
+     1
+
+
+targetWidth =
+
+     3
+
+updating fig -> targetWidth: 3.000, targetHeight: 1.000...
+Updating  & saving emf at syllableIntervalsDistNoLegendOriginalNAKED..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 3 1]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+close all
+clear
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsOriginal',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsOriginal..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsOriginal',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsOriginal..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsOriginal',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsOriginal..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (3) with properties:
+
+      Number: 3
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsIrreg',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsIrreg..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsIrreg',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsIrreg..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (4) with properties:
+
+      Number: 4
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsReg',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsReg..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4,targetWidth=5,resizeExportFigToEmf([],'R2SLTrfsReg',targetWidth,targetHeight)
+
+targetHeight =
+
+     4
+
+
+targetWidth =
+
+     5
+
+updating fig -> targetWidth: 5.000, targetHeight: 4.000...
+Updating  & saving emf at R2SLTrfsReg..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 5 4]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+edit plotExplainableVariance.m
+plotExplainableVariance
+clear
+edit plotExplainableVariance.m
+help violinplot
+ <strong>violinplot</strong> - Violin plot
+
+    <strong>Syntax</strong>
+      Vector and Matrix Data
+        violinplot(ydata)
+        violinplot(xgroupdata,ydata)
+        violinplot(___,GroupByColor=cgroupdata)
+        violinplot(EvaluationPoints=evalPts,DensityValues=densVals)
+
+      Table Data
+        violinplot(tbl,yvar)
+        violinplot(tbl,xvar,yvar)
+
+      Additional Options
+        violinplot(___,Name=Value)
+        violinplot(ax,___)
+        v = violinplot(___)
+
+    <strong>Input Arguments</strong>
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_ad743758-d0d2-441d-8318-42bbad854c66')">ydata</a> - Sample data
+        numeric vector | numeric matrix
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_93f89ef0-dcd9-45ba-809f-5ab81e783e38')">xgroupdata</a> - Positional grouping data
+        numeric vector | categorical vector | numeric matrix |
+        categorical matrix
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_152d262e-6292-4516-b1a5-8fcedd037f96')">cgroupdata</a> - Color grouping data
+        numeric vector | categorical vector | logical vector |
+        string array | character vector | cell array of character vectors
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_8a8c47dd-6dc0-4435-9748-173b1aa4dc8d')">tbl</a> - Source table
+        table | timetable
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_6a4b421f-b626-4d61-9f73-966cb9998793')">xvar</a> - Table variables containing positional grouping data
+        one or more table variable indices
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_f52779cf-0bb9-4a40-b5fc-5215a47d2d37')">yvar</a> - Table variables containing sample data
+        one or more table variable indices
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_cc31a8e8-4446-4c8e-8bbf-8514c59043e2')">evalPts</a> - Evaluation points
+        numeric vector | numeric matrix
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_f56cee41-a868-4d6b-aafc-c73bc0f59ed5')">densVals</a> - Values for pdf
+        numeric vector | numeric matrix
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_34a8c6fc-d531-4208-af09-dad9e0dcc54d')">ax</a> - Target axes
+        Axes object
+
+    <strong>Name-Value Arguments</strong>
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_d850accc-eb9d-4ebb-830b-6692fa2c3a1d')">DensityWidth</a> - Maximum violin plot width
+        positive scalar
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_4cc4c4b1-a4ff-49ce-bbca-0022c6b8d8af')">DensityDirection</a> - Plot full or half violin
+        "both" (default) | "positive" | "negative"
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_4506690e-faac-4ca5-b420-263ecbc25066')">DensityScale</a> - Method for normalizing violin plots
+        "area" (default) | "width" | "count"
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_c813307e-7811-4a2d-86d2-00eea95e685a')">Orientation</a> - Orientation of violin plots
+        "vertical" (default) | "horizontal"
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_7dfd8220-dc10-4fbd-bd6b-6b1341b1da2d_sep_mw_22722f35-22cd-4e5e-a309-2fc43154d51d')">ColorGroupLayout</a> - Color group layout
+        "grouped" (default) | "overlaid"
+
+    <strong>Output Arguments</strong>
+      <a href="matlab:web('C:\Program Files\MATLAB\R2026b\help/matlab/ref/violinplot.html#mw_9c2b1d41-d320-4ab7-a152-c72145ed23c7')">v</a> - Violin plots
+        ViolinPlot object | vector of ViolinPlot objects
+
+    <strong>Examples</strong>
+      <a href="matlab:openExample('matlab/CreateViolinPlotFromVectorDataExample')">Violin Plot from Vector</a>
+      <a href="matlab:openExample('matlab/CreateViolinPlotFromMatrixDataExample')">Violin Plots from Matrix</a>
+      <a href="matlab:openExample('matlab/CreateMultipleViolinPlotsUsingPositionalGroupingVariableExample')">Use Positional Grouping Data</a>
+      <a href="matlab:openExample('matlab/ViolinPlotsFromTableExample')">Violin Plots from Table</a>
+      <a href="matlab:openExample('matlab/CompareMultipleViolinPlotsExample')">Compare Violin Plots</a>
+      <a href="matlab:openExample('matlab/UsePositionalAndColorGroupingVariablesViolinPlotExample')">Use Positional and Color Grouping Data</a>
+      <a href="matlab:openExample('matlab/SpecifyEvaluationPointsAndDensityValuesExample')">Specify Evaluation Points and Density Values</a>
+      <a href="matlab:openExample('matlab/CompareDifferentDataSetsViolinPlotExample')">Compare Data Sets</a>
+      <a href="matlab:openExample('matlab/SpecifyAxesForViolinPlotsExample')">Specify Axes for Violin Plots</a>
+      <a href="matlab:openExample('matlab/UpdateColorOfViolinPlotObjectExample')">Update Violin Plot Color</a>
+
+    <strong>See also</strong> <a href="matlab:help kde -displayBanner">kde</a>, <a href="matlab:help swarmchart -displayBanner">swarmchart</a>, <a href="matlab:help raincloudplot -displayBanner">raincloudplot</a>, <a href="matlab:help boxchart -displayBanner">boxchart</a>, <a href="matlab:help matlab.graphics.chart.primitive.ViolinPlot -displayBanner">ViolinPlot</a>
+
+    Introduced in MATLAB in R2024b
+    <a href="matlab:doc violinplot">Documentation for violinplot</a>
+
+plotExplainableVariance
+set(groot, 'defaultAxesFontName', 'Arial', 'defaultAxesFontSize', 24, 'defaultTextFontName', 'Arial', 'defaultTextFontSize', 24);
+close all
+plotExplainableVariance
+set(gcf,"Color","w")
+gcf
+
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (2) with properties:
+
+      Number: 2
+        Name: ''
+       Color: [1 1 1]
+    Position: [0.4792 0.4792 8.4000 4.8000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4.8,targetWidth=8.4,resizeExportFigToEmf([],'R3noiseCeilingViolin',targetWidth,targetHeight)
+
+targetHeight =
+
+    4.8000
+
+
+targetWidth =
+
+    8.4000
+
+updating fig -> targetWidth: 8.400, targetHeight: 4.800...
+Updating  & saving emf at R3noiseCeilingViolin..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 8.4000 4.8000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+targetHeight=4.8,targetWidth=8.4,resizeExportFigToEmf([],'R3noiseCeilingViolin',targetWidth,targetHeight)
+
+targetHeight =
+
+    4.8000
+
+
+targetWidth =
+
+    8.4000
+
+updating fig -> targetWidth: 8.400, targetHeight: 4.800...
+Updating  & saving emf at R3noiseCeilingViolin..
+.
+ans = 
+
+  <a href="matlab:helpPopup('matlab.ui.Figure')" style="font-weight:bold">Figure</a> (1) with properties:
+
+      Number: 1
+        Name: ''
+       Color: [1 1 1]
+    Position: [0 0 8.4000 4.8000]
+       Units: 'inches'
+
+  Show <a href="matlab:if exist('ans', 'var'), matlab.graphics.internal.getForDisplay('ans', ans, 'matlab.ui.Figure'), else, matlab.graphics.internal.getForDisplay('ans'), end">all properties</a>
+
+set(groot, 'defaultFigureColor', 'w');
+diary off
