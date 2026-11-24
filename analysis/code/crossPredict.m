@@ -56,7 +56,7 @@ baseCfg.overwrite_Rcs=false;
 % cfg.experiment used to set some figure params, and script assumes all
 % subjs provided are from the same experiment so just check that assumption
 % is valid and set cfg.experiment once
-if length(unique(experimentsBySubjNum))==1
+if isscalar(unique(experimentsBySubjNum))
     baseCfg.experiment=experimentsBySubjNum{1};
 else
     error('script needs all subjs to be from same experimenet')
@@ -382,7 +382,7 @@ for dd=1:n_comp
     hold off
 end
 % SFN PLOT HERE (summary of t-stats for all cross-condition pairs)
-figure('Name','SFN-plot','Color','white')
+
 pretty_scat(reshape(T_obs,n_cross,n_electrodes),1)
 title('Scalp-EEG Crossed-Conditions Prediction Accuracy')
 xlabel('i,j (train,test)')
@@ -390,9 +390,7 @@ ylabel('t-stat(C{i,j})')
 xticks(1:n_cross)
 xticklabels(cross_ids)
 set(gca,'FontSize',28)
-
 % Scatterplot R_within and R_Cross (group level)
-figure ('Name','R_within - group level')
 pretty_scat(R_within,2)
 
 title('all subj & all electrodes')
